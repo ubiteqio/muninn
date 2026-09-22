@@ -1,8 +1,11 @@
 name: muninn
 
+# API, workers and the clock are one image and differ only in the command. Only the api builds
+# it - see there. When every service carried the build as well, "up --build" started six
+# identical builds at once, and the classic builder, which a NAS usually has, shares no cache
+# between builds running at the same time: the GeoNames stage alone was fetched and boiled down
+# six times over, for one image.
 x-server: &server
-  build:
-    context: ../server
   image: muninn/server:local
   restart: unless-stopped
   depends_on:
@@ -70,6 +73,10 @@ services:
 
   api:
     <<: *server
+    # The one place the server image is built. Compose builds before it starts anything, so the
+    # workers and the clock find the image waiting for them.
+    build:
+      context: ../server
     ports:
       - "127.0.0.1:${MUNINN_API_PORT:-8000}:8000"
     healthcheck:
