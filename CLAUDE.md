@@ -1,157 +1,176 @@
 # Muninn
 
-Selbst gehostete Foto- und Videoverwaltung für rund 26 Jahre Medien auf einem NAS. Ordner werden Alben, KI macht alles durchsuchbar, angemeldete User liken, kommentieren und bekommen Push-Nachrichten.
+Self-hosted photo and video library for a family archive of about 26 years on a NAS. Folders
+become albums, AI makes everything searchable, and signed-in family members react, comment and
+get notified. What Muninn does and how it is built is described in [`README.md`](README.md).
 
-Das verbindliche Konzept steht in `docs/konzept.md`. Lies vor jeder Aufgabe den passenden Abschnitt dort.
+## How to work here
 
-## Arbeitsweise
+- For larger tasks, present a plan first and wait for approval.
+- After every finished step, tests, linters and type checks must pass: `./check.sh` covers all of
+  them. Then make a small commit (Conventional Commits, in English).
+- Personal, machine-specific instructions can go into `CLAUDE.local.md`, which is ignored by git.
 
-- Arbeite meilensteinweise nach „Umsetzungsreihenfolge“ in `docs/konzept.md`. Abgeschlossen sind
-  1 (Fundament), 2 (Bibliothek) und 3 (App-Grundgerüst); aus Meilenstein 7 ist der Admin-Bereich mit
-  Einstellungen und Benutzerverwaltung vorgezogen. Offen: **4 (KI und Suche)**. Aus 3 fehlen noch
-  Deep Links — sie brauchen eine feste Domain, und die ist ein offener Punkt im Konzept.
-- Lege bei größeren Aufgaben zuerst einen Plan vor und warte auf Freigabe.
-- Weicht eine Lösung vom Konzept ab oder betrifft sie einen offenen Punkt: nachfragen statt raten.
-- Nach jedem abgeschlossenen Schritt müssen Tests, Linter und Typprüfung grün sein: ein `./check.sh`
-  deckt alles ab. Danach ein kleiner Commit (Conventional Commits, Englisch).
-- Der Wissensgraph unter `graphify-out/` beantwortet Fragen zum Code schneller als Suchen im Quelltext.
-  Nach Codeänderungen `graphify update .` (nur AST, keine API-Kosten); der Ordner gehört nicht ins Repository.
+**State:** the library, search, the app for web, iOS and Android, the social layer (reactions,
+comments, notifications), the map, duplicates, memories, faces and the admin area are built.
+Open are push notifications to phones, deep links and HTTPS (both need a fixed domain), and the
+items under "On the roadmap" in the README.
 
-## Repository-Struktur
+## Repository layout
 
 ```
 muninn/
-├── CLAUDE.md
-├── docs/
-│   ├── konzept.md
-│   └── design/            # Design-Vorlagen je Bildschirm (Referenz, kein Code)
-├── server/                 # Python-Backend: API, Worker, Scheduler (ein Image)
+├── docs/design/            # design templates per screen (reference, not code)
+├── server/                 # Python backend: API, workers, scheduler (one image)
 │   ├── muninn/
-│   │   ├── api/            # FastAPI-Router und Schemas
-│   │   ├── core/           # Konfiguration, Auth, DB-Session, URL-Signierung
-│   │   ├── models/         # SQLAlchemy-Modelle
-│   │   ├── library/        # NAS-Scanner, Abgleich, Sicherheitsnetz, Wurzelordner
-│   │   ├── albums/         # Albenbaum und Albeninhalt
-│   │   ├── media/          # einzelnes Medium und seine Herkunft
-│   │   ├── huginn/         # Pipeline-Stufen und Celery-Tasks
-│   │   ├── ai/             # Analyzer- und Embedder-Provider
-│   │   ├── search/         # Mímir: gekapselte Suche
-│   │   ├── social/         # Likes, Kommentare, Favoriten
-│   │   └── notify/         # Push, WebSocket, Bündelung
+│   │   ├── api/            # FastAPI routers (v1/) and schemas
+│   │   ├── core/           # configuration, auth, DB session, URL signing
+│   │   ├── models/         # SQLAlchemy models
+│   │   ├── library/        # NAS scanner, sync, safety net, published folders
+│   │   ├── albums/         # album tree and album content
+│   │   ├── media/          # a single medium and where it came from
+│   │   ├── huginn/         # pipeline stages and Celery tasks
+│   │   ├── ai/             # AI profiles and the Analyzer/Embedder/... protocols
+│   │   ├── analysis/       # descriptions of pictures and video frames
+│   │   ├── search/         # the search, and all vector SQL
+│   │   ├── faces/          # face detection results, persons, suggestions
+│   │   ├── places/         # GeoNames places, album places, the map
+│   │   ├── duplicates/     # fingerprints and duplicate groups
+│   │   ├── memories/       # "Heute vor X Jahren"
+│   │   ├── social/         # reactions, comments, favorites
+│   │   ├── notify/         # notifications, WebSocket, bundling
+│   │   ├── report/         # the "Überblick" figures
+│   │   ├── settings/       # settings the admin changes at runtime
+│   │   └── users/          # accounts
 │   ├── migrations/         # Alembic
 │   └── tests/
-├── embed/                  # Embedding-Dienst (SigLIP 2, BGE-M3), eigener Stapel für den GPU-Rechner
-├── gpu/                    # Docker-Stapel für die KI-Maschine: vLLM und embed zusammen
+├── embed/                  # embedding service (SigLIP 2, BGE-M3, Whisper, InsightFace)
+├── gpu/                    # Docker stack for the AI machine: vLLM and embed together
 ├── app/                    # React + Vite + Capacitor
 │   ├── src/
 │   │   ├── routes/         # TanStack Router
-│   │   ├── features/       # albums, media, search, map, people, social, admin
-│   │   ├── components/ui/  # shadcn/ui
-│   │   ├── api/            # generierter Client, nicht von Hand ändern
-│   │   ├── platform/       # Web- und Native-Adapter: push, token, share
+│   │   ├── features/       # one folder per screen or domain
+│   │   ├── components/     # ui/ (shadcn/ui), layout/, muninn/
+│   │   ├── api/            # generated client, never edit by hand
+│   │   ├── platform/       # web and native adapters: server address, tokens, splash
 │   │   └── i18n/
+│   ├── scripts/            # icon font subset, app icons and splash screens
 │   ├── ios/
 │   └── android/
-└── deploy/                 # docker-compose.yml, Caddyfile, postgres/Dockerfile, .env.example, setup.sh
+└── deploy/                 # docker-compose.yml, postgres/Dockerfile, .env.example, setup.sh
 ```
 
-Jede Domäne liegt unter demselben Namen in drei Dateien: `api/v1/<domain>.py` macht HTTP und
-Berechtigungen, `api/schemas/<domain>.py` hält den Contract, `<domain>/service.py` die Logik und
-den Datenbankzugriff. Nur der Service spricht mit der Datenbank.
+Every domain uses the same name in three files: `api/v1/<domain>.py` handles HTTP and
+permissions, `api/schemas/<domain>.py` holds the contract, and `<domain>/service.py` the logic and
+the database access. Only the service talks to the database.
 
 ## Stack
 
-- **Server:** Python 3.13, FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic, Celery mit Redis, pyvips, exiftool, ffmpeg, InsightFace. Werkzeuge: uv, ruff, mypy (strict), pytest.
-- **Datenbank:** PostgreSQL mit pgvector (ab 0.8), PostGIS, ltree und pg_trgm. Das ist die einzige Datenbank, es gibt kein Qdrant und keine zweite Datenhaltung.
-- **App:** React mit TypeScript (strict), Vite, TanStack Router, Query und Virtual, Zustand, Tailwind CSS mit shadcn/ui, PhotoSwipe, MapLibre GL JS, i18next, Capacitor. Werkzeuge: pnpm, ESLint, Prettier, Vitest, Playwright.
-- **Deployment:** Docker Compose mit Caddy.
+- **Server:** Python 3.13, FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic, Celery with
+  Redis, pyvips, exiftool, ffmpeg. Tools: uv, ruff, mypy (strict), pytest.
+- **Database:** PostgreSQL with pgvector (0.8 or later), PostGIS, ltree and pg_trgm. It is the
+  only database: no Qdrant, no second data store.
+- **AI machine:** vLLM (Qwen3-VL) and the embedding service (SigLIP 2, BGE-M3, Whisper,
+  InsightFace), reached over OpenAI-style HTTP.
+- **App:** React with TypeScript (strict), Vite, TanStack Router, Query and Virtual, Zustand,
+  Tailwind CSS with shadcn/ui, PhotoSwipe, MapLibre GL JS, i18next, Capacitor. Tools: pnpm,
+  ESLint, Prettier, Vitest, Playwright.
+- **Deployment:** Docker Compose with Caddy.
 
-## Harte Regeln
+## Hard rules
 
-1. Originale unter `/library` sind read-only. Niemals schreiben, verschieben oder löschen.
-2. Das Scanner-Sicherheitsnetz nie umgehen und immer mit Tests absichern: eine nicht eingehängte Freigabe (Geräteprüfung) und ein Ordner, der sich nicht auflisten lässt, löschen nie etwas. Auf dem NAS gelöschte Dateien und Ordner verschwinden dagegen ohne Bestätigung aus den Alben; die Pause vor vielen Löschungen ist eine Einstellung und steht standardmäßig auf aus (0).
-3. Ein Medium wird über feste ID und BLAKE3-Hash identifiziert. Likes, Kommentare und Gesichter hängen an der ID, nie am Pfad.
-4. KI nur über die Schnittstellen `Analyzer` und `Embedder` (OpenAI-kompatibel) ansprechen. Keine Modellnamen oder URLs im Code, alles kommt aus der Konfiguration.
-5. Vektorsuche nur im Modul `server/muninn/search`. Kein Vektor-SQL außerhalb davon.
-6. Jede Pipeline-Stufe ist idempotent und speichert ihre Version.
-7. Schemaänderungen nur per Alembic-Migration.
-8. API unter `/api/v1`, Fehler als Problem Details (RFC 9457), Listen mit Cursor-Paginierung. Nach API-Änderungen den TypeScript-Client neu generieren.
-9. Medien-URLs sind signiert. Die native App nutzt keine Cookies, nur Tokens im Header.
-10. Code, Bezeichner, Kommentare und Commits auf Englisch. UI-Texte nur über i18next, Deutsch zuerst.
-11. Keine Secrets im Repository. Konfiguration über `.env`, Vorlage in `deploy/.env.example`.
+1. Originals under `/library` are read-only. Never write, move or delete them.
+2. Never bypass the scanner's safety net, and always cover it with tests: a share that is not
+   mounted (device check) and a folder that cannot be listed never delete anything. Files and
+   folders deleted on the NAS do disappear from the albums without confirmation; the pause before
+   many deletions is a setting and off (0) by default.
+3. A medium is identified by its fixed ID and BLAKE3 hash. Reactions, comments and faces hang on
+   the ID, never on the path.
+4. AI is reached only through the protocols in `server/muninn/ai` (`Analyzer`, `Embedder`,
+   `Transcriber`, `FaceDetector`; OpenAI-compatible). No model names or URLs in code: everything
+   comes from configuration.
+5. Vector search only in `server/muninn/search`. No vector SQL anywhere else.
+6. Every pipeline stage is idempotent and stores its version.
+7. Schema changes only through Alembic migrations.
+8. API under `/api/v1`, errors as Problem Details (RFC 9457), lists with cursor pagination. After
+   API changes, regenerate the TypeScript client.
+9. Media URLs are signed. The native app uses no cookies, only tokens in the header.
+10. Code, identifiers, comments and commits in English. UI texts only through i18next, German
+    first.
+11. No secrets in the repository. Configuration through `.env` files; the templates are
+    `deploy/.env.example` and `gpu/.env.example`.
 
-## Befehle
+## Commands
 
 ```bash
-# Tests, Linter und Typprüfung für Server, App und Einbettungsdienst, parallel.
-# Das ist das Tor vor jedem Commit.
+# Tests, linters and type checks for server, app and embedding service, in parallel.
+# This is the gate before every commit.
 ./check.sh
-./check.sh fast     # ohne die Tests, die den PostgreSQL-Container brauchen
-./check.sh server   # nur eine Seite
+./check.sh fast     # without the tests that need the PostgreSQL container
+./check.sh server   # one part only
 ./check.sh app
 ./check.sh embed
 
-# Erstinstallation: Konfiguration, Schlüssel, Start, erster Admin
+# First installation: configuration, secrets, start, first admin
 ./deploy/setup.sh
 
-# macOS: die NAS-Freigabe dauerhaft einhängen. Ohne sie starten api, worker und scheduler nicht,
-# weil Docker eine verschwundene Bind-Einhängung nicht anlegen darf. Das Skript ist allgemein
-# gehalten und kennt Muninn nicht; es hängt Freigaben ein, mehr nicht.
-cp deploy/macos/tnas-mount.sh ~/bin/ && cp deploy/macos/local.tnas.mount.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/local.tnas.mount.plist   # Werte in der plist anpassen
-
-# Gesamtsystem (aus deploy/, liest deploy/.env)
+# The whole stack (reads deploy/.env)
 docker compose -f deploy/docker-compose.yml up -d --build
 docker compose -f deploy/docker-compose.yml ps
 docker compose -f deploy/docker-compose.yml logs -f api
 docker compose -f deploy/docker-compose.yml down
 
-# Admin anlegen (fragt das Passwort ab)
+# Create an admin (asks for the password)
 docker compose -f deploy/docker-compose.yml exec api python -m muninn.cli create-admin \
     --username admin --name Admin
 
-# Entwicklung: Datenbanken lokal erreichbar, und der Web-Container liefert die Quelle mit
-# Hot Reload statt eines gebauten Bündels. Ohne diesen Aufsatz zeigt :9090 den Stand des
-# letzten Image-Baus.
+# Development: databases reachable locally, and the web container serves the source with hot
+# reload instead of a built bundle. Without this overlay, :9090 shows the last image build.
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml up -d
 
-# Zurück auf das gebaute Bündel (und nach App-Änderungen neu bauen):
+# Back to the built bundle (and rebuild after app changes):
 docker compose -f deploy/docker-compose.yml up -d --build web
 
-# Server (aus server/)
+# Server (from server/)
 cd server && uv sync
 cd server && uv run pytest
-# Die Migrationstests brauchen das lokale Datenbank-Image:
+# The migration tests need the local database image:
 docker compose -f deploy/docker-compose.yml build postgres
 cd server && uv run ruff check . && uv run ruff format --check . && uv run mypy .
 cd server && uv run uvicorn muninn.main:create_app --factory --reload
 cd server && uv run alembic upgrade head
 
-# Einbettungsdienst (aus embed/) — gehört auf die Maschine mit der Grafikkarte
+# Embedding service (from embed/), belongs on the machine with the graphics card
 cd embed && uv sync && uv run pytest
 cd embed && uv run uvicorn embed.main:create_app --factory --reload --port 8100
-cd embed && docker compose up -d --build     # eigener Stapel, nicht Teil von deploy/
+cd gpu && docker compose up -d        # vLLM and the embedding service together
 
-# App (aus app/)
+# App (from app/)
 cd app && pnpm install
 cd app && pnpm dev
 cd app && pnpm test
 cd app && pnpm lint && pnpm typecheck
 cd app && pnpm build
-cd app && pnpm cap:sync    # Web-Build in iOS und Android übernehmen
+cd app && pnpm gen:api     # regenerate the API client from a running server
+cd app && pnpm cap:sync    # copy the web build into iOS and Android
 cd app && pnpm exec cap open ios      # Xcode
 cd app && pnpm exec cap open android  # Android Studio
-# Ohne Oberfläche bauen. Gradle braucht das JDK von Android Studio; das System-Java ist zu alt:
+# Build without the IDEs. Gradle needs Android Studio's JDK; the system Java is too old:
 cd app/ios/App && xcodebuild -project App.xcodeproj -scheme App -sdk iphonesimulator build
 cd app/android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew assembleDebug
-# Icon-Schrift auf die benutzten Icons kürzen (nach neuen Icons ausführen):
+# Cut the icon font down to the icons in use (after adding an icon):
 cd app && uv run --with "fonttools[woff]" scripts/subset-icons.py
+# App icons and splash screens for iOS, Android and the web, from public/muninn-mark.png:
+cd app && uv run --with pillow scripts/make-icons.py
 ```
 
-Die OpenAPI-Beschreibung liegt unter `/api/v1/openapi.json`, die Oberfläche dazu unter `/api/v1/docs`.
-Für Docker gibt es `/health` und `/ready` außerhalb von `/api/v1`.
+The OpenAPI description is at `/api/v1/openapi.json`, its UI at `/api/v1/docs`. For Docker there
+are `/health` and `/ready` outside `/api/v1`.
 
-## Namen
+## Names
 
-Huginn ist der Indexierungs-Worker, Mímir die Suche, Yggdrasil der Albenbaum, Midgard die Karte, Walhall die Favoriten und Hliðskjálf der Admin-Bereich. Im Code heißt nur der Worker `huginn`; alle anderen Module tragen sachliche Namen. Die Namen gelten nur in Code und Dokumentation: In der Oberfläche steht kein mythologischer Name, auch nicht
-als Titel. Einzige Ausnahme ist der Produktname Muninn. Titel und Bedienelemente sind klares Deutsch.
+Huginn is the indexing worker, Mímir the search, Yggdrasil the album tree, Midgard the map, Walhall
+the favorites and Hliðskjálf the admin area. In code only the worker is called `huginn`; every
+other module has a plain name. The names are for code and documentation only: the interface shows
+no mythological name, not even as a title. The one exception is the product name Muninn. Titles
+and controls are plain German.

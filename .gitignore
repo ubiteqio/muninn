@@ -49,3 +49,6 @@ graphify-out/
 
 # The concept is a working document, kept locally and not published.
 docs/konzept.md
+
+# Personal agent instructions for this machine.
+CLAUDE.local.md
