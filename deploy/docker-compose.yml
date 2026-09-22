@@ -22,6 +22,11 @@ x-server: &server
     MUNINN_REFRESH_COOKIE_SECURE: ${MUNINN_REFRESH_COOKIE_SECURE:-true}
     # The phone app's origins; the default is what Capacitor uses on iOS and Android.
     MUNINN_CORS_ORIGINS: ${MUNINN_CORS_ORIGINS:-capacitor://localhost,ionic://localhost,http://localhost}
+  # On a NAS the library usually belongs to a group ("family", "users") and gives nothing away
+  # to others. The containers run as user 1000 and would see the folder but not read it, so the
+  # library's group is added to them. Find it with: stat -c '%g' <library folder>
+  group_add:
+    - "${MUNINN_LIBRARY_GID:-1000}"
   volumes:
     # Originals from the NAS. Read-only, always: Muninn never writes into the library.
     - ${MUNINN_LIBRARY_HOST_PATH:-../data/library}:/library:ro
