@@ -636,9 +636,11 @@ On the home server, `MUNINN_AI_CONCURRENCY=2` means two AI tasks run at a time. 
 The script:
 
 1. asks where the NAS library and the previews should live, and which API port to use;
-2. writes `deploy/.env` with a generated database password and a 48-byte JWT secret (`openssl rand`), readable only by its owner;
-3. builds and starts the stack, and waits for `/ready`;
-4. creates the first admin.
+2. checks that a container can read the library, and offers to run Muninn as the library's own
+   user where a NAS share lets nobody else in;
+3. writes `deploy/.env` with a generated database password and a 48-byte JWT secret (`openssl rand`), readable only by its owner;
+4. builds and starts the stack, and waits for `/ready`;
+5. creates the first admin.
 
 It is safe to run again, because an existing `.env` is kept. Muninn is then at `http://<server>:9090`.
 
