@@ -15,8 +15,8 @@ RUN corepack enable
 
 # Dependencies first, so that a change to the source does not invalidate the dependency layer.
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+# No BuildKit cache mount here either, so the image builds on a NAS without buildx.
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm build

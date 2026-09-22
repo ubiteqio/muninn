@@ -13,16 +13,14 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 
 # Dependencies first, so that a code change does not invalidate the dependency layer.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+# Plain COPY and RUN, no BuildKit cache mounts: a NAS often has Docker without the buildx
+# plugin, and there the build would stop at the first --mount.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-install-project --no-dev
 
-COPY pyproject.toml uv.lock README.md* ./
 COPY muninn ./muninn
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+RUN uv sync --locked --no-dev
 
 
 # The places of the world from GeoNames (CC BY 4.0), boiled down to one small file: a German
