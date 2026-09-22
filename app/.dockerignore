@@ -1,0 +1,8 @@
+node_modules
+dist
+ios
+android
+.vite
+coverage
+playwright-report
+test-results

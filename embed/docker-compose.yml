@@ -1,0 +1,41 @@
+# The embedding service, meant for the machine with the graphics card - the same one that runs
+# the describing model. Muninn talks to it over the network, like any other AI server.
+#
+#   docker compose up -d --build
+#
+# Without a card it runs on the CPU as well: take the "deploy" block out and set EMBED_DEVICE=cpu.
+name: muninn-embed
+
+services:
+  embed:
+    build:
+      context: .
+    image: muninn/embed:local
+    restart: unless-stopped
+    environment:
+      # What Muninn's AI profiles call these models.
+      EMBED_IMAGE_MODEL_NAME: ${EMBED_IMAGE_MODEL_NAME:-siglip2}
+      EMBED_IMAGE_MODEL_ID: ${EMBED_IMAGE_MODEL_ID:-google/siglip2-so400m-patch14-384}
+      EMBED_TEXT_MODEL_NAME: ${EMBED_TEXT_MODEL_NAME:-bge-m3}
+      EMBED_TEXT_MODEL_ID: ${EMBED_TEXT_MODEL_ID:-BAAI/bge-m3}
+      EMBED_DEVICE: ${EMBED_DEVICE:-auto}
+      # Half precision on a card: it leaves the describing model its memory.
+      EMBED_DTYPE: ${EMBED_DTYPE:-auto}
+      # The same door vLLM has. Leave empty for a machine nobody else can reach.
+      EMBED_API_KEY: ${EMBED_API_KEY:-}
+      EMBED_MAX_BATCH: ${EMBED_MAX_BATCH:-32}
+    ports:
+      - "${EMBED_PORT:-8100}:8100"
+    volumes:
+      # The weights: several gigabytes, fetched once.
+      - embed-models:/data/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  embed-models:

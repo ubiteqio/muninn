@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="theme-color" content="#0B0D12" />
+    <meta name="description" content="Muninn – die Foto- und Videobibliothek der Familie" />
+    <title>Muninn</title>
+    <script>
+      // Light or dark before the first paint, so nothing flashes in the wrong one. The app
+      // takes over from here (src/lib/theme.ts).
+      try {
+        var theme = localStorage.getItem('muninn.theme')
+        var light = theme === 'light' || (theme === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)
+        if (light) document.documentElement.classList.remove('dark')
+      } catch (error) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

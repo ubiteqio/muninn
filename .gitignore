@@ -1,0 +1,51 @@
+# Secrets and local configuration: every .env anywhere in the tree (deploy/, gpu/, ...), only
+# the templates are shared. Key and certificate files never belong in the repository either.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.mobileprovision
+id_rsa*
+id_ed25519*
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Capacitor: the native projects are checked in, their build output is not
+app/ios/App/Pods/
+app/ios/App/Podfile.lock
+app/ios/App/App/public/
+app/android/app/src/main/assets/public/
+
+# Local data
+/data/
+
+# macOS
+.DS_Store
+
+# Tooling state that is not part of this project
+.sf/
+
+# Knowledge graph, rebuilt locally with: graphify update .
+graphify-out/
+
+# The concept is a working document, kept locally and not published.
+docs/konzept.md

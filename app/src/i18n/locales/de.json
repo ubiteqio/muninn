@@ -1,0 +1,972 @@
+{
+  "common": {
+    "showAll": "Alle ansehen",
+    "close": "Schließen",
+    "cancel": "Abbrechen",
+    "done": "Fertig"
+  },
+  "nav": {
+    "label": "Hauptnavigation",
+    "home": "Home",
+    "albums": "Alben",
+    "search": "Suche",
+    "map": "Karte",
+    "profile": "Profil",
+    "admin": "Admin",
+    "people": "Personen",
+    "overview": "Überblick",
+    "more": "Mehr"
+  },
+  "header": {
+    "notifications_one": "Benachrichtigungen, {{count}} ungelesen",
+    "notifications_other": "Benachrichtigungen, {{count}} ungelesen",
+    "notifications_zero": "Benachrichtigungen",
+    "profile": "Eigenes Profil",
+    "admin": "Admin öffnen",
+    "advancedSearch": "Erweitert",
+    "home": "Muninn – zur Startseite"
+  },
+  "search": {
+    "label": "Bibliothek durchsuchen",
+    "placeholder": "Suchen – z. B. „Oma am Strand 2012“",
+    "hint": "Beschreibe, was du suchst: „Hund am Strand“, „Geburtstag 2012“, „Schnee im Winter 2010“. Muninn sucht in den Bildern selbst, in ihren Beschreibungen, in dem, was in Videos gesagt wird, und in Alben- und Dateinamen.",
+    "searching": "Wird gesucht …",
+    "nothing": "Nichts gefunden. Versuche andere Wörter oder einen größeren Zeitraum.",
+    "results": "Suchergebnisse",
+    "withoutPictures": "Ohne Bildmodell: Gesucht wurde nach Wörtern – in Alben- und Dateinamen, Orten, Zeiträumen, Beschreibungen und Gesprochenem –, nicht nach dem, was auf den Bildern zu sehen ist.",
+    "hintWithoutPictures": "Suche nach Alben- und Dateinamen, Orten, Zeiträumen oder Wörtern aus Beschreibungen: „Italien“, „Sommer 2012“, „Geburtstag“. Mit einem Bildmodell findet Muninn auch, was auf den Bildern zu sehen ist.",
+    "degraded": "Der KI-Server antwortet gerade nicht. Gesucht wurde nur in Beschreibungen, gesprochenem Text und Namen, nicht in den Bildern selbst.",
+    "at": "bei {{time}}",
+    "period": "{{from}} – {{until}}",
+    "similarTitle": "Ähnliche Bilder",
+    "backToSearch": "Zurück zur Suche",
+    "kind": {
+      "label": "Medientyp",
+      "all": "Alle",
+      "image": "Fotos",
+      "video": "Videos"
+    },
+    "sort": {
+      "label": "Sortierung",
+      "relevance": "Beste Treffer",
+      "date": "Neueste zuerst"
+    }
+  },
+  "memories": {
+    "title": "Rückblicke",
+    "open": "{{title}} als Diashow ansehen",
+    "empty": "Heute gibt es noch keine Rückblicke – aus früheren Jahren liegen um diesen Tag keine Fotos mit sicherem Datum vor.",
+    "yearsAgo_one": "Heute vor einem Jahr",
+    "yearsAgo_other": "Heute vor {{count}} Jahren",
+    "weekAgo_one": "Diese Woche vor einem Jahr",
+    "weekAgo_other": "Diese Woche vor {{count}} Jahren",
+    "photos_one": "1 Foto",
+    "photos_other": "{{count}} Fotos"
+  },
+  "activity": {
+    "title": "Neuigkeiten",
+    "empty": "Noch ist es still. Kommentare, Likes und neue Bilder erscheinen hier.",
+    "kind": {
+      "comment": "hat kommentiert",
+      "like": "gefällt ein Bild",
+      "new_media_one": "1 neues Medium",
+      "new_media_other": "{{count, number}} neue Medien",
+      "reaction": "hat mit {{emoji}} reagiert"
+    }
+  },
+  "albums": {
+    "title": "Zuletzt hinzugefügt",
+    "tree": "Alle Alben",
+    "open": "Album {{title}} öffnen",
+    "path": "Pfad im Albenbaum",
+    "pathFolded": "Übergeordnete Alben, zu {{title}}",
+    "root": "Alben",
+    "description": "Jeder Ordner auf dem NAS ist ein Album. Muninn zeigt verkleinerte Kopien; die Originale bleiben unberührt.",
+    "loading": "Wird geladen …",
+    "subalbums": "Unteralben",
+    "media": "Medien",
+    "count_one": "{{count}} Medium",
+    "count_other": "{{count, number}} Medien",
+    "subalbumCount_one": "{{count}} Unteralbum",
+    "subalbumCount_other": "{{count}} Unteralben",
+    "unreachable": "Ordner nicht erreichbar",
+    "sync": "Jetzt abgleichen",
+    "syncing": "Wird abgeglichen …",
+    "syncFound": {
+      "added": "{{count, number}} neu",
+      "waiting": "{{count, number}} wird gleich geprüft",
+      "restored": "{{count, number}} zurückgekehrt",
+      "changed": "{{count, number}} geändert",
+      "moved": "{{count, number}} verschoben",
+      "missing": "{{count, number}} entfernt"
+    },
+    "syncNothing": "Keine Änderungen",
+    "way": "Nur der Weg zu veröffentlichten Ordnern",
+    "waiting": "Die Bilder werden noch geprüft und erscheinen gleich.",
+    "pager": {
+      "label": "Seiten des Albums",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "position": "{{shown, number}} von {{total, number}}"
+    },
+    "emptyLibrary": {
+      "title": "Hier entstehen deine Alben",
+      "body": "Jeder Ordner auf dem NAS wird ein Album – mit allem, was darin liegt. Sobald der erste veröffentlicht ist, stehen die Alben hier."
+    },
+    "emptyAlbum": {
+      "title": "Dieses Album ist noch leer",
+      "body": "In diesem Ordner liegt nichts, was Muninn zeigen könnte. Sind gerade Dateien dazugekommen, hilft „Jetzt abgleichen“ oben."
+    },
+    "albums": "Alben",
+    "albumCount_one": "1 Album",
+    "albumCount_other": "{{count}} Alben",
+    "emptyRecent": "Noch keine Alben. Veröffentliche im Admin-Bereich einen Ordner.",
+    "place": {
+      "title": "Ort des Albums",
+      "set": "Ort",
+      "description": "Fotos ohne GPS in diesem Album und in den Alben darunter stehen dann an diesem Ort auf der Karte und werden über ihn gefunden – als geschätzt markiert. Fotos mit eigenem GPS behalten ihren Ort.",
+      "search": "Ort suchen – z. B. Florenz",
+      "suggestions": "Vorschläge",
+      "nothing": "Kein Ort mit diesem Namen.",
+      "remove": "Entfernen"
+    }
+  },
+  "timeline": {
+    "title": "Zeitleiste",
+    "summary": "{{count, number}} Medien · {{from}} – {{to}}",
+    "scrubber": "Datum wählen",
+    "empty": "Noch keine Medien in der Bibliothek.",
+    "undated": "Ohne Datum",
+    "years": "Jahre",
+    "loading": "Wird geladen …",
+    "openPeriod": "{{period}} öffnen, {{count}} Medien",
+    "periodCount_one": "1 Medium",
+    "periodCount_other": "{{count, number}} Medien",
+    "months": "Monate",
+    "emptyMonth": "In diesem Monat liegt nichts."
+  },
+  "empty": {
+    "favorites": "Noch keine Favoriten"
+  },
+  "auth": {
+    "username": "Benutzername",
+    "server": "Serveradresse",
+    "serverHint": "Wo Muninn zu Hause läuft, z. B. muninn.zuhause.example",
+    "email": "E-Mail-Adresse",
+    "password": "Passwort",
+    "signOut": "Abmelden",
+    "loading": "Muninn wird geladen",
+    "login": {
+      "title": "Anmelden",
+      "description": "Melde dich mit deinem Benutzernamen und deinem Passwort an.",
+      "submit": "Anmelden",
+      "pending": "Wird angemeldet …"
+    },
+    "setPassword": {
+      "title": "Passwort festlegen",
+      "description": "Du meldest dich noch mit dem Startpasswort an. Lege ein eigenes fest, dann geht es weiter.",
+      "current": "Startpasswort",
+      "new": "Neues Passwort",
+      "repeat": "Neues Passwort wiederholen",
+      "hint": "Mindestens {{count}} Zeichen, mit Buchstaben und Zahlen.",
+      "submit": "Passwort festlegen",
+      "pending": "Wird gespeichert …"
+    },
+    "error": {
+      "invalidCredentials": "Benutzername oder Passwort ist falsch.",
+      "wrongCurrentPassword": "Das aktuelle Passwort ist falsch.",
+      "accountDisabled": "Dieses Konto ist gesperrt. Wende dich an einen Admin.",
+      "throttled_one": "Zu viele Fehlversuche. Versuche es in {{count}} Minute erneut.",
+      "throttled_other": "Zu viele Fehlversuche. Versuche es in {{count}} Minuten erneut.",
+      "tooShort_one": "Das Passwort braucht mindestens {{count}} Zeichen.",
+      "tooShort_other": "Das Passwort braucht mindestens {{count}} Zeichen.",
+      "mismatch": "Die beiden Passwörter stimmen nicht überein.",
+      "unreachable": "Der Server ist nicht erreichbar. Prüfe die Verbindung.",
+      "unexpected": "Das hat nicht geklappt. Versuche es noch einmal.",
+      "noLetter": "Das Passwort braucht mindestens einen Buchstaben.",
+      "noDigit": "Das Passwort braucht mindestens eine Zahl.",
+      "weakPassword": "Das Passwort erfüllt die Regel nicht: mindestens {{count}} Zeichen, mit Buchstaben und Zahlen.",
+      "unreachableServer": "Unter dieser Adresse antwortet niemand. Stimmt sie, und ist das Gerät im richtigen Netz?"
+    }
+  },
+  "profile": {
+    "roleAdmin": "Admin",
+    "roleUser": "Benutzer",
+    "password": {
+      "title": "Passwort ändern",
+      "description": "Andere Geräte werden dabei abgemeldet, dieses bleibt angemeldet.",
+      "current": "Aktuelles Passwort",
+      "submit": "Passwort ändern",
+      "done": "Passwort geändert. Alle anderen Geräte wurden abgemeldet."
+    },
+    "notifications": {
+      "title": "Benachrichtigungen",
+      "hint": "In der App erscheint immer alles unter der Glocke. Hier wählst du, was zusätzlich als Push-Nachricht auf dein Gerät kommt, sobald Push eingerichtet ist.",
+      "event": {
+        "reply": "Antwort auf meinen Kommentar",
+        "mention": "@Erwähnung",
+        "comment_like": "Like auf meinen Kommentar",
+        "comment": "Neuer Kommentar, wo ich beteiligt bin",
+        "activity": "Jede Interaktion anderer",
+        "new_media": "Neue Alben oder Medien",
+        "admin_alerts": "NAS nicht erreichbar, Fehler beim Indexieren"
+      },
+      "quiet": "Ruhezeiten",
+      "quietHint": "Keine Push-Nachrichten in dieser Zeit.",
+      "from": "Von",
+      "until": "Bis"
+    },
+    "appearance": {
+      "title": "Darstellung",
+      "system": "Wie das Gerät",
+      "light": "Hell",
+      "dark": "Dunkel",
+      "hint": "Gilt für dieses Gerät."
+    }
+  },
+  "admin": {
+    "title": "Admin",
+    "description": "Einstellungen und Konten dieser Muninn-Installation.",
+    "section": {
+      "settings": "Einstellungen",
+      "folders": "Ordner",
+      "jobs": "Aufträge",
+      "users": "Benutzer",
+      "ai": "KI",
+      "duplicates": "Doppelgänger"
+    },
+    "settings": {
+      "title": "Einstellungen",
+      "description": "Gilt für die ganze Installation. Neue Werte wirken auf alles, was ab jetzt indexiert wird.",
+      "loading": "Wird geladen …",
+      "save": "Speichern",
+      "saving": "Wird gespeichert …",
+      "saved": "Gespeichert. Bereits erzeugte Vorschauen bleiben, bis sie neu berechnet werden.",
+      "derivatives": {
+        "title": "Abgeleitete Bilder und Videos",
+        "description": "Originale bleiben unberührt auf dem NAS. Muninn legt für jedes Medium verkleinerte Kopien an; die zeigt es beim Blättern."
+      },
+      "ignored": {
+        "title": "Ignorierte Ordner und Dateien",
+        "description": "Namen, die der Scanner überspringt. Versteckte Ordner lässt er ohnehin aus.",
+        "add": "Name hinzufügen",
+        "addAction": "Hinzufügen",
+        "remove": "{{name}} entfernen",
+        "empty": "Nichts wird übersprungen."
+      },
+      "error": {
+        "outOfBounds": "„{{field}}“ braucht einen Wert zwischen {{min}} und {{max}}.",
+        "previewTooSmall": "Die große Vorschau muss größer sein als das Vorschaubild.",
+        "invalidName": "Ein Name ist ein einzelner Ordner- oder Dateiname, kein Pfad."
+      },
+      "sync": {
+        "title": "Abgleich mit dem NAS",
+        "description": "Über SMB gibt es keine Ereignisse: Muninn erfährt nur durch Nachsehen, was sich geändert hat. Diese Werte bestimmen, wie oft und wie gründlich."
+      },
+      "field": {
+        "thumbnail_size": {
+          "label": "Vorschaubild im Raster",
+          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}."
+        },
+        "preview_size": {
+          "label": "Große Vorschau",
+          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}. Muss größer sein als das Vorschaubild."
+        },
+        "image_quality": {
+          "label": "Bildqualität",
+          "hint": "WebP-Qualität, {{min}} bis {{max}}. Höher heißt schöner und größer."
+        },
+        "video_height": {
+          "label": "Höhe der Videovorschau",
+          "hint": "In Pixeln, {{min}} bis {{max}}. Die Breite ergibt sich aus dem Seitenverhältnis."
+        },
+        "quick_sync_seconds": {
+          "label": "Schnell-Abgleich",
+          "hint": "Abstand in Sekunden, {{min}} bis {{max}}. Vergleicht je Ordner die Signatur und liest nur Geändertes."
+        },
+        "full_sync_hour": {
+          "label": "Voll-Abgleich um",
+          "hint": "Stunde der Nacht, {{min}} bis {{max}}. Liest jede Datei einzeln."
+        },
+        "stability_seconds": {
+          "label": "Stabilitätsfenster",
+          "hint": "Sekunden, {{min}} bis {{max}}. So lange muss eine Datei unverändert bleiben, bevor Muninn sie anfasst."
+        },
+        "missing_grace_days": {
+          "label": "Schonfrist für Fehlendes",
+          "hint": "Tage, {{min}} bis {{max}}. 0 entfernt sofort. Fehlende Medien sind sofort unsichtbar, die Frist gilt fürs endgültige Löschen."
+        },
+        "deletion_share_percent": {
+          "label": "Löschpause: Anteil",
+          "hint": "Prozent, {{min}} bis {{max}}. Verschwinden mehr Dateien auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab: Gelöschtes verschwindet sofort aus den Alben."
+        },
+        "deletion_count": {
+          "label": "Löschpause: Anzahl",
+          "hint": "Dateien, {{min}} bis {{max}}. Verschwinden mehr auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab."
+        }
+      },
+      "faces": {
+        "title": "Gesichter",
+        "description": "Muninn sucht Gesichter in Fotos und Videos und erkennt benannte Personen wieder. Das sind biometrische Daten; sie bleiben auf diesem Server und der KI-Maschine im eigenen Netz. Ausgeschaltet wird nichts Neues gesucht und nichts gezeigt.",
+        "forget": "Alle Gesichtsdaten löschen",
+        "forgetTitle": "Alle Gesichtsdaten löschen?",
+        "forgetText": "Alle gefundenen Gesichter, ihre Vektoren und Ausschnitte und alle vergebenen Namen werden gelöscht. Ist die Gesichtersuche eingeschaltet, sucht Muninn die Gesichter neu – die Namen kommen nicht zurück.",
+        "forgotten": "Gelöscht: {{faces}} Gesichter, {{persons}} Personen."
+      }
+    },
+    "folders": {
+      "title": "Ordner unter Alben",
+      "description": "Wähle, welche Ordner deiner Bibliothek als Alben erscheinen. Jeder erscheint dort, wo er auch auf dem NAS liegt; die Originale bleiben unberührt.",
+      "loading": "Wird geladen …",
+      "empty": "Noch kein Ordner veröffentlicht. Wähle einen, dann liest Muninn ihn ein.",
+      "paused": "pausiert",
+      "library": "Bibliothek",
+      "removeHint": "Das Album und seine Medien verschwinden aus Muninn. Die Dateien auf dem NAS bleiben unberührt.",
+      "remove": {
+        "title": "„{{name}}“ wirklich entfernen?"
+      },
+      "count": {
+        "albums": "Alben",
+        "media": "Medien",
+        "missing": "fehlend",
+        "pending": "in Arbeit"
+      },
+      "status": {
+        "never": "Wartet auf den ersten Lauf",
+        "running": "Wird gelesen …",
+        "ok": "Gelesen",
+        "paused": "Angehalten: zu viele Dateien fehlen",
+        "unavailable": "Nicht erreichbar",
+        "failed": "Fehlgeschlagen",
+        "cancelled": "Abgebrochen"
+      },
+      "action": {
+        "scan": "Jetzt lesen",
+        "confirm_one": "{{count}} Löschung bestätigen",
+        "confirm_other": "{{count}} Löschungen bestätigen",
+        "pause": "Pausieren",
+        "resume": "Fortsetzen",
+        "cancel": "Abbrechen",
+        "remove": "Nicht mehr veröffentlichen",
+        "removeConfirm": "Wirklich entfernen"
+      },
+      "add": {
+        "action": "Ordner veröffentlichen",
+        "title": "Ordner veröffentlichen",
+        "description": "Wähle den Ordner mit deinen Originalen. Alles darunter wird zu Alben, an derselben Stelle wie auf dem NAS.",
+        "root": "Bibliothek",
+        "choose": "Veröffentlichen",
+        "mounted": "Eingehängte Freigabe",
+        "mediaHere_one": "1 Medium direkt darin",
+        "mediaHere_other": "{{count}} Medien direkt darin",
+        "noSubfolders": "Keine Unterordner.",
+        "path": "Pfad in der Bibliothek",
+        "pathFolded": "Übergeordnete Ordner, zu {{name}}",
+        "open": "Öffnen, um hineinzusehen",
+        "alreadyPublished": "Schon veröffentlicht",
+        "mediaHere_zero": "Keine Medien direkt darin"
+      },
+      "error": {
+        "notAllowed": "Dieser Ordner liegt nicht unterhalb der eingebundenen Bibliothek.",
+        "noWorker": "Die Indexierung läuft nicht. Ohne sie kann nicht gelesen werden.",
+        "invalid": "Diese Angaben nimmt Muninn nicht an. Prüfe den Namen und wähle den Ordner noch einmal aus.",
+        "alreadyPublished": "Dieser Ordner ist schon veröffentlicht – selbst oder über einen Ordner darüber."
+      },
+      "mountHint": "Deine Bibliothek ist {{path}}. Alles darunter kannst du veröffentlichen.",
+      "progress": {
+        "label": "Fortschritt",
+        "files": "{{done, number}} von {{total, number}} Dateien"
+      },
+      "next_one": "Nächster Lauf in etwa einer Minute.",
+      "next_other": "Nächster Lauf in etwa {{count}} Minuten.",
+      "nextNow": "Nächster Lauf läuft gerade an.",
+      "nextUnknown": "Der erste Lauf startet gleich.",
+      "waiting_one": "1 Datei wird noch geprüft – Muninn sieht innerhalb einer Minute nach, ob sie fertig kopiert ist.",
+      "waiting_other": "{{count}} Dateien werden noch geprüft – Muninn sieht innerhalb einer Minute nach, ob sie fertig kopiert sind.",
+      "confirmDeletions": {
+        "title_one": "1 Datei als fehlend markieren?",
+        "title_other": "{{count, number}} Dateien als fehlend markieren?",
+        "description": "Muninn findet sie auf dem NAS nicht mehr. Sie verschwinden aus den Alben und werden nach Ablauf der Aufbewahrungsfrist endgültig entfernt. Die Originale auf dem NAS werden nie angefasst. Ist nur die Freigabe nicht eingehängt, erst das prüfen und nicht bestätigen.",
+        "confirm": "Als fehlend markieren"
+      },
+      "sub": {
+        "action": "Unterordner",
+        "title": "Unterordner von {{name}}",
+        "description": "Schalte einzelne Unterordner aus, die nicht in Muninn erscheinen sollen. Ihre Alben, Medien, Likes und Kommentare verschwinden aus Muninn; auf dem NAS bleibt alles, wie es ist. Wieder eingeschaltet, werden sie neu eingelesen.",
+        "on": "Veröffentlicht",
+        "off": "Ausgeschaltet",
+        "label": "{{name}} veröffentlicht",
+        "excluded": "Ausgeschaltet"
+      }
+    },
+    "jobs": {
+      "title": "Indexierung",
+      "description": "Der Maschinenraum: was gerade läuft, was noch aussteht und wann die Uhr wieder anklopft.",
+      "loading": "Wird geladen …",
+      "starting": "Startet gerade …",
+      "changes": "Zuletzt gefunden",
+      "noChanges": "Noch nichts gefunden.",
+      "unknown": "noch nie gelaufen",
+      "now": {
+        "title": "Stand",
+        "idle": "Nichts in Arbeit.",
+        "waiting": "Kein Durchgang läuft – es wartet aber noch Arbeit.",
+        "lastRead": "Zuletzt gelesen {{when}} · {{media, number}} Medien in {{albums}} Alben",
+        "neverRead": "Noch nie gelesen. Veröffentliche einen Ordner, dann geht es los.",
+        "next": "nächster Durchgang {{when}}",
+        "lastMinute": "In der letzten Minute:"
+      },
+      "inMinutes_one": "in etwa einer Minute",
+      "inMinutes_other": "in etwa {{count}} Minuten",
+      "change": {
+        "album_added": "Album angelegt",
+        "album_removed": "Album entfernt",
+        "media_added": "Medium gefunden",
+        "media_changed": "Medium geändert",
+        "media_touched": "Nur angefasst",
+        "media_moved": "Verschoben",
+        "media_missing": "Fehlt",
+        "media_restored": "Wieder da",
+        "media_removed": "Endgültig entfernt"
+      },
+      "atTime": "um {{time}} Uhr",
+      "justNow": "gerade eben",
+      "dueNow": "läuft gleich an",
+      "agoMinutes_one": "vor einer Minute",
+      "agoMinutes_other": "vor {{count}} Minuten",
+      "stage": {
+        "read": "Ordner wird gelesen",
+        "metadata": "Metadaten werden gelesen",
+        "derive": "Vorschau wird erzeugt",
+        "image_vector": "Bildvektor wird berechnet",
+        "analysis": "Bild wird beschrieben",
+        "caption_vector": "Textvektor wird berechnet",
+        "transcription": "Video wird abgehört",
+        "analysis_video": "Video wird beschrieben",
+        "image_vector_video": "Bildvektor des Videos wird berechnet",
+        "derive_video": "Video wird umgewandelt",
+        "faces": "Gesichter werden gesucht"
+      },
+      "forSeconds_one": "seit 1 s",
+      "forSeconds_other": "seit {{count}} s",
+      "forMinutes_one": "seit 1 min",
+      "forMinutes_other": "seit {{count}} min",
+      "stop": "Stoppen",
+      "stopRead": "Lesen abbrechen",
+      "purge": "Leeren",
+      "purgeConfirm": "Leeren",
+      "purgeHint": "Die wartenden Aufgaben werden verworfen. Was noch fehlt, reiht der nächste Durchgang wieder ein.",
+      "open": {
+        "title": "Was noch aussteht",
+        "check": "Dateien warten auf die zweite Prüfung",
+        "metadata": "Medien ohne Metadaten",
+        "preview": "Medien ohne Vorschau",
+        "vector": "Medien ohne Bildvektor",
+        "transcript": "Videos ohne Transkript",
+        "analysis": "Medien ohne Beschreibung",
+        "captionVector": "Beschreibungen ohne Textvektor",
+        "queues": "In der Warteschlange:",
+        "queue": {
+          "scan": "Lesen",
+          "derive": "Vorschauen",
+          "ai": "KI"
+        },
+        "nothing": "Alles erledigt, nichts wartet.",
+        "faces": "Medien ohne Gesichtersuche"
+      },
+      "schedule": {
+        "title": "Zeitplan",
+        "quick_one": "Schnell-Abgleich jede Minute",
+        "quick_other": "Schnell-Abgleich alle {{count}} Minuten",
+        "full": "Voll-Abgleich täglich um {{hour}} Uhr, nächster {{when}}",
+        "stability_one": "neue Dateien nach 1 Sekunde noch einmal geprüft",
+        "stability_other": "neue Dateien nach {{count}} Sekunden noch einmal geprüft"
+      },
+      "purgeTitle": "Warteschlange „{{queue}}“ wirklich leeren?",
+      "moreOfThem_one": "· 1 weiterer",
+      "moreOfThem_other": "· {{count}} weitere",
+      "finishedStage": {
+        "metadata": "Metadaten gelesen",
+        "derive": "Vorschau erzeugt",
+        "read": "Ordner gelesen",
+        "image_vector": "Bildvektor berechnet",
+        "analysis": "Bild beschrieben",
+        "caption_vector": "Textvektor berechnet",
+        "transcription": "Video abgehört",
+        "analysis_video": "Video beschrieben",
+        "image_vector_video": "Bildvektor des Videos berechnet",
+        "derive_video": "Video umgewandelt",
+        "faces": "Gesichter gesucht"
+      },
+      "done": {
+        "metadata_one": "1 Medium gelesen",
+        "metadata_other": "{{count, number}} Medien gelesen",
+        "derive_one": "1 Vorschau",
+        "derive_other": "{{count, number}} Vorschauen",
+        "image_vector_one": "1 Bildvektor",
+        "image_vector_other": "{{count, number}} Bildvektoren",
+        "analysis_one": "1 Beschreibung",
+        "analysis_other": "{{count, number}} Beschreibungen",
+        "caption_vector_one": "1 Textvektor",
+        "caption_vector_other": "{{count, number}} Textvektoren",
+        "transcription_one": "1 Video abgehört",
+        "transcription_other": "{{count, number}} Videos abgehört",
+        "faces_one": "1 Medium auf Gesichter angesehen",
+        "faces_other": "{{count, number}} Medien auf Gesichter angesehen"
+      },
+      "agoSeconds_one": "vor 1 s",
+      "agoSeconds_other": "vor {{count}} s",
+      "finished": {
+        "title": "Gerade fertig geworden"
+      },
+      "ai": {
+        "title": "KI-Dienste",
+        "checked": "geprüft {{when}}",
+        "pausedUntil": "pausiert bis {{time}}",
+        "state": {
+          "up": "antwortet",
+          "down": "antwortet nicht",
+          "off": "nicht eingerichtet"
+        },
+        "resumeShort": "Jetzt versuchen",
+        "resumeHint": "Klicken, wenn der KI-Rechner wieder läuft: die Pause endet sofort."
+      },
+      "failedStage": {
+        "metadata": "Metadaten nicht gelesen",
+        "derive": "Vorschau nicht erzeugt",
+        "image_vector": "Bildvektor nicht berechnet",
+        "transcription": "Video nicht abgehört",
+        "analysis": "Nicht beschrieben",
+        "caption_vector": "Textvektor nicht berechnet",
+        "faces": "Gesichter nicht gesucht"
+      }
+    },
+    "users": {
+      "title": "Benutzerverwaltung",
+      "description": "Konten anlegen, bearbeiten, Rollen vergeben, sperren, löschen und Passwörter zurücksetzen.",
+      "loading": "Wird geladen …",
+      "loadMore": "Weitere laden",
+      "selfHint": "Das ist dein eigenes Konto.",
+      "role": {
+        "label": "Rolle",
+        "user": "Benutzer",
+        "admin": "Admin",
+        "userHint": "Sieht alle Alben, kann liken, kommentieren und Personen benennen.",
+        "adminHint": "Zusätzlich: Benutzer verwalten, KI und Indexierung steuern, moderieren."
+      },
+      "status": {
+        "disabled": "gesperrt",
+        "startingPassword": "Startpasswort offen"
+      },
+      "action": {
+        "disable": "Sperren",
+        "enable": "Entsperren",
+        "resetPassword": "Passwort zurücksetzen",
+        "save": "Änderungen speichern",
+        "delete": "Konto löschen"
+      },
+      "create": {
+        "action": "Konto anlegen",
+        "title": "Konto anlegen",
+        "description": "Der Server erzeugt ein Startpasswort. Gib es persönlich weiter; Muninn verschickt keine E-Mails.",
+        "displayName": "Angezeigter Name",
+        "usernameHint": "3 bis 32 Zeichen: Buchstaben, Ziffern, Punkt, Bindestrich, Unterstrich.",
+        "submit": "Anlegen",
+        "pending": "Wird angelegt …",
+        "another": "Noch eins anlegen"
+      },
+      "startingPassword": {
+        "title": "Startpasswort für {{name}}",
+        "copy": "Passwort kopieren",
+        "hint": "Nur jetzt lesbar. Beim ersten Anmelden legt die Person ein eigenes Passwort fest.",
+        "copied": "Kopiert.",
+        "selected": "Kopieren ging nicht automatisch. Das Passwort ist markiert – mit Cmd+C bzw. Strg+C kopieren."
+      },
+      "error": {
+        "nameTaken": "Dieser Benutzername ist schon vergeben.",
+        "invalidUsername": "Der Benutzername passt nicht: 3 bis 32 Zeichen, Buchstaben, Ziffern, Punkt, Bindestrich, Unterstrich.",
+        "lastAdmin": "Das ist der letzte aktive Admin. Mache zuerst jemand anderen zum Admin.",
+        "nameOrEmailTaken": "Dieser Benutzername oder diese E-Mail-Adresse gehört schon zu einem anderen Konto.",
+        "ownAccount": "Das eigene Konto lässt sich hier nicht löschen."
+      },
+      "email": "E-Mail-Adresse",
+      "emailHint": "Freiwillig. Muninn verschickt keine E-Mails; leer lassen ist in Ordnung.",
+      "delete": {
+        "title": "Konto von „{{name}}“ löschen?",
+        "description": "Das Konto wird endgültig entfernt, mit allen Likes, Favoriten, Kommentaren und Benachrichtigungen dieser Person. Antworten anderer auf ihre Kommentare verschwinden mit. Wer die Person nur vorübergehend aussperren will, nimmt besser „Sperren“.",
+        "confirm": "Endgültig löschen"
+      }
+    },
+    "ai": {
+      "title": "KI-Dienste",
+      "description": "Welche Maschine beschreibt die Bilder, welche macht Vektoren daraus und welche hört, was in Videos gesagt wird. Adresse und Modellname stehen nur hier, nie im Code.",
+      "loading": "Wird geladen …",
+      "none": "Noch keine Maschine eingerichtet. Die Stufe wartet, bis eine da ist.",
+      "add": "Hinzufügen",
+      "inUse": "in Benutzung",
+      "use": "Benutzen",
+      "edit": "Ändern",
+      "closeEdit": "Schließen",
+      "test": "Verbindung testen",
+      "testing": "Frage läuft …",
+      "took_one": "in 1 ms",
+      "took_other": "in {{count, number}} ms",
+      "limits": "{{concurrency}} Anfragen gleichzeitig · {{seconds}} s Zeitlimit",
+      "keyStored": "Schlüssel hinterlegt",
+      "save": "Speichern",
+      "saving": "Wird gespeichert …",
+      "cancel": "Abbrechen",
+      "invalid": "Bitte die Eingaben prüfen.",
+      "kind": {
+        "analyzer": "Beschreiben",
+        "image_embedder": "Bildvektoren",
+        "text_embedder": "Textvektoren",
+        "transcriber": "Sprache",
+        "face_detector": "Gesichter"
+      },
+      "kindHint": {
+        "analyzer": "Beschreibung, Stichworte, Szene und Text im Bild — ein Modell, das Bilder ansieht.",
+        "image_embedder": "Macht aus einem Bild einen Vektor, damit ein Satz es finden kann.",
+        "text_embedder": "Macht aus der Beschreibung einen Vektor, damit nach Bedeutung gesucht werden kann.",
+        "transcriber": "Schreibt mit, was in Videos gesagt wird, mit der Zeit jedes Satzes.",
+        "face_detector": "Findet Gesichter und berechnet für jedes einen Vektor, damit Muninn Personen erkennt. Die Daten bleiben im eigenen Netz."
+      },
+      "field": {
+        "name": "Name",
+        "baseUrl": "Basis-URL",
+        "model": "Modell",
+        "apiKey": "Schlüssel",
+        "concurrency": "Gleichzeitig",
+        "timeout": "Zeitlimit"
+      },
+      "placeholder": {
+        "name": "GPU im Keller"
+      },
+      "hint": {
+        "baseUrl": "Bis einschließlich /v1",
+        "model": "So, wie der Dienst das Modell nennt",
+        "apiKey": "Viele lokale Dienste brauchen keinen",
+        "keyStored": "Leer lassen behält den hinterlegten Schlüssel",
+        "concurrency": "Anfragen auf einmal",
+        "timeout": "Sekunden je Anfrage"
+      },
+      "invalidFields": "Bitte prüfen: {{fields}}."
+    },
+    "duplicates": {
+      "title": "Doppelgänger",
+      "description": "Dasselbe Bild mehrfach: dieselbe Datei in zwei Ordnern, eine kleinere Kopie aus einem Messenger oder die Aufnahmen einer Serie. Muninn schlägt vor, welches bleibt. Was du nicht behältst, verschwindet aus Alben, Zeitleiste, Suche und Karte. Auf dem NAS wird nichts gelöscht – die Pfade der ausgeblendeten Kopien gibt es als Liste.",
+      "download": "Liste der ausgeblendeten (CSV)",
+      "open_one": "Offen · 1 Gruppe",
+      "open_other": "Offen · {{count}} Gruppen",
+      "all": "Alle",
+      "loading": "Wird geladen …",
+      "more": "Weitere laden",
+      "none": "Keine Doppelgänger gefunden.",
+      "kind": {
+        "exact": "Gleiche Datei",
+        "near": "Kopie in anderer Größe oder Qualität",
+        "burst": "Serienaufnahme"
+      },
+      "count_one": "1 Bild",
+      "count_other": "{{count}} Bilder",
+      "keep_one": "Behalten, Rest ausblenden",
+      "keep_other": "{{count}} behalten, Rest ausblenden",
+      "keepThis": "Behalten",
+      "best": "Empfohlen",
+      "show": "{{name}} ansehen",
+      "showAgain": "Wieder zeigen",
+      "failed": "Das hat nicht geklappt. Die Gruppen werden alle 15 Minuten neu gebildet – lade die Seite neu."
+    }
+  },
+  "media": {
+    "open": "Medium vom {{date}} öffnen",
+    "estimated": "Datum geschätzt",
+    "info": {
+      "title": "Details",
+      "show": "Details anzeigen",
+      "date": "Aufnahme",
+      "camera": "Kamera",
+      "image": "Bild",
+      "px": "Pixel",
+      "video": "Video",
+      "unknownDuration": "Länge unbekannt",
+      "place": "Ort",
+      "file": "Datei",
+      "folder": "Ordner",
+      "libraryRoot": "Oberste Ebene der Bibliothek",
+      "extras": "Weitere Dateien",
+      "download": "Original laden",
+      "source": {
+        "exif": "aus den Bilddaten",
+        "gps": "aus den GPS-Daten",
+        "filename": "aus dem Dateinamen",
+        "folder_name": "aus dem Ordnernamen",
+        "file_mtime": "aus der Änderungszeit der Datei"
+      },
+      "description": "Beschreibung",
+      "tags": "Stichwörter",
+      "textInPicture": "Text im Bild:",
+      "placeSource": "{{coordinates}} · Ortsnamen: GeoNames",
+      "placeEstimated": "Geschätzt aus dem Ort des Albums · Ortsnamen: GeoNames"
+    },
+    "story": {
+      "title": "Im Video",
+      "strip": "Zeitstrahl des Videos",
+      "nothingYet": "Noch nichts beschrieben.",
+      "silent": "Im Video wird nicht gesprochen.",
+      "said_one": "Alles Gesagte · 1 Satz",
+      "said_other": "Alles Gesagte · {{count, number}} Sätze"
+    },
+    "similar": "Ähnliche Bilder"
+  },
+  "social": {
+    "like": "Gefällt mir",
+    "unlike": "Gefällt mir nicht mehr",
+    "favorite": "Zu den Favoriten",
+    "unfavorite": "Aus den Favoriten entfernen",
+    "you": "dir",
+    "and": "und",
+    "likedBy": "Gefällt {{names}}",
+    "likedByMore_one": "Gefällt {{names}} und 1 weiteren Person",
+    "likedByMore_other": "Gefällt {{names}} und {{count, number}} weiteren",
+    "actions": "Gefällt mir, Kommentare und Favoriten",
+    "reactedBy": "{{names}}",
+    "reactedByMore_one": "{{names}} und 1 weitere Person",
+    "reactedByMore_other": "{{names}} und {{count, number}} weitere",
+    "react": "Reaktion wählen",
+    "reactions": "Reaktionen",
+    "reactWith": "Mit {{emoji}} reagieren"
+  },
+  "walhall": {
+    "title": "Favoriten",
+    "description": "Deine Lieblinge. Nur du siehst, was hier liegt.",
+    "empty": "Tippe bei einem Bild oder Album auf den Stern, dann liegt es hier.",
+    "albums": "Alben",
+    "media": "Bilder und Videos",
+    "all": "Alle ansehen",
+    "open": "In den Favoriten öffnen"
+  },
+  "comments": {
+    "title": "Kommentare",
+    "loading": "Wird geladen …",
+    "none": "Noch keine Kommentare. Schreib den ersten.",
+    "placeholder": "Kommentieren …",
+    "answerTo": "Antwort an {{name}} …",
+    "answer": "Antworten",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "edited": "bearbeitet",
+    "deleted": "Kommentar gelöscht",
+    "confirmDelete": {
+      "title": "Diesen Kommentar löschen?",
+      "description": "Er verschwindet für alle. Das lässt sich nicht rückgängig machen."
+    },
+    "send": "Senden",
+    "save": "Speichern",
+    "like": "Gefällt mir",
+    "unlike": "Gefällt mir nicht mehr",
+    "people": "Personen"
+  },
+  "notify": {
+    "title": "Benachrichtigungen",
+    "loading": "Wird geladen …",
+    "empty": "Noch nichts Neues für dich.",
+    "more_button": "Ältere anzeigen",
+    "two": "{{first}} und {{second}}",
+    "more_one": "{{first}} und 1 weitere Person",
+    "more_other": "{{first}} und {{count}} weitere",
+    "kind": {
+      "reply_one": "{{who}} hat auf deinen Kommentar geantwortet",
+      "reply_other": "{{who}} haben auf deinen Kommentar geantwortet",
+      "mention_one": "{{who}} hat dich erwähnt",
+      "mention_other": "{{who}} haben dich erwähnt",
+      "comment_like_one": "{{who}} gefällt dein Kommentar",
+      "comment_like_other": "{{who}} gefällt dein Kommentar",
+      "comment_one": "{{who}} hat kommentiert",
+      "comment_other": "{{who}} haben kommentiert",
+      "new_media_one": "1 neues Medium in {{album}}",
+      "new_media_other": "{{count, number}} neue Medien in {{album}}"
+    }
+  },
+  "map": {
+    "label": "Karte der Aufnahmeorte",
+    "cluster_one": "Ein Foto hier",
+    "cluster_other": "{{count}} Fotos hier",
+    "here_one": "Ein Foto hier",
+    "here_other": "{{count}} Fotos hier",
+    "offline": "Die Karte ist gerade nicht erreichbar. Die Fotos stehen trotzdem an ihrem Ort."
+  },
+  "people": {
+    "title": "Personen",
+    "description": "Wer auf den Fotos ist. Gesichter, die sich ähneln, bilden Gruppen – gib einer Gruppe einen Namen, und Muninn erkennt die Person auch auf neuen Fotos.",
+    "empty": "Noch keine Gesichter. Sobald die Gesichtersuche läuft, erscheinen hier Gruppen zum Benennen.",
+    "suggestions_one": "Ein Vorschlag",
+    "suggestions_other": "{{count}} Vorschläge",
+    "isThis": "Ist das {{name}}?",
+    "yes": "Ja, das ist {{name}}",
+    "no": "Nein, das ist nicht {{name}}",
+    "persons": "Personen",
+    "hiddenTitle": "Ausgeblendete Personen",
+    "noneHidden": "Niemand ist ausgeblendet.",
+    "groups": "Wer ist das?",
+    "groupsHint": "Gesichter, die zusammengehören. Ein Name gilt für die ganze Gruppe.",
+    "whoIs_one": "Gruppe mit einem Gesicht benennen",
+    "whoIs_other": "Gruppe mit {{count}} Gesichtern benennen",
+    "whoIsThis": "Wer ist das?",
+    "faces_one": "1 Gesicht",
+    "faces_other": "{{count, number}} Gesichter",
+    "photos_one": "1 Foto",
+    "photos_other": "{{count, number}} Fotos",
+    "more": "Weitere laden",
+    "name": "Name",
+    "nameHint": "Ein Name, den es schon gibt, fügt die Gesichter dieser Person hinzu.",
+    "pickHint": "Wähle eine Person aus oder gib einen Namen ein.",
+    "newPerson": "„{{name}}“ gibt es noch nicht und wird als neue Person angelegt.",
+    "someoneElse": "Jemand anderes",
+    "letters": "Nach Anfangsbuchstaben filtern",
+    "allLetters": "Alle",
+    "hiddenToggle": "Ausgeblendete",
+    "count_one": "Eine Person",
+    "count_other": "{{count}} Personen",
+    "letter_one": "{{letter}}: eine Person",
+    "letter_other": "{{letter}}: {{count}} Personen",
+    "otherLetter_one": "Andere Zeichen: eine Person",
+    "otherLetter_other": "Andere Zeichen: {{count}} Personen",
+    "range_one": "Eine Person",
+    "range_other": "{{from}}–{{to}} von {{count}} Personen",
+    "searchFor": "Fotos mit {{name}} suchen",
+    "filter": "Welche Gesichter",
+    "only": {
+      "all": "Alle",
+      "auto": "Von Muninn zugeordnet",
+      "twice": "Doppelt im selben Foto"
+    },
+    "noneToCheck": "Hier gibt es nichts zu prüfen.",
+    "checkFace": "Im ganzen Foto ansehen, ob das {{name}} ist",
+    "auto": "Von Muninn zugeordnet, noch nicht bestätigt",
+    "givenByMuninn": "Muninn hat dieses Gesicht {{name}} zugeordnet. Bestätige es, dann hilft es beim Erkennen weiterer Fotos.",
+    "givenByHand": "Dieses Gesicht wurde von Hand {{name}} zugeordnet.",
+    "change": "Andere Person statt {{name}} zuordnen",
+    "remove": "Nicht {{name}} – Zuordnung entfernen",
+    "whoInstead": "Nicht {{name}} – wer ist es?",
+    "namePlaceholder": "z. B. Lena",
+    "known": "Bekannte Personen",
+    "save": "Speichern",
+    "failed": "Das hat nicht geklappt. Versuche es noch einmal.",
+    "rename": "Umbenennen",
+    "merge": "Zusammenführen",
+    "mergeTitle": "{{name}} zusammenführen",
+    "mergeText": "Alle Gesichter von {{name}} gehen zu der Person, die du wählst. {{name}} gibt es danach nicht mehr.",
+    "nobodyElse": "Es gibt noch keine andere Person.",
+    "hide": "Ausblenden",
+    "show": "Wieder zeigen",
+    "hideTitle": "{{name}} ausblenden?",
+    "hideText": "Für Fremde im Hintergrund: Die Person verschwindet aus den Listen, ihre Gesichter werden nicht mehr nachgefragt.",
+    "isHidden": "ausgeblendet",
+    "tabPhotos": "Fotos",
+    "tabFaces": "Gesichter",
+    "facesHint": "Ein Gesicht, das nicht {{name}} ist, nimmst du mit dem Kreuz heraus.",
+    "notThem": "Nicht {{name}}",
+    "nameThem": "Benennen",
+    "waitingNames_one": "Eine Gruppe von Gesichtern wartet auf einen Namen.",
+    "waitingNames_other": "{{count}} Gruppen von Gesichtern warten auf einen Namen.",
+    "maybe": "{{name}}?",
+    "who": "Wer ist das?",
+    "lookCloser": "Größer ansehen, ob das {{name}} ist",
+    "compareHint": "Das markierte Gesicht, daneben Gesichter, die schon {{name}} sind.",
+    "alreadyThem": "Schon {{name}}",
+    "noneYet": "Noch keine weiteren.",
+    "yesThem": "Ja, das ist {{name}}",
+    "shortYes": "Ja",
+    "shortNo": "Nein",
+    "similarity": "Ähnlichkeit {{percent}} %",
+    "similarityHint": "Wie ähnlich das Gesicht dem ähnlichsten Gesicht der Person ist. Ab {{auto}} % ordnet Muninn es ohne Nachfrage zu."
+  },
+  "overview": {
+    "title": "Überblick",
+    "description": "Eure Bibliothek auf einen Blick: wie viel es gibt, aus welchen Jahren, wer darauf ist und wo.",
+    "loading": "Wird berechnet …",
+    "media": "Medien",
+    "photos": "Fotos",
+    "videos": "Videos",
+    "inAlbums_one": "in einem Album",
+    "inAlbums_other": "in {{count, number}} Alben",
+    "totals": "Die Bibliothek in Zahlen",
+    "size": "Speicher der Originale",
+    "derivedSize": "dazu {{size}} Vorschauen",
+    "videoLength": "{{length}} lang",
+    "years": "Über die Jahre",
+    "span_one": "{{from}}",
+    "span_other": "{{from}} – {{until}} · {{count}} Jahre",
+    "yearTip": "{{year}}: {{photos}} Fotos, {{videos}} Videos",
+    "pipeline": "Verarbeitung",
+    "step": {
+      "metadata": "Metadaten gelesen",
+      "previews": "Vorschauen",
+      "image_vectors": "Bildvektoren",
+      "descriptions": "KI-Beschreibungen",
+      "caption_vectors": "Textvektoren",
+      "transcripts": "Videos abgehört",
+      "faces": "Auf Gesichter angesehen"
+    },
+    "content": "Was die KI gefunden hat",
+    "frames": "Videobilder beschrieben",
+    "spoken": "Gesprochenes",
+    "withSpeech": "Videos mit Sprache",
+    "withText": "Bilder mit Text",
+    "screenshots": "Screenshots",
+    "documents": "Dokumente",
+    "time": {
+      "tag": "Tag",
+      "abend": "Abend",
+      "nacht": "Nacht",
+      "innen": "Innen",
+      "unbekannt": "Unbekannt"
+    },
+    "motifs": "Häufigste Motive",
+    "people": "Personen",
+    "faces": "Gesichter",
+    "named": "Benannt",
+    "suggested": "Vorschläge",
+    "unnamed": "Unbenannt",
+    "personsNamed_one": "1 Person benannt",
+    "personsNamed_other": "{{count}} Personen benannt",
+    "groupsOpen_one": "1 Gruppe ohne Namen",
+    "groupsOpen_other": "{{count}} Gruppen ohne Namen",
+    "withFaces": "{{share}} der Medien zeigen Gesichter",
+    "places": "Orte",
+    "withGps": "Mit GPS",
+    "estimated": "Geschätzt",
+    "noPlace": "Ohne Ort",
+    "located": "Verortet",
+    "countries_one": "1 Land",
+    "countries_other": "{{count}} Länder",
+    "towns_one": "1 Ort",
+    "towns_other": "{{count}} Orte",
+    "dates": "Woher das Datum kommt",
+    "source": {
+      "exif": "Kamera (EXIF)",
+      "gps": "GPS",
+      "filename": "Dateiname",
+      "folder_name": "Ordnername (geschätzt)",
+      "file_mtime": "Dateizeit (geschätzt)",
+      "unknown": "Unbekannt"
+    },
+    "cameras": "Kameras",
+    "more": "Außerdem",
+    "duplicates": "Doppelgänger-Gruppen",
+    "hidden": "Ausgeblendete Kopien",
+    "reactions": "Reaktionen",
+    "comments": "Kommentare",
+    "favorites": "Favoriten",
+    "users": "Benutzer",
+    "open": "Überblick über die Bibliothek"
+  },
+  "pagination": {
+    "label": "Seiten",
+    "previous": "Vorherige Seite",
+    "next": "Nächste Seite",
+    "page": "Seite {{page}}",
+    "of": "{{page}} / {{pages}}"
+  }
+}
