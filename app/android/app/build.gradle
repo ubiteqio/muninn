@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "de.muninn.app"
+    namespace = "io.ubiteq.apps.muninn"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "de.muninn.app"
+        applicationId "io.ubiteq.apps.muninn"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

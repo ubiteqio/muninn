@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Muninn</string>
     <string name="title_activity_main">Muninn</string>
-    <string name="package_name">de.muninn.app</string>
-    <string name="custom_url_scheme">de.muninn.app</string>
+    <string name="package_name">io.ubiteq.apps.muninn</string>
+    <string name="custom_url_scheme">io.ubiteq.apps.muninn</string>
 </resources>

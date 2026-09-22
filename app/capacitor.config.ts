@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'de.muninn.app',
+  appId: 'io.ubiteq.apps.muninn',
   appName: 'Muninn',
   webDir: 'dist',
   // The native app talks to the server over HTTPS and sends its tokens in the header; it never

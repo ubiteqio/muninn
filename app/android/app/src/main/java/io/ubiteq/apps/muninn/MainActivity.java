@@ -1,4 +1,4 @@
-package de.muninn.app;
+package io.ubiteq.apps.muninn;
 
 import com.getcapacitor.BridgeActivity;
 
