@@ -1,0 +1,181 @@
+name: muninn
+
+x-server: &server
+  build:
+    context: ../server
+  image: muninn/server:local
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  environment: &server-environment
+    # The nightly read happens at the hour an admin picked, in their own time zone.
+    TZ: ${TZ:-UTC}
+    MUNINN_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    MUNINN_REDIS_URL: redis://redis:6379/0
+    MUNINN_LOG_LEVEL: ${MUNINN_LOG_LEVEL:-info}
+    MUNINN_JWT_SECRET: ${MUNINN_JWT_SECRET:?set MUNINN_JWT_SECRET in deploy/.env}
+    MUNINN_ACCESS_TOKEN_TTL_MINUTES: ${MUNINN_ACCESS_TOKEN_TTL_MINUTES:-15}
+    MUNINN_REFRESH_TOKEN_TTL_DAYS: ${MUNINN_REFRESH_TOKEN_TTL_DAYS:-30}
+    MUNINN_REFRESH_COOKIE_SECURE: ${MUNINN_REFRESH_COOKIE_SECURE:-true}
+    # The phone app's origins; the default is what Capacitor uses on iOS and Android.
+    MUNINN_CORS_ORIGINS: ${MUNINN_CORS_ORIGINS:-capacitor://localhost,ionic://localhost,http://localhost}
+  # Who the containers are. The image brings user 1000 ("muninn"), which is enough as long as
+  # the library can be read by everyone. On a NAS it usually cannot: the share belongs to one
+  # user and one group and gives nothing to others, so Muninn runs as that user instead.
+  #   stat -c '%u:%g' <library folder>
+  user: "${MUNINN_UID:-1000}:${MUNINN_GID:-1000}"
+  # An additional group, where the library is readable by a group rather than its owner.
+  group_add:
+    - "${MUNINN_LIBRARY_GID:-1000}"
+  volumes:
+    # Originals from the NAS. Read-only, always: Muninn never writes into the library.
+    - ${MUNINN_LIBRARY_HOST_PATH:-../data/library}:/library:ro
+    # Generated thumbnails, previews and transcodes. Bind-mounted so they can be opened on the
+    # host without entering the container.
+    - ${MUNINN_DERIVED_HOST_PATH:-../data/derived}:/data/derived
+
+services:
+  postgres:
+    build:
+      context: ./postgres
+    image: muninn/postgres:local
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    <<: *server
+    ports:
+      - "127.0.0.1:${MUNINN_API_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/health")
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # The web app, and the address everybody uses: it serves the app and passes /api on to the
+  # API, so browser and phone talk to one origin.
+  web:
+    build:
+      context: ../app
+    image: muninn/web:local
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      # On every interface, not just the loopback: this is what the phones in the house reach.
+      - "${MUNINN_WEB_PORT:-9090}:9090"
+
+  # Huginn: reads the NAS, hashes and reads metadata, and runs the clock's work. Only the API
+  # migrates.
+  worker:
+    <<: *server
+    environment:
+      <<: *server-environment
+      MUNINN_RUN_MIGRATIONS: "0"
+    command:
+      - celery
+      - --app
+      - muninn.huginn.app
+      - worker
+      - --queues
+      - scan
+      - --concurrency
+      - "${MUNINN_WORKER_CONCURRENCY:-2}"
+      - --loglevel
+      - ${MUNINN_LOG_LEVEL:-info}
+
+  # Previews and 720p videos. A worker of its own: transcoding a video takes minutes, and on the
+  # same slots it would hold up reading, metadata and the clock behind it.
+  derive-worker:
+    <<: *server
+    environment:
+      <<: *server-environment
+      MUNINN_RUN_MIGRATIONS: "0"
+    command:
+      - celery
+      - --app
+      - muninn.huginn.app
+      - worker
+      - --queues
+      - derive
+      - --concurrency
+      - "${MUNINN_DERIVE_CONCURRENCY:-2}"
+      - --hostname
+      - derive@%h
+      - --loglevel
+      - ${MUNINN_LOG_LEVEL:-info}
+
+  # Talks to the AI server and nothing else. A queue of its own, so a slow GPU never holds up
+  # previews, and a small concurrency, so it is never flooded.
+  ai-worker:
+    <<: *server
+    environment:
+      <<: *server-environment
+      MUNINN_RUN_MIGRATIONS: "0"
+    command:
+      - celery
+      - --app
+      - muninn.huginn.app
+      - worker
+      - --queues
+      - ai
+      - --concurrency
+      - "${MUNINN_AI_CONCURRENCY:-2}"
+      - --hostname
+      - ai@%h
+      - --loglevel
+      - ${MUNINN_LOG_LEVEL:-info}
+
+  # The clock: quick scan every five minutes, full scan at night.
+  scheduler:
+    <<: *server
+    environment:
+      <<: *server-environment
+      MUNINN_RUN_MIGRATIONS: "0"
+    command:
+      - celery
+      - --app
+      - muninn.huginn.app
+      - beat
+      # Beat writes its state next to itself; /app belongs to root, /data to the muninn user.
+      - --schedule
+      - /data/celerybeat-schedule
+      - --pidfile=
+      - --loglevel
+      - ${MUNINN_LOG_LEVEL:-info}
+
+volumes:
+  postgres-data:
+  redis-data:

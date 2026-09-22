@@ -1,0 +1,228 @@
+@import '@fontsource-variable/inter';
+
+/**
+ * Material Symbols Rounded, cut down to the icons Muninn uses: 15 kB instead of 5 MB.
+ * Regenerate with scripts/subset-icons.py after adding an icon.
+ */
+@font-face {
+  font-family: 'Material Symbols Rounded';
+  font-style: normal;
+  font-weight: 100 700;
+  /* Icons are ligatures: a fallback font would spell out "home" until the font arrives. */
+  font-display: block;
+  src: url('./assets/fonts/material-symbols-rounded-subset.woff2') format('woff2');
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Pergament - helles Theme */
+    --background: 44 47% 93%; /* #F5F0E6 Rabenschwarz-Gegenstueck */
+    --foreground: 220 30% 6%; /* #0B0D12 Pergament-Text */
+    --card: 40 100% 99%; /* #FFFDF8 */
+    --card-foreground: 220 30% 6%;
+    --popover: 40 100% 99%;
+    --popover-foreground: 220 30% 6%;
+    --primary: 35 79% 30%; /* #8A5A10 Bernstein hell */
+    --primary-foreground: 44 47% 93%;
+    --secondary: 42 30% 87%; /* #E8E1D2 Nachtblau-Gegenstueck */
+    --secondary-foreground: 220 30% 6%;
+    --muted: 42 30% 87%;
+    --muted-foreground: 220 12% 41%; /* #5B6475 Runensilber */
+    --accent: 37 72% 42%; /* #B7791F Goldlicht */
+    --accent-foreground: 44 47% 93%;
+    --destructive: 7 54% 40%; /* #9E3B2F Runenrot */
+    --destructive-foreground: 44 47% 93%;
+    --border: 42 30% 87%;
+    --input: 42 30% 87%;
+    --ring: 37 72% 42%;
+    --radius: 0.75rem; /* 12 px */
+    --hairline: 11 13 18; /* Tinte auf Pergament */
+  }
+
+  .dark {
+    /* Rabenschwarz - Standard */
+    --background: 223 27% 6%; /* #0B0D12 */
+    --foreground: 42 38% 88%; /* #EDE6D6 Pergament */
+    --card: 222 40% 12%; /* #121A2B Mitternacht */
+    --card-foreground: 42 38% 88%;
+    --popover: 222 40% 12%;
+    --popover-foreground: 42 38% 88%;
+    --primary: 38 74% 56%; /* #E3A73B Bernstein */
+    --primary-foreground: 223 27% 6%; /* Schrift auf Bernstein IMMER Rabenschwarz */
+    --secondary: 221 39% 18%; /* #1C2740 Nachtblau */
+    --secondary-foreground: 42 38% 88%;
+    --muted: 221 39% 18%;
+    --muted-foreground: 216 12% 81%; /* #C8CDD6 Runensilber */
+    --accent: 36 83% 71%; /* #F4C878 Goldlicht */
+    --accent-foreground: 223 27% 6%;
+    --destructive: 6 51% 47%; /* #B5483B Runenrot */
+    --destructive-foreground: 42 38% 88%;
+    --border: 221 39% 18%;
+    --input: 221 39% 18%;
+    --ring: 36 83% 71%;
+    --hairline: 200 205 214; /* Runensilber */
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    /* The design is a photo surface: never bounce a white gap into view. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Focus is Goldlicht, 2 px, offset 2 px - visible on every control. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer components {
+  /**
+   * Material Symbols Rounded. The variable font carries a FILL axis: active navigation targets
+   * use the filled shape, everything else the outlined one.
+   */
+  .symbol {
+    font-family: 'Material Symbols Rounded', sans-serif;
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-variation-settings:
+      'FILL' var(--symbol-fill, 0),
+      'wght' var(--symbol-weight, 400),
+      'GRAD' 0,
+      'opsz' 24;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  .symbol-filled {
+    --symbol-fill: 1;
+  }
+
+  /**
+   * Our own buttons in the full screen viewer.
+   *
+   * PhotoSwipe fills its buttons with an SVG that carries its own size; ours carry a letter from
+   * the icon font, which would otherwise sit on the baseline at the top of the 60 px button.
+   * PhotoSwipe colours only its SVGs, and a letter takes the page's text colour - ink in the
+   * light theme - so ours take the viewer's icon colour and shadow explicitly.
+   */
+  /**
+   * The viewer's bar of buttons below the phone's status bar (clock, battery, notch), not on top
+   * of it; and clear of rounded corners in landscape. The picture itself may reach the edge.
+   */
+  /* Two classes: PhotoSwipe's own sheet loads after this one and would win a tie. */
+  .pswp .pswp__top-bar {
+    top: 0;
+    box-sizing: border-box;
+    height: calc(60px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    /* A shade behind the buttons that reaches up under the status bar: the phone's clock and
+       battery stay readable on a white sky, and so do the buttons. */
+    background: linear-gradient(to bottom, rgb(0 0 0 / 0.6), rgb(0 0 0 / 0.25) 70%, transparent);
+  }
+
+  .pswp__button .symbol {
+    color: var(--pswp-icon-color);
+    text-shadow: 1px 1px 3px var(--pswp-icon-color-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: 22px;
+  }
+
+  /**
+   * Knotwork divider: two crossed hatchings at 10 % opacity. Only ever between sections,
+   * never across photos.
+   */
+  .knotwork {
+    height: 8px;
+    opacity: 0.1;
+    background-image:
+      repeating-linear-gradient(45deg, #c8cdd6 0 1px, transparent 1px 8px),
+      repeating-linear-gradient(-45deg, #c8cdd6 0 1px, transparent 1px 8px);
+    background-size: 8px 8px;
+  }
+
+  /**
+   * Desktop scroll areas keep their scrollbar at all times: the content column is always the same
+   * width, whether a page fills the screen or not, so nothing jumps when navigating. Styling the
+   * bar also replaces the macOS overlay bar, which fades out and takes no space at all.
+   */
+  .scrollbar-stable {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+
+  .scrollbar-stable::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .scrollbar-stable::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-stable::-webkit-scrollbar-thumb {
+    /* The border is the gap around the thumb: a 4 px bar inside a 10 px lane. */
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-color: hsl(var(--muted-foreground) / 0.35);
+    background-clip: content-box;
+  }
+
+  .scrollbar-stable::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.55);
+  }
+
+  /**
+   * A person's initials: a soft tint of their hue with the letters in a deep tone of the same,
+   * and a hairline inside so a light tint still has an edge on parchment.
+   */
+  .person-initial {
+    background-color: hsl(var(--person-hue) 32% 86%);
+    color: hsl(var(--person-hue) 38% 26%);
+    box-shadow: inset 0 0 0 1px hsl(var(--person-hue) 38% 26% / 0.08);
+    letter-spacing: 0.02em;
+  }
+
+  .dark .person-initial {
+    background-color: hsl(var(--person-hue) 26% 23%);
+    color: hsl(var(--person-hue) 48% 82%);
+    box-shadow: inset 0 0 0 1px hsl(var(--person-hue) 48% 82% / 0.1);
+  }
+
+  /** Horizontal snap scrollers hide their scrollbar; the content is the affordance. */
+  .scroll-snap-x {
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scroll-snap-x::-webkit-scrollbar {
+    display: none;
+  }
+}

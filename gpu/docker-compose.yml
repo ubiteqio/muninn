@@ -1,0 +1,146 @@
+# Muninns KI-Maschine: alles, was eine Grafikkarte braucht, auf dem Rechner mit der Karte.
+#
+#   docker compose up -d
+#
+# Zwei Container, fünf Modelle:
+#   vllm   beschreibt Bilder          (Qwen3-VL-8B-Instruct)
+#   embed  macht Vektoren daraus      (SigLIP 2 für Bilder, BGE-M3 für Texte),
+#          schreibt mit, was in Videos gesagt wird (Whisper large-v3-turbo),
+#          und findet Gesichter       (InsightFace buffalo_l)
+#
+# Muninn selbst läuft woanders und spricht beide über das Netz an. Die Ports stehen deshalb auf
+# allen Schnittstellen offen, nicht nur auf der Loopback-Adresse.
+name: muninn-gpu
+
+services:
+  # Das beschreibende Modell. Ein vLLM-Prozess bedient genau ein Modell.
+  vllm:
+    # Eine feste Fassung, nicht "latest": Neue vLLM-Fassungen haben schon zweimal die Rechnung
+    # für den Grafikspeicher geändert, und dann fand der KV-Cache beim Neustart keinen Platz mehr.
+    # Erneuert wird bewusst - Nummer hier ändern, starten, im Log auf den Start achten.
+    image: vllm/vllm-openai:${VLLM_VERSION:-v0.29.0}
+    restart: unless-stopped
+    # Der offizielle Einstiegspunkt wechselt zwischen den Versionen; so ist er eindeutig.
+    entrypoint: ["vllm", "serve"]
+    command:
+      - ${VLLM_MODEL:-Qwen/Qwen3-VL-8B-Instruct-FP8}
+      # Der Name, unter dem Muninn das Modell anspricht. Er bleibt gleich, auch wenn die
+      # FP8-Fassung geladen wird; das KI-Profil in Muninn ändert sich damit nicht.
+      - --served-model-name
+      - ${VLLM_SERVED_NAME:-Qwen/Qwen3-VL-8B-Instruct}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --api-key
+      - ${AI_API_KEY:?bitte AI_API_KEY in .env setzen}
+      - --dtype
+      - bfloat16
+      - --max-model-len
+      - ${VLLM_MAX_MODEL_LEN:-16384}
+      - --kv-cache-dtype
+      - fp8
+      # Nicht 0.90: der Einbettungsdienst daneben braucht rund 5 GB für seine drei Modelle.
+      - --gpu-memory-utilization
+      - ${VLLM_GPU_FRACTION:-0.66}
+      # Beim Start reserviert vLLM Platz für die größte denkbare Eingabe, bei Qwen3-VL
+      # einschließlich Video. Mit 0.80 blieben für den KV-Cache -4,9 GiB, der Container
+      # startete immer wieder neu. Muninn schickt einzelne Bilder: kein Video, ein Bild je
+      # Anfrage, höchstens 8 gleichzeitig.
+      - --limit-mm-per-prompt
+      - '{"image": 1, "video": 0}'
+      - --max-num-seqs
+      - "8"
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      # Unter WSL 2 gibt es keinen angehefteten Hostspeicher. Der neue Modell-Läufer (V2) setzt
+      # ihn voraus und bricht sonst schon beim Start ab: "RuntimeError: UVA is not available".
+      # Der V1-Läufer tut dasselbe ohne diese Anforderung.
+      # Wer einen neuen WSL-Kern hat, kann stattdessen VLLM_WSL2_ENABLE_PIN_MEMORY=1 setzen.
+      VLLM_USE_V2_MODEL_RUNNER: ${VLLM_USE_V2_MODEL_RUNNER:-0}
+      VLLM_WSL2_ENABLE_PIN_MEMORY: ${VLLM_WSL2_ENABLE_PIN_MEMORY:-0}
+      # Neuere vLLM-Fassungen rechnen den Speicher der CUDA-Graphen in den Anteil ein; aus 0.70
+      # werden so effektiv 0.63, und für den KV-Cache bleibt nichts ("No available memory for
+      # the cache blocks"). 0 rechnet wie zuvor, sodass VLLM_GPU_FRACTION seine Bedeutung behält.
+      VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: ${VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS:-0}
+    ports:
+      - "${VLLM_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 600s
+      retries: 5
+    volumes:
+      # Die Gewichte, einmal geladen. Ohne das lädt jeder Neustart sie erneut.
+      - models:/root/.cache/huggingface
+    # vLLM verteilt Arbeit über gemeinsamen Speicher; die Voreinstellung von Docker ist dafür
+    # zu klein und äußert sich als Absturz mitten im Laden.
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Die beiden Vektormodelle und Whisper. Drei Modelle in einem Prozess, zusammen rund 5 GB.
+  embed:
+    build:
+      context: ../embed
+    image: muninn/embed:local
+    # vLLM zuerst. Es misst beim Start, wie viel Speicher es selbst braucht, und hält dann seinen
+    # festen Anteil (VLLM_GPU_FRACTION). Läuft daneben schon der Einbettungsdienst und bekommt
+    # Arbeit von Muninn, wächst sein Speicher genau während dieser Messung; vLLM rechnet das sich
+    # selbst zu, der KV-Cache wird negativ, und es startet nicht ("Available KV cache memory:
+    # -1.48 GiB"). So war es nach jedem Neustart des Rechners. Kommt vLLM gar nicht hoch, startet
+    # der Einbettungsdienst auch allein: docker compose up -d --no-deps embed
+    depends_on:
+      vllm:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      EMBED_IMAGE_MODEL_NAME: ${EMBED_IMAGE_MODEL_NAME:-siglip2}
+      EMBED_IMAGE_MODEL_ID: ${EMBED_IMAGE_MODEL_ID:-google/siglip2-so400m-patch14-384}
+      EMBED_TEXT_MODEL_NAME: ${EMBED_TEXT_MODEL_NAME:-bge-m3}
+      EMBED_TEXT_MODEL_ID: ${EMBED_TEXT_MODEL_ID:-BAAI/bge-m3}
+      # Leerer Name schaltet die Spracherkennung ab.
+      EMBED_TRANSCRIBE_MODEL_NAME: ${EMBED_TRANSCRIBE_MODEL_NAME-whisper-large-v3-turbo}
+      EMBED_TRANSCRIBE_MODEL_ID: ${EMBED_TRANSCRIBE_MODEL_ID:-openai/whisper-large-v3-turbo}
+      # Wo Whisper läuft; leer wie EMBED_DEVICE (die Karte). "cpu" gibt der Karte 1,5 bis 2 GB
+      # frei, falls sie neben Qwen voll läuft.
+      EMBED_TRANSCRIBE_DEVICE: ${EMBED_TRANSCRIBE_DEVICE:-}
+      # Gesichter (InsightFace buffalo_l, rund 300 MB, beim ersten Start geladen). Leerer Name
+      # schaltet sie ab.
+      EMBED_FACE_MODEL_NAME: ${EMBED_FACE_MODEL_NAME-buffalo_l}
+      # Höchstens so viel Grafikspeicher (MB) für die Gesichter; vLLM braucht seinen Anteil frei.
+      EMBED_FACE_MEMORY_MB: ${EMBED_FACE_MEMORY_MB:-1024}
+      # "cpu" lässt die Gesichter auf dem Prozessor laufen und der Karte ihren Speicher; auf
+      # einer 16-GB-Karte neben Qwen passen sie sonst nicht mehr (Standard: wie EMBED_DEVICE).
+      EMBED_FACE_DEVICE: ${EMBED_FACE_DEVICE:-cpu}
+      EMBED_DEVICE: ${EMBED_DEVICE:-auto}
+      # Erst laden, wenn vLLM steht: Nach einem Neustart des Rechners startet Docker alle
+      # Container gleichzeitig und hält sich nicht an depends_on. Lädt der Dienst hier seine
+      # Modelle, während vLLM den Speicher misst, startet vLLM nicht oder die Karte läuft über.
+      EMBED_WAIT_FOR: ${EMBED_WAIT_FOR-http://vllm:8000/health}
+      EMBED_DTYPE: ${EMBED_DTYPE:-auto}
+      # Derselbe Schlüssel wie bei vLLM: eine Tür, ein Schlüssel.
+      EMBED_API_KEY: ${AI_API_KEY:?bitte AI_API_KEY in .env setzen}
+      EMBED_MAX_BATCH: ${EMBED_MAX_BATCH:-32}
+      HF_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+    ports:
+      - "${EMBED_PORT:-8100}:8100"
+    volumes:
+      - models:/data/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  # Beide Dienste teilen sich den Modell-Zwischenspeicher: was einmal geladen ist, bleibt.
+  models:

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Inter:wght@400;500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet" />
+<script src="./image-slot.js"></script>
+<style>
+  body { margin: 0; background: #06070A; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  *::-webkit-scrollbar { width: 0; height: 0; }
+  a { color: #E3A73B; text-decoration: none; }
+  a:hover { color: #F4C878; }
+  @keyframes muninn-orbit { to { transform: rotate(360deg); } }
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:row;align-items:flex-start;gap:56px;padding:40px 48px 64px;background:#06070A;font-family:Inter,system-ui,sans-serif">
+
+  <div style="display:flex;flex-direction:column;align-items:flex-start;gap:16px">
+  <div style="display:flex;align-items:center;gap:10px;color:#5C6472;font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:0.14em;text-transform:uppercase">
+    <span>Start</span><span style="color:#2A3040">/</span><span>Mobil 390 × 844</span><span style="color:#2A3040">/</span><span style="color:#E3A73B">Dunkel</span>
+  </div>
+
+  <div style="position:relative;width:390px;height:844px;border-radius:44px;overflow:hidden;background:#0B0D12;border:1px solid #1C2740;box-shadow:0 40px 90px rgba(0,0,0,0.6)">
+
+    <!-- Statusleiste -->
+    <div style="position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;z-index:30;color:#EDE6D6;font-size:14px;font-weight:600;background:linear-gradient(#0B0D12 62%,rgba(11,13,18,0))">
+      <span>9:41</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-family:'Material Symbols Rounded';font-size:17px">signal_cellular_alt</span>
+        <span style="font-family:'Material Symbols Rounded';font-size:17px">wifi</span>
+        <span style="font-family:'Material Symbols Rounded';font-size:19px">battery_full</span>
+      </div>
+    </div>
+
+    <!-- Kopfleiste -->
+    <div style="position:absolute;top:52px;left:0;right:0;height:60px;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(11,13,18,0.86);backdrop-filter:blur(14px);border-bottom:1px solid rgba(200,205,214,0.08)">
+      <div style="display:flex;align-items:center;gap:11px">
+        <div style="width:38px;height:38px;border-radius:11px;background:#EDE6D6;border:1px solid rgba(237,230,214,0.5);display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="./assets/muninn-mark.png" alt="Muninn" style="width:31px;height:31px;object-fit:contain;display:block;margin-left:1px" />
+        </div>
+        <span style="font-family:Cinzel,serif;font-weight:600;font-size:20px;letter-spacing:0.15em;color:#EDE6D6;line-height:1">MUNINN</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:#C8CDD6;cursor:pointer;position:relative;border-radius:12px" style-hover="background:#1C2740;color:#EDE6D6">
+          <span style="font-family:'Material Symbols Rounded';font-size:23px">notifications</span>
+          <span style="position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:#E3A73B;border:2px solid #0B0D12"></span>
+        </button>
+        <div style="width:34px;height:34px;border-radius:50%;background:radial-gradient(80% 80% at 30% 25%,#8FA9C9,#3E5272);border:1px solid rgba(237,230,214,0.18);display:flex;align-items:center;justify-content:center;color:#0B0D12;font-size:13px;font-weight:700">TK</div>
+      </div>
+    </div>
+
+    <!-- Inhalt -->
+    <div style="position:absolute;inset:112px 0 0 0;overflow-y:auto;overflow-x:hidden;padding-bottom:110px">
+
+      <sc-if value="{{ showMemories }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:22px 0 4px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 20px 12px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#C8CDD6">Rückblicke</span>
+          <span style="font-size:12px;font-weight:500;color:#E3A73B">Alle ansehen</span>
+        </div>
+        <div style="display:flex;gap:12px;overflow-x:auto;padding:0 20px 4px;scroll-snap-type:x mandatory">
+          <sc-for list="{{ memories }}" as="m" hint-placeholder-count="2">
+            <div style="position:relative;flex:0 0 auto;width:250px;height:316px;border-radius:12px;overflow:hidden;scroll-snap-align:start;background:#121A2B">
+              <div style="position:absolute;inset:0;background:{{ m.bg }}"></div>
+              <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,13,18,0.55) 0%,rgba(11,13,18,0) 34%,rgba(11,13,18,0.1) 52%,rgba(11,13,18,0.86) 100%)"></div>
+              <div style="position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(11,13,18,0.62);backdrop-filter:blur(8px);border:1px solid rgba(227,167,59,0.4)">
+                <span style="font-family:'Material Symbols Rounded';font-size:15px;color:#E3A73B">history</span>
+                <span style="font-size:11px;font-weight:600;color:#F4C878;letter-spacing:0.02em">{{ m.tag }}</span>
+              </div>
+              <div style="position:absolute;left:0;right:0;bottom:0;padding:16px">
+                <div style="font-family:Cinzel,serif;font-size:22px;font-weight:600;color:#EDE6D6;letter-spacing:0.02em">{{ m.title }}</div>
+                <div style="margin-top:5px;font-size:12px;color:#C8CDD6">{{ m.meta }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ knotwork }}" hint-placeholder-val="{{ true }}">
+        <div style="margin:22px 20px 2px;height:8px;opacity:0.1;background-image:repeating-linear-gradient(45deg,#C8CDD6 0 1px,transparent 1px 8px),repeating-linear-gradient(-45deg,#C8CDD6 0 1px,transparent 1px 8px);background-size:8px 8px"></div>
+      </sc-if>
+
+      <!-- Neuigkeiten -->
+      <div style="padding:20px 20px 0">
+        <div style="font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#C8CDD6;padding-bottom:12px">Neuigkeiten</div>
+        <div style="background:#121A2B;border:1px solid rgba(200,205,214,0.07);border-radius:12px;overflow:hidden">
+          <sc-for list="{{ news }}" as="n" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 12px;min-height:64px;border-top:1px solid rgba(200,205,214,0.06)">
+              <div style="position:relative;flex:0 0 auto">
+                <div style="width:38px;height:38px;border-radius:50%;background:{{ n.avatar }};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#0B0D12">{{ n.initial }}</div>
+                <div style="position:absolute;right:-3px;bottom:-3px;width:19px;height:19px;border-radius:50%;background:#1C2740;border:2px solid #121A2B;display:flex;align-items:center;justify-content:center">
+                  <span style="font-family:'Material Symbols Rounded';font-size:11px;color:{{ n.iconColor }}">{{ n.icon }}</span>
+                </div>
+              </div>
+              <div style="flex:1 1 auto;min-width:0">
+                <div style="font-size:13.5px;line-height:1.35;color:#EDE6D6"><b style="font-weight:600">{{ n.who }}</b> {{ n.text }}</div>
+                <div style="margin-top:3px;font-size:11.5px;color:#C8CDD6">{{ n.where }} · {{ n.time }}</div>
+              </div>
+              <div style="flex:0 0 auto;width:42px;height:42px;border-radius:8px;background:{{ n.thumb }}"></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- Alben -->
+      <div style="padding:24px 0 0">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 20px 12px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#C8CDD6">Zuletzt hinzugefügt</span>
+          <span style="font-size:12px;font-weight:500;color:#E3A73B">Yggdrasil</span>
+        </div>
+        <div style="display:flex;gap:10px;overflow-x:auto;padding:0 20px">
+          <sc-for list="{{ albums }}" as="a" hint-placeholder-count="3">
+            <div style="flex:0 0 auto;width:132px">
+              <div style="position:relative;width:132px;height:132px;border-radius:12px;overflow:hidden;background:{{ a.bg }}">
+                <div style="position:absolute;right:8px;bottom:8px;padding:3px 7px;border-radius:6px;background:rgba(11,13,18,0.66);font-size:10.5px;font-weight:600;color:#EDE6D6">{{ a.count }}</div>
+              </div>
+              <div style="margin-top:8px;font-size:13px;font-weight:600;color:#EDE6D6">{{ a.title }}</div>
+              <div style="margin-top:2px;font-size:11.5px;color:#C8CDD6">{{ a.meta }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- Zeitleiste -->
+      <div style="position:relative;padding:26px 0 0">
+        <!-- Datums-Schieberegler -->
+        <div style="position:absolute;right:0;top:56px;bottom:26px;width:40px;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 0;pointer-events:none">
+          <sc-for list="{{ years }}" as="y" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:5px">
+              <div style="width:{{ y.tick }};height:1px;background:rgba(200,205,214,0.35)"></div>
+              <div style="font-size:9.5px;font-weight:600;color:#C8CDD6;letter-spacing:0.04em">{{ y.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="position:absolute;right:9px;top:78px;z-index:21;width:6px;height:30px;border-radius:3px;background:#F4C878;box-shadow:0 0 14px rgba(244,200,120,0.35)"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px 12px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#C8CDD6">Zeitleiste</span>
+          <span style="padding:4px 9px;border-radius:999px;background:rgba(227,167,59,0.16);color:#F4C878;font-size:11px;font-weight:700">Sept. 2026</span>
+        </div>
+        <sc-for list="{{ timeline }}" as="g" hint-placeholder-count="2">
+          <div style="padding:0 40px 0 2px">
+            <div style="padding:12px 18px 8px;font-size:12.5px;font-weight:600;color:#EDE6D6">{{ g.label }}</div>
+            <div style="display:grid;gap:2px;grid-template-columns:{{ gridCols }}">
+              <sc-for list="{{ g.tiles }}" as="t" hint-placeholder-count="6">
+                <div style="position:relative;aspect-ratio:1;overflow:hidden;background:{{ t.bg }}">
+                  <sc-if value="{{ t.video }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;top:5px;right:5px;display:flex;align-items:center;gap:3px;padding:2px 5px;border-radius:5px;background:rgba(11,13,18,0.6)">
+                      <span style="font-family:'Material Symbols Rounded';font-size:12px;color:#EDE6D6">play_arrow</span>
+                      <span style="font-size:10px;font-weight:600;color:#EDE6D6">{{ t.dur }}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ t.estimated }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;left:5px;bottom:5px;padding:1px 5px;border-radius:4px;background:rgba(11,13,18,0.55);font-size:10px;font-weight:500;color:#C8CDD6;letter-spacing:0.02em">≈ {{ t.year }}</div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div style="height:26px"></div>
+      </div>
+    </div>
+
+    <!-- Navigationsleiste -->
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:40;background:rgba(18,26,43,0.96);backdrop-filter:blur(18px);border-top:1px solid rgba(200,205,214,0.09);padding-bottom:22px">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr)">
+        <sc-for list="{{ nav }}" as="i" hint-placeholder-count="5">
+          <div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;position:relative">
+            <span style="font-family:'Material Symbols Rounded';font-size:24px;color:{{ i.color }};font-variation-settings:'FILL' {{ i.fill }}">{{ i.icon }}</span>
+            <span style="font-size:10.5px;font-weight:{{ i.weight }};color:{{ i.color }}">{{ i.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:rgba(237,230,214,0.28)"></div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ===== Desktop 1440 ===== -->
+  <div style="display:flex;flex-direction:column;align-items:flex-start;gap:16px">
+    <div style="display:flex;align-items:center;gap:10px;color:#5C6472;font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:0.14em;text-transform:uppercase">
+      <span>Start</span><span style="color:#2A3040">/</span><span>Desktop 1440 × 960</span><span style="color:#2A3040">/</span><span style="color:#E3A73B">Dunkel</span>
+    </div>
+
+    <div style="position:relative;width:1440px;height:960px;border-radius:14px;overflow:hidden;background:#0B0D12;border:1px solid #1C2740;box-shadow:0 40px 90px rgba(0,0,0,0.6);display:flex">
+
+      <!-- Seitenleiste -->
+      <div style="flex:0 0 auto;width:96px;height:100%;background:#121A2B;border-right:1px solid rgba(200,205,214,0.08);display:flex;flex-direction:column;align-items:center;padding:20px 0 18px">
+        <div style="width:48px;height:48px;border-radius:13px;background:#EDE6D6;border:1px solid rgba(237,230,214,0.5);display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="./assets/muninn-mark.png" alt="Muninn" style="width:39px;height:39px;object-fit:contain;display:block;margin-left:1px" />
+        </div>
+        <div style="margin-top:8px;font-family:Cinzel,serif;font-size:10.5px;letter-spacing:0.18em;color:#C8CDD6">MUNINN</div>
+        <div style="width:40px;height:8px;margin:18px 0 6px;opacity:0.1;background-image:repeating-linear-gradient(45deg,#C8CDD6 0 1px,transparent 1px 8px),repeating-linear-gradient(-45deg,#C8CDD6 0 1px,transparent 1px 8px);background-size:8px 8px"></div>
+        <div style="display:flex;flex-direction:column;gap:6px;width:100%;padding:0 10px;margin-top:8px">
+          <sc-for list="{{ nav }}" as="i" hint-placeholder-count="5">
+            <div style="height:64px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;background:{{ i.railBg }}">
+              <span style="font-family:'Material Symbols Rounded';font-size:24px;color:{{ i.color }};font-variation-settings:'FILL' {{ i.fill }}">{{ i.icon }}</span>
+              <span style="font-size:10.5px;font-weight:{{ i.weight }};color:{{ i.color }}">{{ i.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="flex:1 1 auto"></div>
+        <div style="width:40px;height:40px;border-radius:50%;background:radial-gradient(80% 80% at 30% 25%,#8FA9C9,#3E5272);border:1px solid rgba(237,230,214,0.18);display:flex;align-items:center;justify-content:center;color:#0B0D12;font-size:14px;font-weight:700">TK</div>
+      </div>
+
+      <!-- Hauptbereich -->
+      <div style="flex:1 1 auto;min-width:0;height:100%;display:flex;flex-direction:column">
+
+        <div style="flex:0 0 auto;height:76px;display:flex;align-items:center;gap:20px;padding:0 32px;border-bottom:1px solid rgba(200,205,214,0.08);background:rgba(11,13,18,0.9)">
+          <div style="font-family:Cinzel,serif;font-size:22px;font-weight:600;letter-spacing:0.06em;color:#EDE6D6">Start</div>
+          <div style="flex:1 1 auto;max-width:520px;height:44px;display:flex;align-items:center;gap:10px;padding:0 14px;border-radius:12px;background:#121A2B;border:1px solid rgba(200,205,214,0.1)">
+            <span style="font-family:'Material Symbols Rounded';font-size:20px;color:#C8CDD6">search</span>
+            <span style="font-size:14px;color:#C8CDD6">Mímir fragen – z. B. „Oma am Strand 2012“</span>
+          </div>
+          <div style="flex:1 1 auto"></div>
+          <button style="height:44px;display:flex;align-items:center;gap:8px;padding:0 18px;border:0;border-radius:12px;background:#E3A73B;color:#0B0D12;font-size:14px;font-weight:600;font-family:Inter,sans-serif;cursor:pointer" style-hover="background:#F4C878">
+            <span style="font-family:'Material Symbols Rounded';font-size:20px">upload</span>Hochladen
+          </button>
+          <button style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(200,205,214,0.12);border-radius:12px;background:transparent;color:#C8CDD6;cursor:pointer;position:relative" style-hover="background:#1C2740;color:#EDE6D6">
+            <span style="font-family:'Material Symbols Rounded';font-size:22px">notifications</span>
+            <span style="position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:#E3A73B;border:2px solid #121A2B"></span>
+          </button>
+        </div>
+
+        <div style="flex:1 1 auto;min-height:0;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) 352px">
+
+          <!-- Linke Spalte -->
+          <div style="min-width:0;overflow-y:auto;padding:26px 28px 40px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;padding-bottom:14px">
+              <span style="font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#C8CDD6">Rückblicke</span>
+              <span style="font-size:13px;font-weight:500;color:#E3A73B;cursor:pointer">Alle ansehen</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px">
+              <sc-for list="{{ memories }}" as="m" hint-placeholder-count="3">
+                <div style="position:relative;height:280px;border-radius:12px;overflow:hidden;background:#121A2B;cursor:pointer">
+                  <div style="position:absolute;inset:0;background:{{ m.bg }}"></div>
+                  <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,13,18,0.5) 0%,rgba(11,13,18,0) 32%,rgba(11,13,18,0.12) 52%,rgba(11,13,18,0.85) 100%)"></div>
+                  <div style="position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(11,13,18,0.62);backdrop-filter:blur(8px);border:1px solid rgba(227,167,59,0.4)">
+                    <span style="font-family:'Material Symbols Rounded';font-size:15px;color:#E3A73B">history</span>
+                    <span style="font-size:11px;font-weight:600;color:#F4C878">{{ m.tag }}</span>
+                  </div>
+                  <div style="position:absolute;left:0;right:0;bottom:0;padding:18px">
+                    <div style="font-family:Cinzel,serif;font-size:23px;font-weight:600;color:#EDE6D6">{{ m.title }}</div>
+                    <div style="margin-top:5px;font-size:12.5px;color:#C8CDD6">{{ m.meta }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ knotwork }}" hint-placeholder-val="{{ true }}">
+              <div style="margin:26px 0 4px;height:8px;opacity:0.1;background-image:repeating-linear-gradient(45deg,#C8CDD6 0 1px,transparent 1px 8px),repeating-linear-gradient(-45deg,#C8CDD6 0 1px,transparent 1px 8px);background-size:8px 8px"></div>
+            </sc-if>
+
+            <div style="position:relative;padding-top:22px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:14px">
+                <span style="font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#C8CDD6">Zeitleiste</span>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <span style="font-size:12.5px;color:#C8CDD6">84 312 Medien · 1999 – 2026</span>
+                  <span style="padding:4px 10px;border-radius:999px;background:rgba(227,167,59,0.16);color:#F4C878;font-size:11.5px;font-weight:700">Sept. 2026</span>
+                </div>
+              </div>
+              <!-- Datums-Schieberegler -->
+              <div style="position:absolute;right:0;top:66px;bottom:0;width:44px;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;padding:4px 2px;pointer-events:none">
+                <sc-for list="{{ years }}" as="y" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <div style="width:{{ y.tick }};height:1px;background:rgba(200,205,214,0.35)"></div>
+                    <div style="font-size:10px;font-weight:600;color:#C8CDD6;letter-spacing:0.04em">{{ y.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="position:absolute;right:7px;top:90px;width:6px;height:32px;border-radius:3px;background:#F4C878;box-shadow:0 0 14px rgba(244,200,120,0.35)"></div>
+              <div style="padding-right:56px">
+                <sc-for list="{{ timelineWide }}" as="g" hint-placeholder-count="2">
+                  <div style="padding-bottom:14px">
+                    <div style="padding:6px 0 8px;font-size:13px;font-weight:600;color:#EDE6D6">{{ g.label }}</div>
+                    <div style="display:grid;gap:2px;grid-template-columns:{{ gridColsWide }}">
+                      <sc-for list="{{ g.tiles }}" as="t" hint-placeholder-count="12">
+                        <div style="position:relative;aspect-ratio:1;overflow:hidden;background:{{ t.bg }};cursor:pointer">
+                          <sc-if value="{{ t.video }}" hint-placeholder-val="{{ false }}">
+                            <div style="position:absolute;top:6px;right:6px;display:flex;align-items:center;gap:3px;padding:2px 6px;border-radius:5px;background:rgba(11,13,18,0.6)">
+                              <span style="font-family:'Material Symbols Rounded';font-size:13px;color:#EDE6D6">play_arrow</span>
+                              <span style="font-size:10.5px;font-weight:600;color:#EDE6D6">{{ t.dur }}</span>
+                            </div>
+                          </sc-if>
+                          <sc-if value="{{ t.estimated }}" hint-placeholder-val="{{ false }}">
+                            <div style="position:absolute;left:6px;bottom:6px;padding:1px 6px;border-radius:4px;background:rgba(11,13,18,0.55);font-size:10.5px;color:#C8CDD6">≈ {{ t.year }}</div>
+                          </sc-if>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rechte Spalte -->
+          <div style="min-width:0;overflow-y:auto;border-left:1px solid rgba(200,205,214,0.08);padding:26px 24px 40px;background:#0E1219">
+            <div style="font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#C8CDD6;padding-bottom:12px">Neuigkeiten</div>
+            <div style="background:#121A2B;border:1px solid rgba(200,205,214,0.07);border-radius:12px;overflow:hidden">
+              <sc-for list="{{ news }}" as="n" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:12px;padding:12px;min-height:66px;border-top:1px solid rgba(200,205,214,0.06)">
+                  <div style="position:relative;flex:0 0 auto">
+                    <div style="width:38px;height:38px;border-radius:50%;background:{{ n.avatar }};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#0B0D12">{{ n.initial }}</div>
+                    <div style="position:absolute;right:-3px;bottom:-3px;width:19px;height:19px;border-radius:50%;background:#1C2740;border:2px solid #121A2B;display:flex;align-items:center;justify-content:center">
+                      <span style="font-family:'Material Symbols Rounded';font-size:11px;color:{{ n.iconColor }}">{{ n.icon }}</span>
+                    </div>
+                  </div>
+                  <div style="flex:1 1 auto;min-width:0">
+                    <div style="font-size:13.5px;line-height:1.35;color:#EDE6D6"><b style="font-weight:600">{{ n.who }}</b> {{ n.text }}</div>
+                    <div style="margin-top:3px;font-size:11.5px;color:#C8CDD6">{{ n.where }} · {{ n.time }}</div>
+                  </div>
+                  <div style="flex:0 0 auto;width:44px;height:44px;border-radius:8px;background:{{ n.thumb }}"></div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;align-items:baseline;justify-content:space-between;padding:26px 0 12px">
+              <span style="font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#C8CDD6">Zuletzt hinzugefügt</span>
+              <span style="font-size:12.5px;font-weight:500;color:#E3A73B;cursor:pointer">Yggdrasil</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px">
+              <sc-for list="{{ albums }}" as="a" hint-placeholder-count="4">
+                <div style="cursor:pointer">
+                  <div style="position:relative;width:100%;aspect-ratio:1;border-radius:12px;overflow:hidden;background:{{ a.bg }}">
+                    <div style="position:absolute;right:8px;bottom:8px;padding:3px 7px;border-radius:6px;background:rgba(11,13,18,0.66);font-size:11px;font-weight:600;color:#EDE6D6">{{ a.count }}</div>
+                  </div>
+                  <div style="margin-top:8px;font-size:13.5px;font-weight:600;color:#EDE6D6">{{ a.title }}</div>
+                  <div style="margin-top:2px;font-size:11.5px;color:#C8CDD6">{{ a.meta }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:2000,&quot;height&quot;:1080},&quot;showMemories&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Start&quot;},&quot;knotwork&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Start&quot;},&quot;timelineColumns&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;min&quot;:2,&quot;max&quot;:5,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Zeitleiste&quot;},&quot;timelineColumnsDesktop&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:8,&quot;min&quot;:5,&quot;max&quot;:12,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Zeitleiste&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const P = {
+      sea:    'radial-gradient(95% 75% at 28% 18%, #86A9BE 0%, #3E5F73 46%, #16232C 100%)',
+      sunset: 'radial-gradient(100% 80% at 72% 16%, #E9B571 0%, #9C6335 42%, #2B1A12 100%)',
+      forest: 'linear-gradient(158deg, #55764F 0%, #2C4130 55%, #121C13 100%)',
+      sepia:  'radial-gradient(85% 75% at 38% 28%, #DCCFB6 0%, #8D7C63 48%, #2F2A22 100%)',
+      winter: 'linear-gradient(200deg, #9BB4D0 0%, #4A6183 52%, #1A2335 100%)',
+      warm:   'radial-gradient(90% 90% at 58% 68%, #CB836C 0%, #6F4238 50%, #221415 100%)',
+      dusk:   'linear-gradient(170deg, #B98FA6 0%, #5A4364 50%, #1B1724 100%)',
+      field:  'radial-gradient(90% 80% at 45% 75%, #C9B45F 0%, #6E6A34 48%, #221F13 100%)',
+      stone:  'linear-gradient(150deg, #A8ADB4 0%, #5A6270 52%, #1E232D 100%)',
+      night:  'radial-gradient(80% 70% at 30% 30%, #4C6A9B 0%, #263A5C 50%, #10182A 100%)',
+      rose:   'radial-gradient(85% 85% at 65% 25%, #E0A29A 0%, #8A5350 48%, #241718 100%)',
+      moss:   'radial-gradient(90% 70% at 35% 65%, #7FA06B 0%, #3F5739 50%, #141C14 100%)'
+    };
+    const t = (bg, extra) => Object.assign({ bg, video: false, estimated: false, dur: '', year: '' }, extra || {});
+    return {
+      showMemories: this.props.showMemories ?? true,
+      knotwork: this.props.knotwork ?? true,
+      gridCols: 'repeat(' + (this.props.timelineColumns ?? 3) + ', 1fr)',
+      gridColsWide: 'repeat(' + (this.props.timelineColumnsDesktop ?? 8) + ', 1fr)',
+      memories: [
+        { tag: 'Heute vor 5 Jahren', title: 'Gardasee', meta: '19. September 2021 · 24 Fotos', bg: P.sea },
+        { tag: 'Heute vor 12 Jahren', title: 'Herbst im Harz', meta: '19. September 2014 · 61 Medien', bg: P.forest },
+        { tag: 'Heute vor 21 Jahren', title: 'Omas Garten', meta: '19. September 2005 · 12 Fotos', bg: P.sepia }
+      ],
+      news: [
+        { who: 'Anna', text: 'hat ein Foto kommentiert', where: 'Italien 2009', time: 'vor 2 Std.', initial: 'A', avatar: 'radial-gradient(80% 80% at 30% 25%, #E9C08A, #B47C36)', icon: 'chat_bubble', iconColor: '#C8CDD6', thumb: P.sunset },
+        { who: 'Papa', text: 'hat 8 Medien hinzugefügt', where: 'Nordsee 2026', time: 'vor 5 Std.', initial: 'P', avatar: 'radial-gradient(80% 80% at 30% 25%, #9BB4D0, #4A6183)', icon: 'add_photo_alternate', iconColor: '#C8CDD6', thumb: P.winter },
+        { who: 'Lena', text: 'gefällt dein Foto', where: 'Weihnachten 1999', time: 'gestern', initial: 'L', avatar: 'radial-gradient(80% 80% at 30% 25%, #C9A0B4, #6B4A63)', icon: 'favorite', iconColor: '#E3A73B', thumb: P.warm }
+      ],
+      albums: [
+        { title: 'Italien', meta: 'Reisen › 2009', count: '213', bg: P.sunset },
+        { title: 'Nordsee', meta: 'Reisen › 2026', count: '84', bg: P.sea },
+        { title: 'Weihnachten', meta: 'Feste › 1999', count: '46', bg: P.warm },
+        { title: 'Wanderungen', meta: 'Natur › 2018', count: '132', bg: P.moss }
+      ],
+      timeline: [
+        { label: 'Heute · 19. September 2026', tiles: [t(P.moss), t(P.sea, { video: true, dur: '0:24' }), t(P.field), t(P.stone), t(P.rose), t(P.night)] },
+        { label: 'Gestern', tiles: [t(P.winter), t(P.dusk), t(P.forest), t(P.warm, { video: true, dur: '1:07' }), t(P.sepia), t(P.sea)] },
+        { label: 'September 2026', tiles: [t(P.night), t(P.field), t(P.sepia, { estimated: true, year: '2005' }), t(P.moss), t(P.stone), t(P.sunset)] }
+      ],
+      timelineWide: [
+        { label: 'Heute · 19. September 2026', tiles: [P.moss, P.sea, P.field, P.stone, P.rose, P.night, P.sunset, P.winter].map((b, i) => t(b, i === 1 ? { video: true, dur: '0:24' } : null)) },
+        { label: 'Gestern · 18. September 2026', tiles: [P.winter, P.dusk, P.forest, P.warm, P.sepia, P.sea, P.moss, P.night].map((b, i) => t(b, i === 3 ? { video: true, dur: '1:07' } : null)) },
+        { label: 'September 2026', tiles: [P.night, P.field, P.sepia, P.moss, P.stone, P.sunset, P.rose, P.forest].map((b, i) => t(b, i === 2 ? { estimated: true, year: '2005' } : null)) }
+      ],
+      years: [
+        { label: '2026', tick: '10px' }, { label: '2020', tick: '6px' }, { label: '2014', tick: '6px' },
+        { label: '2007', tick: '6px' }, { label: '2000', tick: '10px' }
+      ],
+      nav: [
+        { icon: 'home', label: 'Start', color: '#E3A73B', fill: 1, weight: 600, railBg: 'rgba(227,167,59,0.12)' },
+        { icon: 'photo_library', label: 'Alben', color: '#C8CDD6', fill: 0, weight: 500, railBg: 'transparent' },
+        { icon: 'search', label: 'Suche', color: '#C8CDD6', fill: 0, weight: 500, railBg: 'transparent' },
+        { icon: 'map', label: 'Karte', color: '#C8CDD6', fill: 0, weight: 500, railBg: 'transparent' },
+        { icon: 'person', label: 'Profil', color: '#C8CDD6', fill: 0, weight: 500, railBg: 'transparent' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

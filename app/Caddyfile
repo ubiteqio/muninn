@@ -1,0 +1,35 @@
+# One address for the whole of Muninn: the app itself, and the server behind /api.
+:9090 {
+	encode zstd gzip
+
+	# The API, the live channel and the health endpoints. Same origin as the app, so the
+	# browser sends the session cookie and the signed media addresses just work.
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+	handle /health {
+		reverse_proxy api:8000
+	}
+	handle /ready {
+		reverse_proxy api:8000
+	}
+
+	# Everything the build hashed into its name can be kept forever; a new build is a new name.
+	handle /assets/* {
+		root * /srv
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	handle {
+		root * /srv
+		# The routes live in the app, not on disk: anything that is not a file is the app.
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

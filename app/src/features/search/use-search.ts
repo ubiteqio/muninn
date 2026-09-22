@@ -1,0 +1,75 @@
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+
+import { api, unwrap } from '@/api/client'
+import type { components } from '@/api/generated/schema'
+
+export type SearchPage = components['schemas']['SearchPage']
+export type SearchHit = components['schemas']['SearchHitView']
+export type SearchAbilities = components['schemas']['SearchAbilities']
+export type MediaKind = 'image' | 'video'
+export type SearchSort = 'relevance' | 'date'
+
+export interface SearchInput {
+  q: string
+  kind?: MediaKind | undefined
+  sort?: SearchSort | undefined
+  /** Pictures like this medium instead of words. */
+  similar?: string | undefined
+}
+
+const PAGE_SIZE = 60
+
+/**
+ * One search, page after page. Nothing is asked while there is nothing to ask: an empty field
+ * shows a hint, not the whole library.
+ */
+export function useSearch({ q, kind, sort, similar }: SearchInput) {
+  const words = q.trim()
+
+  return useInfiniteQuery({
+    queryKey: ['media', 'search', similar ?? null, words, kind ?? null, sort ?? 'relevance'],
+    enabled: words.length > 0 || similar !== undefined,
+    placeholderData: keepPreviousData,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last: SearchPage) => last.next_cursor ?? undefined,
+    queryFn: async ({ pageParam }): Promise<SearchPage> => {
+      if (similar !== undefined) {
+        return unwrap(
+          await api.GET('/api/v1/media/{media_id}/similar', {
+            params: {
+              path: { media_id: similar },
+              query: { limit: PAGE_SIZE, ...(pageParam ? { cursor: pageParam } : {}) },
+            },
+          }),
+        )
+      }
+      return unwrap(
+        await api.POST('/api/v1/search', {
+          body: {
+            q: words,
+            sort: sort ?? 'relevance',
+            limit: PAGE_SIZE,
+            ...(kind ? { kind } : {}),
+            ...(pageParam ? { cursor: pageParam } : {}),
+          },
+        }),
+      )
+    },
+  })
+}
+
+/**
+ * What the search can look into, by the AI models in use. Without a picture and a word model it
+ * still finds names, places and periods - the search page says so, and "Ähnliche Bilder" is not
+ * offered where there is nothing to compare. Changes only when an admin sets up a model.
+ */
+/** Asked again whenever an admin changes the AI profiles. */
+export const ABILITIES_KEY = ['search', 'abilities'] as const
+
+export function useSearchAbilities() {
+  return useQuery({
+    queryKey: ABILITIES_KEY,
+    queryFn: async () => unwrap(await api.GET('/api/v1/search/abilities')),
+    staleTime: 5 * 60_000,
+  })
+}
