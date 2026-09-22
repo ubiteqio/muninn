@@ -158,6 +158,29 @@ services:
       - --loglevel
       - ${MUNINN_LOG_LEVEL:-info}
 
+  # Who the faces are: sorting one after a "Nein", and looking at every unnamed face again after
+  # a name was given. A queue of its own, because such a pass walks the whole library and takes
+  # minutes - on the reading queue it stood in front of the clock and of folders waiting to be
+  # read. One at a time: the passes share a lock anyway, and two would only wait for each other.
+  people-worker:
+    <<: *server
+    environment:
+      <<: *server-environment
+      MUNINN_RUN_MIGRATIONS: "0"
+    command:
+      - celery
+      - --app
+      - muninn.huginn.app
+      - worker
+      - --queues
+      - people
+      - --concurrency
+      - "1"
+      - --hostname
+      - people@%h
+      - --loglevel
+      - ${MUNINN_LOG_LEVEL:-info}
+
   # The clock: quick scan every five minutes, full scan at night.
   scheduler:
     <<: *server

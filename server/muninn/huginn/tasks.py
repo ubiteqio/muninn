@@ -153,13 +153,13 @@ def detect_faces(self: Any, media_id: str) -> bool:
     return run(_detect_faces(uuid.UUID(media_id), self.request.id))
 
 
-@celery_app.task(name="muninn.sort_faces", queue="scan")
+@celery_app.task(name="muninn.sort_faces", queue="people")
 def sort_faces(face_ids: list[str]) -> None:
     """One face after a "Nein": its person, or a suggestion and the group it belongs to."""
     run(_sort_faces([uuid.UUID(face_id) for face_id in face_ids]))
 
 
-@celery_app.task(name="muninn.reassess_faces", queue="scan")
+@celery_app.task(name="muninn.reassess_faces", queue="people")
 def reassess_faces() -> int:
     """After a name was given or taken: the faces nobody assigned by hand are asked again."""
     return run(_reassess_faces())
@@ -823,6 +823,11 @@ async def _sort_faces(face_ids: list[uuid.UUID]) -> None:
 
 
 async def _reassess_faces() -> int:
+    redis = jobs.connect()
+    try:
+        await jobs.reassessment_starts(redis)
+    finally:
+        await redis.aclose()
     async with session_scope() as session:
         changed = await people.reassess(session)
         # A name given today can put somebody on a video they were already on: a duplicate the

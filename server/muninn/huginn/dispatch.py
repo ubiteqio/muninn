@@ -7,7 +7,9 @@ worker or Redis is not there, the caller learns that instead of waiting.
 import uuid
 
 from kombu.exceptions import OperationalError
+from redis.exceptions import RedisError
 
+from muninn.huginn import jobs
 from muninn.huginn.tasks import reassess_faces, sort_faces, sync_publication
 from muninn.models.change_log import SyncTrigger
 
@@ -66,12 +68,26 @@ def queue_face_sorting(face_id: uuid.UUID) -> None:
         return
 
 
-def queue_face_reassessment() -> None:
+async def queue_face_reassessment() -> None:
     """A name was given or taken: the unnamed faces are looked at again, in the background.
+
+    One pass at a time. A pass walks every face nobody assigned by hand and takes minutes on a
+    grown library; answering a screen full of suggestions would otherwise queue one for every
+    click and hold a worker for an hour. The flag is dropped when the pass starts, so a name
+    given while one runs still gets a pass of its own afterwards.
 
     Best effort: when Redis is away, the next name given does it.
     """
+    redis = jobs.connect()
     try:
-        reassess_faces.apply_async(retry=False)
-    except OperationalError:
+        if not await jobs.reassessment_queued(redis):
+            return
+        try:
+            reassess_faces.apply_async(retry=False)
+        except OperationalError:
+            # Nothing was queued after all; the next name given must be free to try again.
+            await jobs.reassessment_starts(redis)
+    except RedisError:
         return
+    finally:
+        await redis.aclose()

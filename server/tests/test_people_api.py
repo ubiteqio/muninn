@@ -21,7 +21,11 @@ pytestmark = pytest.mark.usefixtures("api_client")
 def no_worker(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
     """The API hands the re-check to the worker; there is none here."""
     asked: list[bool] = []
-    monkeypatch.setattr("muninn.api.v1.people.queue_face_reassessment", lambda: asked.append(True))
+
+    async def reassess() -> None:
+        asked.append(True)
+
+    monkeypatch.setattr("muninn.api.v1.people.queue_face_reassessment", reassess)
     monkeypatch.setattr("muninn.api.v1.people.queue_face_sorting", lambda _: asked.append(True))
     return asked
 

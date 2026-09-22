@@ -155,7 +155,7 @@ async def last_quick_sync(redis: Redis) -> datetime | None:
 
 
 #: The queues a worker serves. Their length is what "how much is left" means.
-QUEUES = ("scan", "derive", "ai")
+QUEUES = ("scan", "derive", "ai", "people")
 
 
 async def queue_lengths(redis: Redis) -> dict[str, int]:
@@ -199,6 +199,24 @@ async def claim(redis: Redis, stage: str, media_id: uuid.UUID) -> bool:
 
 async def release_claim(redis: Redis, stage: str, media_id: uuid.UUID) -> None:
     await redis.delete(claim_key(stage, media_id))
+
+
+#: Set while a reassessment waits for its worker. One pass walks every face nobody assigned by
+#: hand, which takes minutes on a grown library, and a name given is not worth a pass of its own
+#: when one is already on its way.
+REASSESS_KEY = "muninn:faces:reassess-queued"
+
+
+async def reassessment_queued(redis: Redis) -> bool:
+    """True for the caller that queues the pass, false while one is already waiting."""
+    taken = await redis.set(REASSESS_KEY, "1", nx=True, ex=CLAIM_TTL_SECONDS)
+    return bool(taken)
+
+
+async def reassessment_starts(redis: Redis) -> None:
+    """The pass has begun. A name given from now on queues the next one: this pass may have
+    walked past those faces already."""
+    await redis.delete(REASSESS_KEY)
 
 
 #: Stage 4, the picture vector. Its queue is "ai", which runs on a worker of its own.

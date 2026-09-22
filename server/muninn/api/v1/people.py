@@ -144,7 +144,7 @@ async def name_group(
         person = await people.name_group(session, cluster, payload.name, user)
     except people.PersonError as error:
         raise _problem(422, "cannot-name", "Cannot name this group", str(error)) from error
-    queue_face_reassessment()
+    await queue_face_reassessment()
     return PersonBrief.of(person)
 
 
@@ -213,7 +213,7 @@ async def merge_person(
     source = await _person(session, person_id)
     target = await _person(session, payload.into)
     await people.merge(session, source, target)
-    queue_face_reassessment()
+    await queue_face_reassessment()
     return await read_person(target.id, user, session, settings)
 
 
@@ -285,7 +285,7 @@ async def confirm_face(face_id: uuid.UUID, user: ActiveUser, session: SessionDep
     if person_id is None:
         raise _problem(409, "no-suggestion", "Nothing suggested for this face")
     await people.assign(session, face_id, await _person(session, person_id))
-    queue_face_reassessment()
+    await queue_face_reassessment()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -312,7 +312,7 @@ async def name_face(
     except people.PersonError as error:
         raise _problem(422, "cannot-name", "Cannot name this face", str(error)) from error
     await people.assign(session, face_id, person)
-    queue_face_reassessment()
+    await queue_face_reassessment()
     return PersonBrief.of(person)
 
 

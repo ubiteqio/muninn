@@ -51,7 +51,7 @@ async def test_an_idle_muninn_says_so(
 
     body = response.json()
     assert body["running"] == []
-    assert {queue["name"] for queue in body["queues"]} == {"scan", "derive", "ai"}
+    assert {queue["name"] for queue in body["queues"]} == {"scan", "derive", "ai", "people"}
     assert all(queue["waiting"] == 0 for queue in body["queues"])
     assert body["pending_derivatives"] == 0
     # No picture model set up: there is no backlog to speak of, not an empty one.

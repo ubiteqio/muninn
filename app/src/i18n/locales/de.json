@@ -469,7 +469,8 @@
         "queue": {
           "scan": "Lesen",
           "derive": "Vorschauen",
-          "ai": "KI"
+          "ai": "KI",
+          "people": "Personen"
         },
         "nothing": "Alles erledigt, nichts wartet.",
         "faces": "Medien ohne Gesichtersuche"
