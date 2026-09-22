@@ -58,7 +58,11 @@ RUN set -eux; \
     groupadd --gid 1000 muninn; \
     useradd --uid 1000 --gid 1000 --create-home muninn; \
     mkdir -p /library /data/derived; \
-    chown -R muninn:muninn /data
+    chown -R muninn:muninn /data; \
+    # A NAS share often lets only its owner in, and then the containers have to run as that
+    # user (MUNINN_UID). /data is where the scheduler keeps its state, so it is writable for
+    # whoever runs, like /tmp: sticky, so nobody deletes another user's files.
+    chmod 1777 /data /data/derived
 
 WORKDIR /app
 
