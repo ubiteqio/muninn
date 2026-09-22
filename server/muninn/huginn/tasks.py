@@ -153,6 +153,12 @@ def detect_faces(self: Any, media_id: str) -> bool:
     return run(_detect_faces(uuid.UUID(media_id), self.request.id))
 
 
+@celery_app.task(name="muninn.sort_faces", queue="scan")
+def sort_faces(face_ids: list[str]) -> None:
+    """One face after a "Nein": its person, or a suggestion and the group it belongs to."""
+    run(_sort_faces([uuid.UUID(face_id) for face_id in face_ids]))
+
+
 @celery_app.task(name="muninn.reassess_faces", queue="scan")
 def reassess_faces() -> int:
     """After a name was given or taken: the faces nobody assigned by hand are asked again."""
@@ -809,6 +815,11 @@ async def _find_duplicates() -> int:
 async def _prepare_memories(day: date) -> int:
     async with session_scope() as session:
         return await memories_service.prepare(session, day)
+
+
+async def _sort_faces(face_ids: list[uuid.UUID]) -> None:
+    async with session_scope() as session:
+        await people.sort_faces(session, face_ids)
 
 
 async def _reassess_faces() -> int:

@@ -247,7 +247,12 @@ async def assign(session: AsyncSession, face_id: uuid.UUID, person: Person) -> N
 
 async def reject(session: AsyncSession, face_id: uuid.UUID) -> None:
     """Not this person: the suggestion goes, or the face leaves the person it had. It is not
-    given to them again, and joins the unnamed faces like it."""
+    given to them again.
+
+    Only the decision is written here, and it is written at once. Looking for the face's new
+    group takes the lock the worker holds while it reassesses faces, and somebody waiting in
+    front of a "Nein" should not wait for that: the caller hands the sorting to the worker.
+    """
     face = await session.get(Face, face_id)
     if face is None:
         raise PersonError("No such face.")
@@ -259,7 +264,8 @@ async def reject(session: AsyncSession, face_id: uuid.UUID) -> None:
     face.assigned_by = None
     face.suggested_person_id = None
     face.suggested_distance = None
-    await sort_faces(session, [face_id])
+    face.cluster = None
+    await session.commit()
 
 
 async def merge(session: AsyncSession, source: Person, target: Person) -> None:

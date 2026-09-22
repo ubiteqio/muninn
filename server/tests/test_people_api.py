@@ -22,6 +22,7 @@ def no_worker(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
     """The API hands the re-check to the worker; there is none here."""
     asked: list[bool] = []
     monkeypatch.setattr("muninn.api.v1.people.queue_face_reassessment", lambda: asked.append(True))
+    monkeypatch.setattr("muninn.api.v1.people.queue_face_sorting", lambda _: asked.append(True))
     return asked
 
 
@@ -271,3 +272,29 @@ async def test_a_person_muninn_gave_is_confirmed_and_the_faces_filtered(
     assert (confirmed.person_id, confirmed.assigned_by) == (uuid.UUID(lena["id"]), "user")
     automatic = (await api_client.get(faces, params={"only": "auto"}, headers=headers)).json()
     assert ids(automatic) == []
+
+
+async def test_saying_no_answers_at_once_and_hands_the_sorting_over(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers = await _headers(api_client, session_factory)
+    group = await faces_in_a_photo(session, at(1.0), at(0.96, towards=6))
+    unnamed = (await api_client.get("/people", headers=headers)).json()["groups"]["items"][0]
+    await api_client.post(
+        f"/people/groups/{unnamed['cluster']}/name", json={"name": "Lena"}, headers=headers
+    )
+    (mistaken,) = await faces_in_a_photo(session, at(0.9, towards=3))
+    handed_over: list[uuid.UUID] = []
+    monkeypatch.setattr("muninn.api.v1.people.queue_face_sorting", handed_over.append)
+
+    response = await api_client.post(f"/faces/{mistaken}/reject", headers=headers)
+
+    assert response.status_code == 204
+    assert handed_over == [mistaken]
+    refused = await session.get(Face, mistaken, populate_existing=True)
+    assert refused is not None
+    assert refused.person_id is None
+    assert len(group) == 2

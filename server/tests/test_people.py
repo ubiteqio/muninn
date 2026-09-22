@@ -117,6 +117,30 @@ async def test_a_named_group_takes_new_faces_or_suggests_them(
     assert (await face(session, nobody)).suggested_person_id is None
 
 
+async def test_a_no_only_writes_the_decision_and_leaves_the_sorting_to_the_worker(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """A "Nein" answers at once. Finding the face's new group takes the lock the worker holds
+    while it reassesses, and nobody should wait in front of a dialog for that."""
+    anna = await a_user(session_factory, session)
+    named = await faces_in_a_photo(session, at(1.0), at(0.96))
+    lena = await people.name_group(
+        session, (await face(session, named[0])).cluster or 0, "Lena", anna
+    )
+    (mistaken,) = await faces_in_a_photo(session, at(0.9, towards=3))
+    assert (await face(session, mistaken)).person_id == lena.id
+
+    await people.reject(session, mistaken)
+
+    after = await face(session, mistaken)
+    assert (after.person_id, after.suggested_person_id, after.cluster) == (None, None, None)
+
+    # What the worker does with it afterwards: a group, and never Lena again.
+    await people.sort_faces(session, [mistaken])
+    sorted_face = await face(session, mistaken)
+    assert (sorted_face.person_id, sorted_face.suggested_person_id) == (None, None)
+
+
 async def test_the_same_name_in_another_case_is_the_same_person(
     session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:

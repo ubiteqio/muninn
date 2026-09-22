@@ -8,7 +8,7 @@ import uuid
 
 from kombu.exceptions import OperationalError
 
-from muninn.huginn.tasks import reassess_faces, sync_publication
+from muninn.huginn.tasks import reassess_faces, sort_faces, sync_publication
 from muninn.models.change_log import SyncTrigger
 
 #: Lower means more urgent. Somebody waiting in front of an album comes before the nightly run.
@@ -53,6 +53,17 @@ def queue_sync(
         raise WorkerUnreachableError from error
 
     return str(result.id)
+
+
+def queue_face_sorting(face_id: uuid.UUID) -> None:
+    """A face said "no" to its person: where it belongs now is found in the background.
+
+    Best effort: when Redis is away, the next reassessment picks the face up.
+    """
+    try:
+        sort_faces.apply_async(args=[[str(face_id)]], retry=False)
+    except OperationalError:
+        return
 
 
 def queue_face_reassessment() -> None:

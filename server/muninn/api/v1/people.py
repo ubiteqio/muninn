@@ -41,7 +41,7 @@ from muninn.core.signing import verify_media
 from muninn.faces import listing, people
 from muninn.faces import service as faces_service
 from muninn.faces.service import crop_name
-from muninn.huginn.dispatch import queue_face_reassessment
+from muninn.huginn.dispatch import queue_face_reassessment, queue_face_sorting
 from muninn.media.service import relative_of
 from muninn.models.face import Face, Person
 
@@ -298,6 +298,7 @@ async def reject_face(face_id: uuid.UUID, user: ActiveUser, session: SessionDep)
     """The suggestion goes - or, for a face that has a person, the face leaves them."""
     await _face(session, face_id)
     await people.reject(session, face_id)
+    queue_face_sorting(face_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
