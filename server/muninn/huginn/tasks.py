@@ -824,7 +824,11 @@ async def _sort_faces(face_ids: list[uuid.UUID]) -> None:
 
 async def _reassess_faces() -> int:
     async with session_scope() as session:
-        return await people.reassess(session)
+        changed = await people.reassess(session)
+        # A name given today can put somebody on a video they were already on: a duplicate the
+        # moment it happens.
+        await faces_service.collapse_all_videos(session, get_settings().derived_path)
+        return changed
 
 
 async def _place_media() -> int:

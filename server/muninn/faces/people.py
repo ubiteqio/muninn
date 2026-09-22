@@ -19,7 +19,9 @@ Suggestions still come from every named face, since somebody answers them.
 
 Nobody is twice in one photo: a person who already has another face in the picture is not
 given to a second one. Videos are left out of this rule, their frames show the same people
-again and again.
+again and again. They are tidied afterwards instead: once the names are handed out,
+``collapse_video_duplicates`` leaves every person one face, the one somebody assigned or the
+clearest look, and drops a guess about somebody who is on the video for certain already.
 
 A face somebody assigned by hand is never touched again by any of this. A person is only made
 when somebody names a group; afterwards the unnamed faces are looked at again, since the new
@@ -146,6 +148,51 @@ async def sort_faces(session: AsyncSession, face_ids: Sequence[uuid.UUID]) -> No
             await _group(session, face)
         await session.flush()
     await session.commit()
+
+
+def _clearest(face: Face) -> tuple[int, float]:
+    """What somebody assigned comes first, then the biggest and surest look."""
+    return (0 if face.assigned_by == "user" else 1, -face.pixels * face.score)
+
+
+async def collapse_video_duplicates(session: AsyncSession, media_id: uuid.UUID) -> list[uuid.UUID]:
+    """A video's faces, each person once: the extra sightings go.
+
+    A frame every few seconds shows the same people again and again, so one person ends up with
+    several faces on one video. Which frame they were seen in matters to nobody looking at the
+    medium, so one face per person stays: what somebody assigned by hand, else the clearest
+    look. A face that is only guessed at goes with them once that person is on the medium for
+    certain - the question has its answer already.
+
+    Videos only. In a photo two faces are two different people, and the rule in
+    ``_in_the_same_photo`` keeps them apart from the start.
+
+    Returns the faces that were removed, so their square pictures can go too.
+    """
+    faces = list(
+        await session.scalars(
+            select(Face).where(Face.media_id == media_id, Face.second.is_not(None))
+        )
+    )
+    kept: dict[uuid.UUID, Face] = {}
+    doomed: list[Face] = []
+    for face in sorted(faces, key=_clearest):
+        if face.person_id is None:
+            continue
+        if face.person_id in kept:
+            doomed.append(face)
+        else:
+            kept[face.person_id] = face
+    doomed.extend(
+        face for face in faces if face.person_id is None and face.suggested_person_id in kept
+    )
+    if not doomed:
+        return []
+
+    removed = [face.id for face in doomed]
+    await session.execute(delete(Face).where(Face.id.in_(removed)))
+    await session.commit()
+    return removed
 
 
 async def reassess(session: AsyncSession, *, batch: int = 500) -> int:

@@ -3,6 +3,7 @@
 import json
 import shutil
 import subprocess
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -13,9 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from muninn.ai.base import Check, DetectedFace
 from muninn.ai.openai_compatible import OpenAiFaceDetector
-from muninn.faces import service
-from muninn.models.face import Face
+from muninn.faces import people, service
+from muninn.models.face import Face, Person
 from muninn.models.media import Media, MediaKind
+from muninn.search import service as search_service
 from tests.test_timeline import JULY, a_medium, an_album
 
 pytestmark = pytest.mark.usefixtures("api_client")
@@ -137,6 +139,128 @@ async def test_a_short_video_is_looked_at_every_five_seconds(
     assert detector.asked == [5]
     (face,) = await session.scalars(select(Face))
     assert face.second == 0.0
+
+
+def a_sighting(face: DetectedFace, second: float) -> search_service.FaceToStore:
+    return search_service.FaceToStore(
+        box=face.box,
+        score=face.score,
+        pixels=face.pixels,
+        second=second,
+        embedding=face.embedding,
+    )
+
+
+async def a_video_with_faces(
+    session: AsyncSession, sightings: list[search_service.FaceToStore]
+) -> tuple[Media, list[uuid.UUID]]:
+    """A video whose faces are already stored, as stage 7 would leave them."""
+    medium = await a_medium(session, await an_album(session, "Fest"), taken_at=JULY, name="v.mp4")
+    medium.kind = MediaKind.VIDEO
+    await session.commit()
+    stored = await search_service.store_faces(
+        session, medium.id, model="buffalo_l", faces=sightings
+    )
+    await session.commit()
+    return medium, stored
+
+
+async def a_person(session: AsyncSession, name: str) -> Person:
+    person = Person(name=name)
+    session.add(person)
+    await session.commit()
+    return person
+
+
+async def name_face(session: AsyncSession, face_id: uuid.UUID, person: Person, by: str) -> None:
+    face = await session.get(Face, face_id)
+    assert face is not None
+    face.person_id = person.id
+    face.assigned_by = by
+    await session.commit()
+
+
+async def test_a_video_keeps_the_clearest_face_of_a_person(session: AsyncSession) -> None:
+    medium, stored = await a_video_with_faces(
+        session,
+        [
+            a_sighting(a_face(0.1, pixels=60), 0.0),
+            a_sighting(a_face(0.4, pixels=200), 5.0),
+            a_sighting(a_face(0.6, vector=3), 10.0),
+        ],
+    )
+    olivia = await a_person(session, "Olivia")
+    await name_face(session, stored[0], olivia, "auto")
+    await name_face(session, stored[1], olivia, "auto")
+
+    removed = await people.collapse_video_duplicates(session, medium.id)
+
+    assert removed == [stored[0]]
+    left = set(await session.scalars(select(Face.id).where(Face.media_id == medium.id)))
+    assert left == {stored[1], stored[2]}
+
+
+async def test_what_somebody_assigned_beats_the_clearer_look(session: AsyncSession) -> None:
+    medium, stored = await a_video_with_faces(
+        session,
+        [
+            a_sighting(a_face(0.1, pixels=60), 0.0),
+            a_sighting(a_face(0.4, pixels=200), 5.0),
+        ],
+    )
+    olivia = await a_person(session, "Olivia")
+    await name_face(session, stored[0], olivia, "user")
+    await name_face(session, stored[1], olivia, "auto")
+
+    removed = await people.collapse_video_duplicates(session, medium.id)
+
+    # The small one stays: somebody said who it is, and that is never thrown away.
+    assert removed == [stored[1]]
+
+
+async def test_a_guess_about_somebody_already_on_the_video_goes(session: AsyncSession) -> None:
+    medium, stored = await a_video_with_faces(
+        session,
+        [
+            a_sighting(a_face(0.1, pixels=200), 0.0),
+            a_sighting(a_face(0.4, pixels=60), 5.0),
+        ],
+    )
+    matteo = await a_person(session, "Matteo")
+    await name_face(session, stored[0], matteo, "auto")
+    guess = await session.get(Face, stored[1])
+    assert guess is not None
+    guess.suggested_person_id = matteo.id
+    guess.suggested_distance = 0.55
+    await session.commit()
+
+    removed = await people.collapse_video_duplicates(session, medium.id)
+
+    assert removed == [stored[1]]
+
+
+async def test_a_photo_is_left_alone(session: AsyncSession, tmp_path: Path) -> None:
+    medium = await a_photo(session, tmp_path)
+    stored = await search_service.store_faces(
+        session,
+        medium.id,
+        model="buffalo_l",
+        faces=[
+            search_service.FaceToStore(
+                box=face.box, score=face.score, pixels=face.pixels, second=None,
+                embedding=face.embedding,
+            )
+            for face in (a_face(0.1), a_face(0.4))
+        ],
+    )  # fmt: skip
+    await session.commit()
+    lena = await a_person(session, "Lena")
+    await name_face(session, stored[0], lena, "user")
+
+    # Two faces of one person in a photo are two people; the rule that keeps them apart is
+    # elsewhere, and this must not undo it.
+    assert await people.collapse_video_duplicates(session, medium.id) == []
+    assert len(list(await session.scalars(select(Face.id).where(Face.media_id == medium.id)))) == 2
 
 
 async def test_the_client_turns_pixels_into_fractions() -> None:
