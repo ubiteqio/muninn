@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 
 import { AppShell } from '@/components/layout/app-shell'
 import { Knotwork } from '@/components/muninn/knotwork'
+import { LoadingBody } from '@/components/muninn/placeholder'
 import { Symbol } from '@/components/muninn/symbol'
 import { Input } from '@/components/ui/input'
 import { useLibraryUpdates } from '@/features/albums/use-library-updates'
 import { formatDuration } from '@/features/media/format'
-import { MediaGrid } from '@/features/media/media-grid'
+import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { PeopleRow } from '@/features/people/people-row'
 import {
@@ -173,9 +174,7 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
           />
         )}
         {!asked && <Hint withoutPictures={withoutPictures} />}
-        {asked && search.isPending && (
-          <p className="text-base text-muted-foreground">{t('search.searching')}</p>
-        )}
+        {asked && search.isPending && <ResultsLoading columns={columns} />}
         {search.isError && (
           <p className="text-base text-destructive">{t('auth.error.unreachable')}</p>
         )}
@@ -201,6 +200,23 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
       </div>
       {viewer.panel}
     </AppShell>
+  )
+}
+
+/**
+ * What stands there while the hits are on their way: the grid in its shape, rather than one
+ * line of text under the chips. The pictures land in the rows that are already held, so the eye
+ * stays where it was instead of following a page that unfolds under it.
+ */
+function ResultsLoading({ columns }: { columns: number }) {
+  const { t } = useTranslation()
+
+  return (
+    <section aria-busy="true" aria-label={t('search.results')}>
+      <LoadingBody boxed={false} label={t('search.searching')}>
+        <MediaGridLoading columns={columns} />
+      </LoadingBody>
+    </section>
   )
 }
 

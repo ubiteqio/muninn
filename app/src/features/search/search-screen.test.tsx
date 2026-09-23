@@ -107,7 +107,9 @@ describe('SearchScreen', () => {
 
     await renderScreen(<SearchScreen q="Strand" kind="video" />)
 
-    const results = await screen.findByRole('region', { name: 'Suchergebnisse' })
+    // The region is named the same while it waits, so the tiles are what to wait for.
+    await screen.findAllByRole('button', { name: /Medium vom/ })
+    const results = screen.getByRole('region', { name: 'Suchergebnisse' })
     expect(within(results).getAllByRole('button', { name: /Medium vom/ })).toHaveLength(2)
     expect(within(results).getByText('bei 1:23')).toBeInTheDocument()
     expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({

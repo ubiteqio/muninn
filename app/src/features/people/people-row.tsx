@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { LoadingSection, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Face } from '@/features/people/face'
 import { usePeople } from '@/features/people/use-people'
@@ -15,11 +16,15 @@ export function PeopleRow({ onPerson }: { onPerson: (name: string) => void }) {
   const persons = people.data?.persons ?? []
   const groups = people.data?.groups.items.length ?? 0
   const waiting = people.data?.suggestions ?? 0
+  // Before the answer nobody knows whether there are faces at all, so the row stands there in
+  // its shape rather than appearing later and pushing the search down by its height.
+  if (people.isPending) return <PeopleRowLoading />
   if (persons.length === 0 && groups === 0 && waiting === 0) return null
 
   return (
     <section aria-labelledby="people-row-heading">
       <SectionHeading
+        id="people-row-heading"
         title={t('people.title')}
         action={
           <Link to="/people" className="text-sm font-medium text-primary hover:text-accent">
@@ -56,5 +61,25 @@ export function PeopleRow({ onPerson }: { onPerson: (name: string) => void }) {
         </p>
       )}
     </section>
+  )
+}
+
+/** The faces on their way: the round pictures and the names under them. */
+function PeopleRowLoading() {
+  const { t } = useTranslation()
+
+  return (
+    <LoadingSection
+      title={t('people.title')}
+      boxed={false}
+      boxClassName="flex gap-4 overflow-hidden pb-1"
+    >
+      {Array.from({ length: 10 }, (_, index) => (
+        <div key={index} className="flex w-[72px] shrink-0 flex-col items-center gap-1.5">
+          <Placeholder className="size-[60px] rounded-full" />
+          <Placeholder className="h-3.5 w-14" />
+        </div>
+      ))}
+    </LoadingSection>
   )
 }

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { AppShell } from '@/components/layout/app-shell'
 import { useScrollContainer } from '@/components/layout/scroll-container'
+import { LoadingBody, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Badge } from '@/components/ui/badge'
@@ -19,13 +20,16 @@ import {
   useAlbumTree,
 } from '@/features/albums/use-albums'
 import { useLibraryUpdates } from '@/features/albums/use-library-updates'
-import { MediaGrid } from '@/features/media/media-grid'
+import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { AlbumSocial } from '@/features/social/album-social'
 import { useSocialUpdates } from '@/features/social/use-social'
 import { DESKTOP_QUERY, useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 import type { AlbumSearch } from '@/routes'
+
+/** How many albums stand at the root while the tree is on its way - a library has a handful. */
+const LOADING_ALBUMS = 4
 
 interface AlbumsScreenProps {
   albumId?: string
@@ -55,8 +59,11 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
   const mediaQuery = useAlbumMedia(albumId, { cursor, before })
   useLibraryUpdates()
   const media = mediaQuery.data?.items ?? []
-  // A query without an album is disabled, and a disabled query stays "pending" forever.
-  const mediaIsLoading = albumId !== undefined && mediaQuery.isPending
+  // A query without an album is disabled, and a disabled query stays "pending" forever. It also
+  // keeps the answer it had while the next one is on its way, so walking into another album
+  // shows the pictures of the album one came from until they are replaced.
+  const fromAnotherAlbum = mediaQuery.isPlaceholderData && media[0]?.album_id !== albumId
+  const mediaIsLoading = albumId !== undefined && (mediaQuery.isPending || fromAnotherAlbum)
   const navigate = useNavigate()
   // The viewer follows the address: opening writes the medium into it, closing takes it out.
   // Only the first step is worth a history entry, so the back button closes the picture.
@@ -86,10 +93,16 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
   return (
     <AppShell title={title} active="albums">
       <div className="space-y-5 px-5 md:px-0">
-        <LibraryHeader album={album} path={path} albums={children.length} tree={tree.data} />
-        {album && <AlbumSocial key={album.id} albumId={album.id} />}
+        {albumId !== undefined && tree.isPending ? (
+          <HeaderLoading />
+        ) : (
+          <LibraryHeader album={album} path={path} albums={children.length} tree={tree.data} />
+        )}
+        {/* The pills carry their height without an answer, so the row is there from the start
+            instead of arriving with the tree and pushing the album down. */}
+        {albumId !== undefined && <AlbumSocial key={albumId} albumId={albumId} />}
 
-        {tree.isPending && <p className="text-base text-muted-foreground">{t('albums.loading')}</p>}
+        {tree.isPending && albumId === undefined && <AlbumsLoading />}
         {tree.isError && (
           <p className="text-base text-destructive">{t('auth.error.unreachable')}</p>
         )}
@@ -113,7 +126,11 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
           </section>
         )}
 
-        {media.length > 0 && albumId !== undefined && (
+        {mediaIsLoading && (album?.media_count ?? 1) > 0 && (
+          <MediaLoading columns={columns} count={album?.media_count} />
+        )}
+
+        {!mediaIsLoading && media.length > 0 && albumId !== undefined && (
           <section aria-label={t('albums.media')}>
             {/* The count is in the album's header already; saying it twice helps nobody. */}
             <SectionHeading title={t('albums.media')} />
@@ -140,6 +157,83 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
 
       {viewer.panel}
     </AppShell>
+  )
+}
+
+/**
+ * What stands in the header while the tree is on its way.
+ *
+ * Nothing here has to hold a height - the header's geometry does not depend on what it holds.
+ * It has to hold its tongue: without this the page calls every album "Alben" and says it has
+ * none, and takes both back a moment later.
+ */
+function HeaderLoading() {
+  return (
+    <header aria-busy="true">
+      <LoadingBody boxed={false}>
+        <div className="flex h-7 items-center">
+          <Placeholder className="h-3.5 w-36" />
+        </div>
+        <div className="mt-1 flex min-h-11 items-center justify-between gap-4">
+          <div className="min-w-0">
+            <Placeholder className="h-[25px] w-48" />
+            <Placeholder className="mt-1 h-3.5 w-32" />
+          </div>
+          <Placeholder className="h-11 w-[104px] shrink-0 rounded-lg" />
+        </div>
+      </LoadingBody>
+    </header>
+  )
+}
+
+/** One album on its way: the square cover and the two lines under it. */
+function CardLoading() {
+  return (
+    <div>
+      <Placeholder className="aspect-square w-full rounded-lg" />
+      <Placeholder className="mt-2 h-[19px] w-3/4" />
+      <Placeholder className="mt-0.5 h-3.5 w-1/2" />
+    </div>
+  )
+}
+
+/**
+ * The albums of the library while the tree is fetched. Only at the root: inside an album nobody
+ * knows yet whether it holds subalbums, and a box that turns out to be nothing would drop the
+ * pictures upwards.
+ */
+function AlbumsLoading() {
+  const { t } = useTranslation()
+
+  return (
+    <section aria-busy="true" aria-label={t('albums.albums')}>
+      <SectionHeading title={t('albums.albums')} />
+      <LoadingBody
+        boxed={false}
+        className="mt-3 grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7"
+      >
+        {Array.from({ length: LOADING_ALBUMS }, (_, index) => (
+          <CardLoading key={index} />
+        ))}
+      </LoadingBody>
+    </section>
+  )
+}
+
+/**
+ * The grid while the pictures are on their way. The album already says how many it holds, so
+ * the tiles are the ones that are coming - up to the screenful one can see.
+ */
+function MediaLoading({ columns, count }: { columns: number; count: number | undefined }) {
+  const { t } = useTranslation()
+
+  return (
+    <section aria-busy="true" aria-label={t('albums.media')}>
+      <SectionHeading title={t('albums.media')} />
+      <LoadingBody boxed={false} className="mt-3">
+        <MediaGridLoading columns={columns} {...(count === undefined ? {} : { tiles: count })} />
+      </LoadingBody>
+    </section>
   )
 }
 

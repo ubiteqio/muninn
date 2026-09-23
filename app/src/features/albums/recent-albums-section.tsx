@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyNote } from '@/components/muninn/empty-note'
+import { LoadingBody, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Badge } from '@/components/ui/badge'
@@ -72,8 +73,9 @@ export function RecentAlbumsSection({ layout = 'scroller' }: { layout?: 'scrolle
       : ''
 
   return (
-    <section aria-labelledby="albums-heading">
+    <section aria-labelledby="albums-heading" aria-busy={tree.isPending}>
       <SectionHeading
+        id="albums-heading"
         title={t('albums.title')}
         className={layout === 'scroller' ? 'px-5 lg:px-0' : undefined}
         action={
@@ -83,7 +85,9 @@ export function RecentAlbumsSection({ layout = 'scroller' }: { layout?: 'scrolle
         }
       />
 
-      {albums.length === 0 ? (
+      {tree.isPending ? (
+        <AlbumsLoading layout={layout} />
+      ) : albums.length === 0 ? (
         <EmptyNote className={cn(layout === 'scroller' && 'mx-5 lg:mx-0')}>
           {t('albums.emptyRecent')}
         </EmptyNote>
@@ -106,5 +110,31 @@ export function RecentAlbumsSection({ layout = 'scroller' }: { layout?: 'scrolle
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * The covers on their way: the same squares with the title and the path under them, in the row
+ * the phone shows or the two columns of the aside.
+ */
+function AlbumsLoading({ layout }: { layout: 'scroller' | 'grid' }) {
+  const cards = Array.from({ length: SHOWN }, (_, index) => (
+    <div key={index} className={cn(layout === 'scroller' && 'w-[132px] shrink-0')}>
+      <Placeholder className="aspect-square w-full rounded-lg" />
+      <Placeholder className="mt-2 h-4 w-4/5" />
+      <Placeholder className="mt-1 h-3 w-3/5" />
+    </div>
+  ))
+
+  return (
+    <LoadingBody
+      boxed={false}
+      className={cn(
+        'mt-3',
+        layout === 'scroller' ? 'flex gap-3 overflow-hidden px-5' : 'grid grid-cols-2 gap-3.5',
+      )}
+    >
+      {cards}
+    </LoadingBody>
   )
 }

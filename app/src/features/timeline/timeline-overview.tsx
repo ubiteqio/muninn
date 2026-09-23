@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { PeriodCard } from '@/features/timeline/period-card'
+import { OverviewLoading } from '@/features/timeline/timeline-loading'
 import { labelOf, usePeriods } from '@/features/timeline/use-timeline'
 
 interface TimelineOverviewProps {
@@ -8,6 +9,8 @@ interface TimelineOverviewProps {
   by: 'year' | 'month'
   /** The year whose months are shown. Ignored when the years themselves are. */
   year?: number | undefined
+  /** How many cards this level holds, as far as the shape knows; zero while it does not. */
+  count?: number | undefined
   /** A card was chosen: "2014" on the years, "2014-08" on the months. */
   onOpen: (period: string) => void
 }
@@ -18,7 +21,7 @@ interface TimelineOverviewProps {
  * This is what makes twenty-six years walkable. A month of eight hundred photos is forty screens
  * of scrolling; as a card it is one square that says how much is in it and what it looked like.
  */
-export function TimelineOverview({ by, year, onOpen }: TimelineOverviewProps) {
+export function TimelineOverview({ by, year, count = 0, onOpen }: TimelineOverviewProps) {
   const { t } = useTranslation()
   const periods = usePeriods(by, year)
 
@@ -27,19 +30,7 @@ export function TimelineOverview({ by, year, onOpen }: TimelineOverviewProps) {
   }
 
   if (periods.isPending) {
-    // Squares of the right size rather than a line of text: the page keeps its height, and
-    // nothing below the timeline moves when the cards arrive.
-    return (
-      <div
-        aria-label={t('timeline.loading')}
-        aria-busy="true"
-        className="mt-3 grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
-      >
-        {Array.from({ length: 6 }, (_, index) => (
-          <div key={index} className="aspect-square w-full rounded-lg bg-secondary/40" />
-        ))}
-      </div>
-    )
+    return <OverviewLoading count={count} />
   }
 
   return (

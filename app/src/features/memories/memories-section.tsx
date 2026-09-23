@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyNote } from '@/components/muninn/empty-note'
+import { LoadingBody, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { MemoryCard } from '@/features/memories/memory-card'
@@ -40,10 +41,12 @@ export function MemoriesSection() {
   }
 
   return (
-    <section aria-labelledby="memories-heading">
-      <SectionHeading title={t('memories.title')} className="px-5 lg:px-0" />
+    <section aria-labelledby="memories-heading" aria-busy={memories.isPending}>
+      <SectionHeading id="memories-heading" title={t('memories.title')} className="px-5 lg:px-0" />
 
-      {memories.isSuccess && items.length === 0 ? (
+      {memories.isPending ? (
+        <MemoriesLoading desktop={isDesktop} />
+      ) : memories.isSuccess && items.length === 0 ? (
         <EmptyNote className="mx-5 lg:mx-0">{t('memories.empty')}</EmptyNote>
       ) : isDesktop ? (
         <div className="mt-4 grid grid-cols-3 gap-4">
@@ -74,5 +77,31 @@ export function MemoriesSection() {
       )}
       {viewer.panel}
     </section>
+  )
+}
+
+/**
+ * The cards of the years, in the shape they will have: three across on the desktop, a row that
+ * runs off the edge on the phone. The section keeps its height, so the timeline under it does
+ * not jump once the years are there.
+ */
+function MemoriesLoading({ desktop }: { desktop: boolean }) {
+  const shapes = Array.from({ length: desktop ? 3 : 3 }, (_, index) => (
+    <Placeholder
+      key={index}
+      className={
+        desktop ? 'h-[280px] rounded-lg' : 'h-[316px] w-[250px] shrink-0 snap-start rounded-lg'
+      }
+    />
+  ))
+
+  return desktop ? (
+    <LoadingBody boxed={false} className="mt-4 grid grid-cols-3 gap-4">
+      {shapes}
+    </LoadingBody>
+  ) : (
+    <LoadingBody boxed={false} className="mt-3 flex gap-3 overflow-hidden px-5">
+      {shapes}
+    </LoadingBody>
   )
 }

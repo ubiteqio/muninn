@@ -134,7 +134,8 @@ describe('the album tree', () => {
 
   it('keeps the header the same shape with and without a sync button', async () => {
     stubApi({
-      [TREE]: { body: { items: [root, italien] } },
+      // A folder inside a published one: it is synced with its parent, so it has no button.
+      [TREE]: { body: { items: [root, { ...italien, is_source: false }] } },
       [MEDIA]: { body: { items: [], next_cursor: null, prev_cursor: null } },
     })
 
@@ -142,7 +143,7 @@ describe('the album tree', () => {
 
     // Italien is no published folder of its own, so it has no button - but the lane that would
     // hold one is there all the same, which is what keeps the tiles below from moving.
-    await screen.findByRole('navigation', { name: 'Pfad im Albenbaum' })
+    await screen.findByRole('heading', { name: 'Italien mit Oma' })
     expect(screen.queryByRole('button', { name: 'Jetzt abgleichen' })).not.toBeInTheDocument()
     const lane = document.querySelector('header > div > div:last-child')
     expect(lane).toHaveClass('h-11')

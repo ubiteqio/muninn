@@ -7,6 +7,7 @@ import { Symbol } from '@/components/muninn/symbol'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useLibraryUpdates } from '@/features/albums/use-library-updates'
+import { RunLoading } from '@/features/timeline/timeline-loading'
 import { TimelineOverview } from '@/features/timeline/timeline-overview'
 import { TimelineRun } from '@/features/timeline/timeline-run'
 import {
@@ -84,7 +85,15 @@ export function TimelineSection({
   const older = standingAt >= 0 ? months[standingAt + 1] : undefined
   const newer = standingAt > 0 ? months[standingAt - 1] : undefined
 
+  // How many cards the level will show. The shape names every month the library holds, so the
+  // placeholders can stand at the height the cards will take instead of at a round number.
   const year = at?.slice(0, 4)
+  const cards =
+    marks === undefined
+      ? 0
+      : level === 'years'
+        ? new Set(marks.marks.map((mark) => mark.start.slice(0, 4))).size
+        : marks.marks.filter((mark) => year === undefined || mark.start.startsWith(year)).length
   const up =
     level === 'days'
       ? { level: 'months' as const, at: year, label: year ?? t('timeline.years') }
@@ -95,6 +104,7 @@ export function TimelineSection({
   return (
     <section ref={section} aria-labelledby="timeline-heading" className={className}>
       <SectionHeading
+        id="timeline-heading"
         title={t('timeline.title')}
         action={
           // A fixed lane: the chip and the way back come and go with the level, and without a
@@ -104,7 +114,12 @@ export function TimelineSection({
             {summary && (
               <span className="hidden text-sm text-muted-foreground lg:inline">{summary}</span>
             )}
-            {level === 'days' && month && (
+            {/* No month yet, so not even the run can be mounted: it would not know what to ask for. */}
+      {level === 'days' && month === undefined && shape.isPending && (
+        <RunLoading columns={columns} />
+      )}
+
+      {level === 'days' && month && (
               <Badge variant="amber" className="font-bold">
                 {shortLabel(labelOf(month))}
               </Badge>
@@ -132,6 +147,7 @@ export function TimelineSection({
       {level === 'years' && marks?.total !== 0 && (
         <TimelineOverview
           by="year"
+          count={cards}
           onOpen={(period) => {
             onLevelChange('months', period)
           }}
@@ -142,6 +158,7 @@ export function TimelineSection({
         <TimelineOverview
           by="month"
           year={year === undefined ? undefined : Number(year)}
+          count={cards}
           onOpen={(period) => {
             onLevelChange('days', period)
           }}

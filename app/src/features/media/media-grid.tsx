@@ -3,6 +3,7 @@ import { type CSSProperties, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useScrollContainer } from '@/components/layout/scroll-container'
+import { Placeholder } from '@/components/muninn/placeholder'
 import { Symbol } from '@/components/muninn/symbol'
 import type { Medium } from '@/features/albums/use-albums'
 import { formatDate } from '@/features/media/format'
@@ -11,6 +12,14 @@ import { useMeasuredWidth } from '@/hooks/use-measured-width'
 import { cn } from '@/lib/utils'
 
 const GAP = 6
+
+/**
+ * How much of the grid stands there while the pictures are fetched. A screenful, no more:
+ * beyond the fold there is nothing waiting to be pushed down, and a box longer than the album
+ * turns out to be would drop the page when the answer is short.
+ */
+const LOADING_ROWS = 5
+const LOADING_ROWS_WIDE = 4
 
 interface MediaGridProps {
   media: Medium[]
@@ -155,5 +164,26 @@ function MediaTile({
         </span>
       )}
     </button>
+  )
+}
+
+/**
+ * The grid before its media: tiles of the size the real ones will have, in the same columns and
+ * with the same gap, so the page does not jump from a line of text to a screen of pictures.
+ * Where the count is known already - an album carries it in its header - it takes that many.
+ */
+export function MediaGridLoading({ columns, tiles }: { columns: number; tiles?: number }) {
+  // From six columns on, the tiles are large enough that four rows already fill the screen.
+  const most = columns * (columns < 6 ? LOADING_ROWS : LOADING_ROWS_WIDE)
+
+  return (
+    <div
+      className="grid gap-1.5"
+      style={{ gridTemplateColumns: `repeat(${String(columns)}, minmax(0, 1fr))` }}
+    >
+      {Array.from({ length: Math.min(tiles ?? most, most) }, (_, index) => (
+        <Placeholder key={index} className="aspect-square w-full" />
+      ))}
+    </div>
   )
 }

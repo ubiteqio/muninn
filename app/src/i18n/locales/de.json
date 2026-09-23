@@ -3,7 +3,8 @@
     "showAll": "Alle ansehen",
     "close": "Schließen",
     "cancel": "Abbrechen",
-    "done": "Fertig"
+    "done": "Fertig",
+    "loading": "Wird geladen …"
   },
   "nav": {
     "label": "Hauptnavigation",
@@ -821,7 +822,6 @@
     "no": "Nein, das ist nicht {{name}}",
     "persons": "Personen",
     "suggestionsTitle": "Vorschläge",
-    "loading": "Wird geladen …",
     "hiddenTitle": "Ausgeblendete Personen",
     "noneHidden": "Niemand ist ausgeblendet.",
     "groups": "Wer ist das?",

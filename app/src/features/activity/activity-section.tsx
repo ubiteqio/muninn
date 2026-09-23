@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { EmptyNote } from '@/components/muninn/empty-note'
 import { PersonInitial } from '@/components/muninn/person-initial'
+import { LoadingBody, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Card } from '@/components/ui/card'
@@ -130,9 +131,11 @@ export function ActivitySection({
   const items = activity.data?.items ?? []
 
   return (
-    <section aria-labelledby="activity-heading">
-      <SectionHeading title={t('activity.title')} />
-      {activity.isSuccess && items.length === 0 ? (
+    <section aria-labelledby="activity-heading" aria-busy={activity.isPending}>
+      <SectionHeading id="activity-heading" title={t('activity.title')} />
+      {activity.isPending ? (
+        <ActivityLoading thumbSize={thumbSize} />
+      ) : activity.isSuccess && items.length === 0 ? (
         <EmptyNote>{t('activity.empty')}</EmptyNote>
       ) : (
         items.length > 0 && (
@@ -147,5 +150,34 @@ export function ActivitySection({
         )
       )}
     </section>
+  )
+}
+
+/**
+ * The card of the latest few, before they are there: a row per entry, with the round mark, the
+ * two lines of words and the picture it happened to, all in the sizes the real rows use.
+ */
+function ActivityLoading({ thumbSize }: { thumbSize: number }) {
+  return (
+    <LoadingBody boxed={false}>
+      <Card className="mt-3 overflow-hidden">
+        {Array.from({ length: SHOWN }, (_, index) => (
+          <div key={index}>
+            {index > 0 && <Separator />}
+            <div className="flex items-center gap-3 p-3">
+              <Placeholder className="size-[38px] shrink-0 rounded-full" />
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <Placeholder className="h-4 w-3/4" />
+                <Placeholder className="h-3 w-1/2" />
+              </div>
+              <Placeholder
+                className="shrink-0 rounded-thumb"
+                style={{ width: thumbSize, height: thumbSize }}
+              />
+            </div>
+          </div>
+        ))}
+      </Card>
+    </LoadingBody>
   )
 }

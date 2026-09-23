@@ -1,12 +1,12 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { type ReactNode, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AppShell } from '@/components/layout/app-shell'
 import { PageHeading } from '@/components/layout/page-heading'
 import { EmptyNote } from '@/components/muninn/empty-note'
 import { Pagination } from '@/components/muninn/pagination'
-import { Placeholder, PlaceholderBox } from '@/components/muninn/placeholder'
+import { LoadingSection, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
@@ -249,23 +249,6 @@ export interface Answered {
   yes: boolean
 }
 
-/**
- * What stands there while the answers are on their way: the heading the section will carry and
- * a box in its shape. Without it the groups arrive first and everything else pushes them down
- * as it lands, so the box carries the height the section will take.
- */
-function Loading({ title, children }: { title: string; children: ReactNode }) {
-  const { t } = useTranslation()
-
-  return (
-    <section aria-busy="true" aria-label={title}>
-      <SectionHeading title={title} />
-      <span className="sr-only">{t('people.loading')}</span>
-      <PlaceholderBox className="mt-3">{children}</PlaceholderBox>
-    </section>
-  )
-}
-
 /** A face on its way: the round picture and the two lines under it. */
 function TileLoading() {
   return (
@@ -281,7 +264,7 @@ function PersonsLoading() {
   const { t } = useTranslation()
 
   return (
-    <Loading title={t('people.persons')}>
+    <LoadingSection title={t('people.persons')}>
       <Placeholder className="h-11 rounded-lg" />
       <ul className="mt-4 grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
         {Array.from({ length: PER_PAGE }, (_, index) => (
@@ -292,7 +275,7 @@ function PersonsLoading() {
         <Placeholder className="h-3.5 w-40" />
         <Placeholder className="h-9 w-44 rounded-full" />
       </div>
-    </Loading>
+    </LoadingSection>
   )
 }
 
@@ -300,7 +283,7 @@ function SuggestionsLoading() {
   const { t } = useTranslation()
 
   return (
-    <Loading title={t('people.suggestionsTitle')}>
+    <LoadingSection title={t('people.suggestionsTitle')}>
       <ul className="flex gap-3 overflow-hidden">
         {Array.from({ length: 6 }, (_, index) => (
           <li
@@ -318,7 +301,7 @@ function SuggestionsLoading() {
           </li>
         ))}
       </ul>
-    </Loading>
+    </LoadingSection>
   )
 }
 
@@ -326,7 +309,7 @@ function GroupsLoading() {
   const { t } = useTranslation()
 
   return (
-    <Loading title={t('people.groups')}>
+    <LoadingSection title={t('people.groups')}>
       <Placeholder className="h-3.5 w-72" />
       <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {Array.from({ length: 6 }, (_, index) => (
@@ -336,7 +319,7 @@ function GroupsLoading() {
           </li>
         ))}
       </ul>
-    </Loading>
+    </LoadingSection>
   )
 }
 

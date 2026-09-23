@@ -5,6 +5,7 @@ import { useScrollContainer } from '@/components/layout/scroll-container'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { useSocialUpdates } from '@/features/social/use-social'
 import { DateScrubber } from '@/features/timeline/date-scrubber'
+import { DayLoading } from '@/features/timeline/timeline-loading'
 import { TimelineTile } from '@/features/timeline/timeline-tile'
 import {
   type Geometry,
@@ -28,6 +29,8 @@ const GAP = 2
 const HEADING = 28
 /** How close to the edge of the loaded window the next page is fetched. */
 const NEAR_EDGE = 500
+/** Days drawn empty while the pictures of the window are on their way. */
+const PREVIEW_DAYS = 3
 
 interface TimelineRunProps {
   /** Three columns on mobile, eight on the desktop. */
@@ -93,10 +96,24 @@ export function TimelineRun({ columns, month, medium, onMediumChange }: Timeline
   const tile = width > 0 ? (width - GAP * (columns - 1)) / columns : 0
   const geometry: Geometry = { columns, rowHeight: tile + GAP, heading: HEADING }
 
+  // The days the window is about to show: the top of the month, or wherever the rail has
+  // carried it. Drawn empty, they give the run its height before the first picture is here.
+  const preview = useMemo(() => {
+    if (!timeline.isPending || !marks) return []
+    const day = anchor?.slice(0, 10)
+    const from =
+      day === undefined ? 0 : Math.max(marks.marks.findIndex((mark) => mark.start <= day), 0)
+    return marks.marks.slice(from, from + PREVIEW_DAYS)
+  }, [anchor, marks, timeline.isPending])
+
   const first = groups[0]?.id ?? null
   const last = groups.at(-1)?.id ?? null
-  const above = marks && first && first !== 'undated' ? heightAbove(marks, first, geometry) : 0
-  const below = marks && last && last !== 'undated' ? heightBelow(marks, last, geometry) : 0
+  // Loaded or still coming, the spacers hang on the same two days, so the month is its full
+  // length either way and nothing moves when the pictures arrive.
+  const firstKey = first !== null && first !== 'undated' ? first : (preview[0]?.start ?? null)
+  const lastKey = last !== null && last !== 'undated' ? last : (preview.at(-1)?.start ?? null)
+  const above = marks && firstKey !== null ? heightAbove(marks, firstKey, geometry) : 0
+  const below = marks && lastKey !== null ? heightBelow(marks, lastKey, geometry) : 0
   const total = marks ? heightOfAll(marks, geometry) : 0
 
   /** Where the timeline block begins inside the scrolling page. */
@@ -174,10 +191,14 @@ export function TimelineRun({ columns, month, medium, onMediumChange }: Timeline
   return (
     <>
       <div className="mt-3 flex gap-0">
-        <div ref={block} className="min-w-0 flex-1">
+        <div ref={block} className="min-w-0 flex-1" aria-busy={timeline.isPending || undefined}>
+          {timeline.isPending && <span className="sr-only">{t('common.loading')}</span>}
           <div aria-hidden="true" style={{ height: above }} />
 
           <div ref={loaded} className="space-y-4">
+            {preview.map((mark) => (
+              <DayLoading key={mark.start} columns={columns} count={mark.count} />
+            ))}
             {positioned.map(({ group, start }) => (
               <div key={group.id}>
                 <h3 className="mb-1.5 text-sm-plus font-semibold text-foreground">
