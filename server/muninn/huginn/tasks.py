@@ -165,6 +165,12 @@ def reassess_faces() -> int:
     return run(_reassess_faces())
 
 
+@celery_app.task(name="muninn.regroup_faces", queue="people")
+def regroup_faces() -> int:
+    """Build the groups of the unnamed faces again, under the rule as it stands now."""
+    return run(_regroup_faces())
+
+
 @celery_app.task(name="muninn.prune_change_log", queue="scan")
 def prune_change_log() -> int:
     """Throw away log lines older than the retention period."""
@@ -820,6 +826,11 @@ async def _prepare_memories(day: date) -> int:
 async def _sort_faces(face_ids: list[uuid.UUID]) -> None:
     async with session_scope() as session:
         await people.sort_faces(session, face_ids)
+
+
+async def _regroup_faces() -> int:
+    async with session_scope() as session:
+        return await people.regroup(session)
 
 
 async def _reassess_faces() -> int:

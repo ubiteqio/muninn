@@ -13,6 +13,7 @@ from sqlalchemy import select
 from muninn.core.config import get_settings
 from muninn.core.db import create_engine, create_session_factory
 from muninn.core.security import hash_password, password_problem
+from muninn.faces import people
 from muninn.media import service as media_service
 from muninn.models.user import User, UserRole, UserStatus
 
@@ -88,6 +89,22 @@ async def _clean_derived(dry_run: bool, allow_empty: bool) -> int:
     return 0
 
 
+async def _regroup_faces() -> int:
+    """Groups made under an older rule are not repaired by themselves; this builds them again."""
+    settings = get_settings()
+    engine = create_engine(settings.database_url)
+    session_factory = create_session_factory(engine)
+
+    try:
+        async with session_factory() as session:
+            grouped = await people.regroup(session)
+    finally:
+        await engine.dispose()
+
+    print(f"{grouped} face(s) are in a group now.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="muninn", description="Muninn maintenance commands")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -114,6 +131,11 @@ def main(argv: list[str] | None = None) -> int:
         help="sweep although no media are known at all, which is normally refused",
     )
 
+    subparsers.add_parser(
+        "regroup-faces",
+        help="build the groups of unnamed faces again, under the rule as it stands now",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "create-admin":
@@ -124,6 +146,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "clean-derived":
         return asyncio.run(_clean_derived(args.dry_run, args.even_when_empty))
+
+    if args.command == "regroup-faces":
+        return asyncio.run(_regroup_faces())
 
     return 1
 

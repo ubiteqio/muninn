@@ -10,6 +10,7 @@ import asyncio
 import base64
 import hashlib
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -547,6 +548,61 @@ async def face_neighbors(
         )
         for r in rows
     ]
+
+
+async def distance_to_clusters(
+    session: AsyncSession, face_id: uuid.UUID, clusters: Sequence[int]
+) -> dict[int, float]:
+    """How far this face lies from the middle of each of those groups.
+
+    The middle is the average of the group's faces. Asking it, rather than whichever single face
+    happens to be nearest, is what keeps one face between two groups from tying them together.
+    """
+    if not clusters:
+        return {}
+    stored = await session.execute(
+        text("SELECT embedding::text AS vector, dimensions, model FROM faces WHERE id = :id"),
+        {"id": face_id},
+    )
+    row = stored.first()
+    if row is None:
+        return {}
+    dimensions = int(row.dimensions)
+    wanted = ", ".join(str(int(cluster)) for cluster in clusters)
+    rows = await session.execute(
+        text(
+            f"""
+            SELECT cluster,
+                   avg(embedding::vector({dimensions}))
+                       <=> CAST(:vector AS vector({dimensions})) AS distance
+              FROM faces
+             WHERE cluster IN ({wanted})
+               AND model = {_quoted(row.model)} AND dimensions = {dimensions}
+             GROUP BY cluster
+            """  # noqa: S608 - the cast, the model literal and the group numbers are ours
+        ),
+        {"vector": row.vector},
+    )
+    return {int(r.cluster): float(r.distance) for r in rows}
+
+
+async def gap_between_clusters(session: AsyncSession, first: int, second: int) -> float:
+    """How far the middles of two groups lie apart. 1.0 - unrelated - when one has no faces."""
+    found = await session.scalar(
+        text(
+            f"""
+            WITH centers AS (
+                SELECT cluster, avg(embedding::vector) AS center
+                  FROM faces
+                 WHERE cluster IN ({int(first)}, {int(second)})
+                 GROUP BY cluster
+            )
+            SELECT (SELECT center FROM centers WHERE cluster = {int(first)})
+                   <=> (SELECT center FROM centers WHERE cluster = {int(second)})
+            """  # noqa: S608 - both group numbers are ours
+        )
+    )
+    return float(found) if found is not None else 1.0
 
 
 def _good_enough(min_pixels: int, min_score: float) -> str:

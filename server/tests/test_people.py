@@ -4,7 +4,7 @@ import math
 import uuid
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from muninn.faces import people
@@ -79,7 +79,11 @@ async def test_alike_faces_form_a_group_and_others_stay_apart(session: AsyncSess
     assert other.cluster is None
 
 
-async def test_a_face_joins_two_groups_it_links(session: AsyncSession) -> None:
+async def test_a_face_between_two_groups_does_not_tie_them_together(
+    session: AsyncSession,
+) -> None:
+    """One face near two groups used to weld them into one, and a chain of such faces welded
+    hundreds of different people into a group nobody could name. It joins the nearer middle."""
     (left,) = await faces_in_a_photo(session, at(1.0))
     (left_too,) = await faces_in_a_photo(session, at(0.97, towards=1))
     (right,) = await faces_in_a_photo(session, at(0.0, towards=2))
@@ -87,11 +91,13 @@ async def test_a_face_joins_two_groups_it_links(session: AsyncSession) -> None:
     before = {(await face(session, i)).cluster for i in (left, left_too, right, right_too)}
     assert len(before) == 2
 
-    # Close to both: now they are one group.
-    (bridge,) = await faces_in_a_photo(session, [0.707, 0.0, 0.707] + [0.0] * 5)
+    # Near enough to a face in either group to have merged them before, but clearly nearer the
+    # middle of the left one.
+    (bridge,) = await faces_in_a_photo(session, [0.75, 0.0, 0.661] + [0.0] * 5)
 
     after = {(await face(session, i)).cluster for i in (left, left_too, right, right_too, bridge)}
-    assert len(after) == 1
+    assert len(after) == 2
+    assert (await face(session, bridge)).cluster == (await face(session, left)).cluster
 
 
 async def test_a_named_group_takes_new_faces_or_suggests_them(
@@ -357,3 +363,24 @@ async def test_a_no_takes_the_vouching_with_it(
     rejected = await face(session, close)
     assert (rejected.person_id, rejected.trusted) == (None, False)
     assert lena.id is not None
+
+
+async def test_regrouping_takes_apart_what_an_older_rule_ran_together(
+    session: AsyncSession,
+) -> None:
+    """A face is only put into a group when it is new, so a group an older rule ran together
+    stays as it was. Building them again is what takes such a group apart."""
+    left = await faces_in_a_photo(session, at(1.0))
+    left_too = await faces_in_a_photo(session, at(0.97, towards=1))
+    right = await faces_in_a_photo(session, at(0.0, towards=2))
+    right_too = await faces_in_a_photo(session, [0.0, 0.24, 0.97, 0, 0, 0, 0, 0])
+    every = [*left, *left_too, *right, *right_too]
+
+    # As the old rule left it: two different people in one group.
+    await session.execute(update(Face).where(Face.id.in_(every)).values(cluster=1))
+    await session.commit()
+
+    grouped = await people.regroup(session)
+
+    assert grouped == len(every)
+    assert len({(await face(session, one)).cluster for one in every}) == 2

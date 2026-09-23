@@ -50,6 +50,11 @@ SUGGEST_DISTANCE = 0.62
 #: How close unnamed faces must be to form a group: a little stricter than a suggestion, since
 #: nobody looks at each pair.
 GROUP_DISTANCE = 0.5
+#: How close to a group's middle a face must lie to join that group.
+JOIN_DISTANCE = 0.45
+#: How close two groups' middles must lie for the two to be one group. Stricter than joining on
+#: purpose: a wrong merge costs hundreds of faces their group, a group too many costs one name.
+MERGE_DISTANCE = 0.35
 #: How close an automatic assignment must lie to a face that already vouches, to vouch itself.
 #: Far stricter than AUTO_DISTANCE on purpose: what the confirmed-only rule was written against
 #: is a chain of guesses each adding a little drift, and a short link adds almost none.
@@ -143,7 +148,12 @@ async def _assign_automatically(session: AsyncSession, face: Face) -> bool:
 
 
 async def _group(session: AsyncSession, face: Face) -> None:
-    """Put an unnamed face into the group of its unnamed neighbours, joining groups it links.
+    """Put an unnamed face into the group it belongs to, and join the groups that are one.
+
+    Which group it joins is decided by the group's middle - the average of its faces - not by
+    whichever single face lies nearest. Before, every group a face touched was merged into one,
+    so a single face between two of them tied them together for good, and a chain of such faces
+    tied hundreds of different people into one group nobody could name.
 
     A face that is too small or too unsure stays out of the groups altogether. It would bring
     nothing to name and a great deal to confuse.
@@ -162,18 +172,23 @@ async def _group(session: AsyncSession, face: Face) -> None:
     if not neighbors:
         return
     clusters = {neighbor.cluster for neighbor in neighbors if neighbor.cluster is not None}
-    if face.cluster is not None:
-        clusters.add(face.cluster)
-    if clusters:
-        target = min(clusters)
-        others = clusters - {target}
-        if others:
-            await session.execute(
-                update(Face).where(Face.cluster.in_(others)).values(cluster=target)
-            )
+    middles = await search_service.distance_to_clusters(session, face.id, sorted(clusters))
+    near = {cluster: gap for cluster, gap in middles.items() if gap <= JOIN_DISTANCE}
+    if near:
+        target = min(near, key=lambda cluster: near[cluster])
+    elif face.cluster is not None:
+        target = face.cluster
     else:
         target = int(await session.scalar(text("SELECT nextval('face_clusters')")) or 0)
     face.cluster = target
+    await session.flush()
+
+    # Two groups become one only when their middles are close, never because one face happens
+    # to lie between them.
+    for other in sorted(clusters - {target}):
+        if await search_service.gap_between_clusters(session, target, other) <= MERGE_DISTANCE:
+            await session.execute(update(Face).where(Face.cluster == other).values(cluster=target))
+
     loose = [neighbor.face_id for neighbor in neighbors if neighbor.cluster is None]
     if loose:
         await session.execute(update(Face).where(Face.id.in_(loose)).values(cluster=target))
@@ -191,6 +206,44 @@ async def sort_faces(session: AsyncSession, face_ids: Sequence[uuid.UUID]) -> No
             await _group(session, face)
         await session.flush()
     await session.commit()
+
+
+async def regroup(session: AsyncSession, *, batch: int = 500) -> int:
+    """Build the groups of every face nobody named again, under the rule as it stands now.
+
+    A face is only ever put into a group when it is new, so groups made under an older rule stay
+    as they were - including the ones an earlier rule ran together. This throws them all away
+    and builds them up again. Faces that have a person are not touched: what somebody decided
+    is never undone here.
+
+    Returns how many faces ended up in a group.
+    """
+    await session.execute(update(Face).where(Face.person_id.is_(None)).values(cluster=None))
+    await session.commit()
+
+    grouped = 0
+    last: uuid.UUID | None = None
+    while True:
+        query = select(Face).where(Face.person_id.is_(None)).order_by(Face.id).limit(batch)
+        if last is not None:
+            query = query.where(Face.id > last)
+        faces = list(await session.scalars(query))
+        if not faces:
+            break
+        await _lock(session)
+        for face in faces:
+            await _group(session, face)
+            await session.flush()
+        await session.commit()
+        last = faces[-1].id
+
+    grouped = int(
+        await session.scalar(
+            select(func.count()).select_from(Face).where(Face.cluster.is_not(None))
+        )
+        or 0
+    )
+    return grouped
 
 
 def _clearest(face: Face) -> tuple[int, float]:
