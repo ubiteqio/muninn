@@ -25,6 +25,7 @@ import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { AlbumSocial } from '@/features/social/album-social'
 import { useSocialUpdates } from '@/features/social/use-social'
 import { DESKTOP_QUERY, useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
+import { useSwipe } from '@/hooks/use-swipe'
 import { cn } from '@/lib/utils'
 import type { AlbumSearch } from '@/routes'
 
@@ -56,6 +57,13 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
   const children = tree.data?.children.get(albumId ?? null) ?? []
   const path = album && tree.data ? pathTo(album, tree.data.byId) : []
 
+  // Where this album sits among its brothers and sisters, for the swipe from one to the next.
+  // The whole tree is in hand, so this is a lookup and not another question to the server.
+  const siblings = album && tree.data ? (tree.data.children.get(album.parent_id) ?? []) : []
+  const here = siblings.findIndex((one) => one.id === albumId)
+  const before_ = here > 0 ? siblings[here - 1] : undefined
+  const after = here >= 0 ? siblings[here + 1] : undefined
+
   const mediaQuery = useAlbumMedia(albumId, { cursor, before })
   useLibraryUpdates()
   const media = mediaQuery.data?.items ?? []
@@ -86,6 +94,40 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
   )
   const viewer = useMediaViewer(media, { current: medium, onCurrentChange, social: true })
   useSocialUpdates()
+
+  const scroller = useScrollContainer()
+  const openAlbum = useCallback(
+    (id: string | null) => {
+      if (id === null) void navigate({ to: '/albums' })
+      else void navigate({ to: '/albums/$albumId', params: { albumId: id } })
+    },
+    [navigate],
+  )
+  /*
+   * On a phone: sideways to the album before or after this one, upwards to the album above.
+   *
+   * Upwards only once scrolling has nothing left to do. Everywhere else that gesture is how one
+   * reads on, and taking it away would be worse than not having it; at the end of an album it
+   * means nothing else, and walking back out of a folder one has read to the end is the moment
+   * one wants it. Not while a picture is open: there the swipe belongs to the picture.
+   */
+  useSwipe(
+    {
+      onLeft: () => {
+        if (after) openAlbum(after.id)
+      },
+      onRight: () => {
+        if (before_) openAlbum(before_.id)
+      },
+      onUp: () => {
+        const left = scroller
+          ? scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
+          : 0
+        if (left <= 4 && album) openAlbum(album.parent_id)
+      },
+    },
+    albumId !== undefined && medium === undefined,
+  )
 
   const title = album?.title ?? t('nav.albums')
   const columns = isDesktop ? 6 : isWide ? 5 : 3
