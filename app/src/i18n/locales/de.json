@@ -820,6 +820,8 @@
     "yes": "Ja, das ist {{name}}",
     "no": "Nein, das ist nicht {{name}}",
     "persons": "Personen",
+    "suggestionsTitle": "Vorschläge",
+    "loading": "Wird geladen …",
     "hiddenTitle": "Ausgeblendete Personen",
     "noneHidden": "Niemand ist ausgeblendet.",
     "groups": "Wer ist das?",

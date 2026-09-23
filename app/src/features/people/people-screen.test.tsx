@@ -1,7 +1,7 @@
 import { useSearch } from '@tanstack/react-router'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { PeopleScreen } from '@/features/people/people-screen'
 import { stubApi } from '@/test/api-stub'
@@ -39,6 +39,23 @@ const OVERVIEW = {
 }
 
 describe('PeopleScreen', () => {
+  it('keeps the page in shape while the answers are on their way', async () => {
+    // Without the placeholders the groups arrive first and push the rest down as it lands.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    )
+
+    await renderScreen(<PeopleScreen />)
+
+    for (const title of ['Personen', 'Vorschläge', 'Wer ist das?']) {
+      const section = screen.getByRole('region', { name: title })
+      expect(section).toHaveAttribute('aria-busy', 'true')
+      expect(within(section).getByText('Wird geladen …')).toBeInTheDocument()
+    }
+    vi.unstubAllGlobals()
+  })
+
   it('names a group, answers a suggestion and lists the persons', async () => {
     const { calls } = stubApi({
       'GET /api/v1/people': { body: OVERVIEW },

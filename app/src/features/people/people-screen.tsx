@@ -1,11 +1,12 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useMemo, useRef, useState } from 'react'
+import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AppShell } from '@/components/layout/app-shell'
 import { PageHeading } from '@/components/layout/page-heading'
 import { EmptyNote } from '@/components/muninn/empty-note'
 import { Pagination } from '@/components/muninn/pagination'
+import { Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
@@ -75,6 +76,8 @@ export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
         )}
         {nothing && <EmptyNote>{t('people.empty')}</EmptyNote>}
 
+        {people.isPending && <PersonsLoading />}
+
         {(persons.length > 0 || showHidden) && (
           <section ref={sectionRef} aria-labelledby="persons-heading" className="scroll-mt-4">
             <SectionHeading
@@ -140,6 +143,8 @@ export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
           </section>
         )}
 
+        {(people.isPending || (waiting > 0 && suggestions.isPending)) && <SuggestionsLoading />}
+
         {allSuggestions.length > 0 && (
           <section aria-labelledby="suggestions-heading">
             <SectionHeading
@@ -158,6 +163,8 @@ export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
             </ul>
           </section>
         )}
+
+        {groups.isPending && <GroupsLoading />}
 
         {allGroups.length > 0 && (
           <section aria-labelledby="groups-heading">
@@ -242,6 +249,72 @@ export interface Answered {
   yes: boolean
 }
 
+/**
+ * What stands there while the answers are on their way: the heading the section will carry and
+ * tiles in its shape. Without them the groups arrive first and push the rest down as it lands.
+ */
+function Loading({ title, children }: { title: string; children: ReactNode }) {
+  const { t } = useTranslation()
+
+  return (
+    <section aria-busy="true" aria-label={title}>
+      <SectionHeading title={title} />
+      <span className="sr-only">{t('people.loading')}</span>
+      {children}
+    </section>
+  )
+}
+
+function PersonsLoading() {
+  const { t } = useTranslation()
+
+  return (
+    <Loading title={t('people.persons')}>
+      <Placeholder className="mt-3 h-[52px] rounded-lg" />
+      <ul className="mt-5 grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+        {Array.from({ length: 7 }, (_, index) => (
+          <li key={index}>
+            <Placeholder className="aspect-square w-full rounded-full" />
+            <Placeholder className="mx-auto mt-2 h-3 w-16" />
+          </li>
+        ))}
+      </ul>
+    </Loading>
+  )
+}
+
+function SuggestionsLoading() {
+  const { t } = useTranslation()
+
+  return (
+    <Loading title={t('people.suggestionsTitle')}>
+      <ul className="mt-3 flex gap-3 overflow-x-auto pb-1">
+        {Array.from({ length: 4 }, (_, index) => (
+          <li key={index}>
+            <Placeholder className="h-[168px] w-[132px] rounded-lg" />
+          </li>
+        ))}
+      </ul>
+    </Loading>
+  )
+}
+
+function GroupsLoading() {
+  const { t } = useTranslation()
+
+  return (
+    <Loading title={t('people.groups')}>
+      <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        {Array.from({ length: 6 }, (_, index) => (
+          <li key={index}>
+            <Placeholder className="aspect-square w-full rounded-lg" />
+          </li>
+        ))}
+      </ul>
+    </Loading>
+  )
+}
+
 function SuggestionCard({
   face,
   person,
@@ -292,7 +365,11 @@ function SuggestionCard({
             onClick={() => {
               answer.mutate(
                 { faceId, yes: false },
-                { onSuccess: () => { onAnswered({ faceId, person, yes: false }) } },
+                {
+                  onSuccess: () => {
+                    onAnswered({ faceId, person, yes: false })
+                  },
+                },
               )
             }}
           >
@@ -317,7 +394,11 @@ function SuggestionCard({
             onClick={() => {
               answer.mutate(
                 { faceId, yes: true },
-                { onSuccess: () => { onAnswered({ faceId, person, yes: true }) } },
+                {
+                  onSuccess: () => {
+                    onAnswered({ faceId, person, yes: true })
+                  },
+                },
               )
             }}
           >
