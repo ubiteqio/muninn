@@ -282,3 +282,69 @@ describe('the persons, page by page', () => {
     })
   })
 })
+
+describe('AlikeDialog', () => {
+  const ALIKE = {
+    person_id: 'lena',
+    items: [
+      { face: aFace('a1'), similarity: 0.93 },
+      { face: aFace('a2'), similarity: 0.84 },
+      { face: aFace('a3'), similarity: 0.66 },
+    ],
+  }
+
+  function stubPeople(extra: Record<string, unknown>) {
+    return stubApi({
+      'GET /api/v1/people': { body: { ...OVERVIEW, groups: { items: [], next_cursor: null } } },
+      'GET /api/v1/people/groups': { body: { items: [], next_cursor: null } },
+      'GET /api/v1/people/suggestions': {
+        body: {
+          items: [
+            {
+              face: { ...aFace('s1'), suggested_similarity: 0.52 },
+              person: { id: 'lena', name: 'Lena' },
+            },
+          ],
+          next_cursor: null,
+        },
+      },
+      'POST /api/v1/faces/s1/confirm': { status: 204 },
+      ...extra,
+    })
+  }
+
+  it('offers the faces that look the same and answers them together', async () => {
+    const { calls } = stubPeople({
+      'GET /api/v1/faces/s1/alike': { body: ALIKE },
+      'POST /api/v1/faces/alike': { body: { answered: 2 } },
+    })
+    const user = userEvent.setup()
+
+    await renderScreen(<PeopleScreen />)
+    await user.click(await screen.findByRole('button', { name: 'Ja, das ist Lena' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Diese auch als Lena?')).toBeInTheDocument()
+    // The line sits at 80 %, so the third face is below it and not offered.
+    expect(within(dialog).getByText('2 Gesichter werden übernommen')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: '2 übernehmen' }))
+
+    await waitFor(() => {
+      const sent = calls.find((call) => call.path === '/api/v1/faces/alike')
+      expect(sent?.body).toEqual({ person_id: 'lena', face_ids: ['a1', 'a2'], confirm: true })
+    })
+  })
+
+  it('keeps out of the way when nothing looks the same', async () => {
+    stubPeople({ 'GET /api/v1/faces/s1/alike': { body: { person_id: 'lena', items: [] } } })
+    const user = userEvent.setup()
+
+    await renderScreen(<PeopleScreen />)
+    await user.click(await screen.findByRole('button', { name: 'Ja, das ist Lena' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+  })
+})

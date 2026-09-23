@@ -10,6 +10,7 @@ import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { AlikeDialog } from '@/features/people/alike-dialog'
 import { Face } from '@/features/people/face'
 import { LetterBar } from '@/features/people/letter-bar'
 import { letterOf } from '@/features/people/letters'
@@ -24,6 +25,7 @@ import {
   useAnswer,
   useGroupFaces,
   useGroups,
+  useLivePeople,
   useNameGroup,
   usePeople,
   useSuggestions,
@@ -37,10 +39,14 @@ import { cn } from '@/lib/utils'
 export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
   const { t } = useTranslation()
   const [showHidden, setShowHidden] = useState(false)
+  // What was just answered, so the same answer can be offered for the faces that look the same.
+  // It lives here and not in the card: answering makes the card go, and the dialog with it.
+  const [answered, setAnswered] = useState<Answered | null>(null)
   const navigate = useNavigate()
   const sectionRef = useRef<HTMLElement>(null)
   const people = usePeople(showHidden)
   const groups = useGroups()
+  useLivePeople()
   const waiting = people.data?.suggestions ?? 0
   const suggestions = useSuggestions(waiting > 0)
   const persons = useMemo(() => people.data?.persons ?? [], [people.data])
@@ -142,7 +148,12 @@ export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
             />
             <ul className="mt-3 flex gap-3 overflow-x-auto pb-1">
               {allSuggestions.map((item) => (
-                <SuggestionCard key={item.face.id} face={item.face} person={item.person} />
+                <SuggestionCard
+                  key={item.face.id}
+                  face={item.face}
+                  person={item.person}
+                  onAnswered={setAnswered}
+                />
               ))}
             </ul>
           </section>
@@ -170,6 +181,17 @@ export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
           </section>
         )}
       </div>
+      {answered !== null && (
+        <AlikeDialog
+          key={answered.faceId}
+          faceId={answered.faceId}
+          person={answered.person}
+          yes={answered.yes}
+          onDone={() => {
+            setAnswered(null)
+          }}
+        />
+      )}
     </AppShell>
   )
 }
@@ -213,12 +235,21 @@ function browse(persons: PersonView[], letter: string | undefined, page: number)
   }
 }
 
+/** A face that was just answered, and how. */
+export interface Answered {
+  faceId: string
+  person: { id: string; name: string }
+  yes: boolean
+}
+
 function SuggestionCard({
   face,
   person,
+  onAnswered,
 }: {
   face: FaceView
   person: { id: string; name: string }
+  onAnswered: (answered: Answered) => void
 }) {
   const { t } = useTranslation()
   const answer = useAnswer()
@@ -259,7 +290,10 @@ function SuggestionCard({
             aria-label={t('people.no', { name })}
             disabled={answer.isPending}
             onClick={() => {
-              answer.mutate({ faceId, yes: false })
+              answer.mutate(
+                { faceId, yes: false },
+                { onSuccess: () => { onAnswered({ faceId, person, yes: false }) } },
+              )
             }}
           >
             <Symbol name="close" size={18} />
@@ -281,7 +315,10 @@ function SuggestionCard({
             aria-label={t('people.yes', { name })}
             disabled={answer.isPending}
             onClick={() => {
-              answer.mutate({ faceId, yes: true })
+              answer.mutate(
+                { faceId, yes: true },
+                { onSuccess: () => { onAnswered({ faceId, person, yes: true }) } },
+              )
             }}
           >
             <Symbol name="check_circle" size={18} />

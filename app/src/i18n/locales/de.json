@@ -804,6 +804,18 @@
     "suggestions_one": "Ein Vorschlag",
     "suggestions_other": "{{count}} Vorschläge",
     "isThis": "Ist das {{name}}?",
+    "alike": {
+      "titleYes": "Diese auch als {{name}}?",
+      "titleNo": "Diese auch ablehnen?",
+      "hint": "Gesichter, die dem eben beantworteten ähneln. Mit dem Regler bestimmst du, ab welcher Ähnlichkeit sie dazugehören.",
+      "threshold": "Ab {{percent}} % Ähnlichkeit",
+      "toggle": "{{percent}} % ähnlich – dazunehmen oder weglassen",
+      "count_one": "1 Gesicht wird übernommen",
+      "count_other": "{{count}} Gesichter werden übernommen",
+      "apply_one": "1 übernehmen",
+      "apply_other": "{{count}} übernehmen",
+      "later": "Nur dieses"
+    },
     "yes": "Ja, das ist {{name}}",
     "no": "Nein, das ist nicht {{name}}",
     "persons": "Personen",

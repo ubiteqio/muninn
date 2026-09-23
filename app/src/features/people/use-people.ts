@@ -1,7 +1,9 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 
 import { api, unwrap } from '@/api/client'
 import type { components } from '@/api/generated/schema'
+import { onLiveEvent } from '@/api/live'
 import type { Medium } from '@/features/albums/use-albums'
 
 export type PersonView = components['schemas']['PersonCard']
@@ -9,6 +11,7 @@ export type FaceView = components['schemas']['FaceView']
 export type GroupView = components['schemas']['GroupView']
 export type SuggestionView = components['schemas']['SuggestionView']
 export type MediaFace = components['schemas']['MediaFaceView']
+export type AlikeFace = components['schemas']['AlikeFace']
 
 const KEY = ['people'] as const
 
@@ -166,6 +169,69 @@ export function useAnswer() {
     },
     onSuccess: refresh,
   })
+}
+
+/**
+ * The open questions about the same person that look like the one just answered.
+ *
+ * Asked once, at the widest distance the server offers, and narrowed in the browser: the slider
+ * in the dialog then costs nothing to move.
+ */
+export function useAlikeFaces(faceId: string | null, personId: string | null) {
+  return useQuery({
+    queryKey: [...KEY, 'alike', faceId, personId],
+    enabled: faceId !== null && personId !== null,
+    // The answer is about one moment; asking again later would be a different list.
+    staleTime: Infinity,
+    gcTime: 60_000,
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/api/v1/faces/{face_id}/alike', {
+          params: { path: { face_id: faceId ?? '' }, query: { person: personId ?? '' } },
+        }),
+      ),
+  })
+}
+
+/** The same yes or no for a whole list of faces. */
+export function useDecideAlike() {
+  const refresh = useRefresh()
+  return useMutation({
+    mutationFn: async ({
+      personId,
+      faceIds,
+      yes,
+    }: {
+      personId: string
+      faceIds: string[]
+      yes: boolean
+    }) =>
+      unwrap(
+        await api.POST('/api/v1/faces/alike', {
+          body: { person_id: personId, face_ids: faceIds, confirm: yes },
+        }),
+      ),
+    onSuccess: refresh,
+  })
+}
+
+/**
+ * Keeps the Personen screen in step with the worker.
+ *
+ * The pass that looks at the faces again answers questions by itself. Without this the screen
+ * would still be offering them minutes later, and somebody would be deciding what was decided.
+ */
+export function useLivePeople(): void {
+  const queryClient = useQueryClient()
+
+  useEffect(
+    () =>
+      onLiveEvent((event) => {
+        if (event.topic !== 'people') return
+        void queryClient.invalidateQueries({ queryKey: KEY })
+      }),
+    [queryClient],
+  )
 }
 
 export function useNameFace() {
