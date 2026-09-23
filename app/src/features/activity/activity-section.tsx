@@ -159,8 +159,8 @@ export function ActivitySection({
  */
 function ActivityLoading({ thumbSize }: { thumbSize: number }) {
   return (
-    <LoadingBody boxed={false}>
-      <Card className="mt-3 overflow-hidden">
+    <LoadingBody boxed={false} className="mt-3">
+      <Card className="overflow-hidden">
         {Array.from({ length: SHOWN }, (_, index) => (
           <div key={index}>
             {index > 0 && <Separator />}

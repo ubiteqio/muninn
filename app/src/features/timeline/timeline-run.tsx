@@ -13,7 +13,9 @@ import {
   heightAbove,
   heightBelow,
   heightOfAll,
+  type Mark,
   momentAt,
+  PAGE_SIZE,
   scrollPageTo,
   type TimelineShape,
   useTimelineShape,
@@ -29,8 +31,6 @@ const GAP = 2
 const HEADING = 28
 /** How close to the edge of the loaded window the next page is fetched. */
 const NEAR_EDGE = 500
-/** Days drawn empty while the pictures of the window are on their way. */
-const PREVIEW_DAYS = 3
 
 interface TimelineRunProps {
   /** Three columns on mobile, eight on the desktop. */
@@ -96,14 +96,25 @@ export function TimelineRun({ columns, month, medium, onMediumChange }: Timeline
   const tile = width > 0 ? (width - GAP * (columns - 1)) / columns : 0
   const geometry: Geometry = { columns, rowHeight: tile + GAP, heading: HEADING }
 
-  // The days the window is about to show: the top of the month, or wherever the rail has
-  // carried it. Drawn empty, they give the run its height before the first picture is here.
-  const preview = useMemo(() => {
+  // The days the first page is about to bring: from the top of the month, or from wherever the
+  // rail has carried the window, until one page is full. One page, not whole days - the window
+  // asks for a hundred media, so a day of four hundred arrives as a quarter of itself, and a
+  // placeholder that drew all four hundred would stand four viewports taller than what lands.
+  const preview = useMemo((): Mark[] => {
     if (!timeline.isPending || !marks) return []
+
     const day = anchor?.slice(0, 10)
     const from =
       day === undefined ? 0 : Math.max(marks.marks.findIndex((mark) => mark.start <= day), 0)
-    return marks.marks.slice(from, from + PREVIEW_DAYS)
+
+    const days: Mark[] = []
+    let left = PAGE_SIZE
+    for (const mark of marks.marks.slice(from)) {
+      if (left <= 0) break
+      days.push({ ...mark, count: Math.min(mark.count, left) })
+      left -= mark.count
+    }
+    return days
   }, [anchor, marks, timeline.isPending])
 
   const first = groups[0]?.id ?? null

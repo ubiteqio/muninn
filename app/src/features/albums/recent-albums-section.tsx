@@ -121,8 +121,9 @@ function AlbumsLoading({ layout }: { layout: 'scroller' | 'grid' }) {
   const cards = Array.from({ length: SHOWN }, (_, index) => (
     <div key={index} className={cn(layout === 'scroller' && 'w-[132px] shrink-0')}>
       <Placeholder className="aspect-square w-full rounded-lg" />
-      <Placeholder className="mt-2 h-4 w-4/5" />
-      <Placeholder className="mt-1 h-3 w-3/5" />
+      {/* The title and the path under it take 42 px together, and so do these. */}
+      <Placeholder className="mt-2 h-[19px] w-4/5" />
+      <Placeholder className="h-[15px] w-3/5" />
     </div>
   ))
 

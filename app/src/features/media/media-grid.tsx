@@ -172,13 +172,21 @@ function MediaTile({
  * with the same gap, so the page does not jump from a line of text to a screen of pictures.
  * Where the count is known already - an album carries it in its header - it takes that many.
  */
-export function MediaGridLoading({ columns, tiles }: { columns: number; tiles?: number }) {
+export function MediaGridLoading({
+  columns,
+  tiles,
+}: {
+  columns: number
+  tiles?: number | undefined
+}) {
   // From six columns on, the tiles are large enough that four rows already fill the screen.
   const most = columns * (columns < 6 ? LOADING_ROWS : LOADING_ROWS_WIDE)
 
   return (
+    // The real grid is virtualised and counts one gap below its last row in its height; here
+    // that has to be padding, because a margin would collapse out of the section.
     <div
-      className="grid gap-1.5"
+      className="grid gap-1.5 pb-1.5"
       style={{ gridTemplateColumns: `repeat(${String(columns)}, minmax(0, 1fr))` }}
     >
       {Array.from({ length: Math.min(tiles ?? most, most) }, (_, index) => (

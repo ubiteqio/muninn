@@ -1,5 +1,5 @@
 import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Medium } from '@/features/albums/use-albums'
 import { period, SearchScreen } from '@/features/search/search-screen'
@@ -56,6 +56,41 @@ function aPage(items: { media: Medium; moment?: number | null }[], extra: object
 }
 
 describe('SearchScreen', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('shows the grid it is about to fill instead of a line of text', async () => {
+    // A line of text under the chips and then a screen full of pictures: the page unfolded
+    // under the eye. Now the tiles land in rows that are already there.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    )
+
+    await renderScreen(<SearchScreen q="Strand" />)
+
+    const results = screen.getByRole('region', { name: 'Suchergebnisse' })
+    expect(results).toHaveAttribute('aria-busy', 'true')
+    expect(within(results).getByText('Wird gesucht …')).toBeInTheDocument()
+    expect(results.querySelectorAll('.placeholder').length).toBeGreaterThan(8)
+  })
+
+  it('holds the row of people before it is known whether there are any', async () => {
+    // The row decides from the answer whether it stands at all. Without this the hint below
+    // starts under the search field and is pushed down a moment later.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    )
+
+    await renderScreen(<SearchScreen />)
+
+    const row = screen.getByRole('region', { name: 'Personen' })
+    expect(row).toHaveAttribute('aria-busy', 'true')
+    expect(within(row).getByText('Wird geladen …')).toBeInTheDocument()
+  })
+
   it('says what can be asked before anything is typed, and searches nothing', async () => {
     const { calls } = stubApi({ [ABILITIES]: { body: { pictures: true, meanings: true } } })
 

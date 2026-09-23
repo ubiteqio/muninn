@@ -80,6 +80,38 @@ afterEach(() => {
 })
 
 describe('TimelineSection', () => {
+  it('waits with one card per year the library has, not with a round number', async () => {
+    // Six squares for twenty-six years left the page ten rows short on a phone: the shape of
+    // the library says how many cards are coming, so they can stand there before they arrive.
+    const shape = {
+      by: 'month',
+      total: 30,
+      marks: [
+        { start: '2014-08-01', count: 10 },
+        { start: '2012-05-01', count: 10 },
+        { start: '2011-04-01', count: 10 },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(new Request(input).url, 'http://test').pathname
+        if (path !== '/api/v1/media/marks') return new Promise<Response>(() => undefined)
+        return new Response(JSON.stringify(shape), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+    )
+
+    await renderOverview('years')
+
+    // Three years, each a square with its name and its count under it.
+    await waitFor(() => {
+      expect(document.querySelectorAll('[aria-busy="true"] .placeholder')).toHaveLength(9)
+    })
+    expect(screen.getByText('Wird geladen …')).toBeInTheDocument()
+  })
+
   it('runs through the days of the library', async () => {
     stubApi({
       [MARKS]: {

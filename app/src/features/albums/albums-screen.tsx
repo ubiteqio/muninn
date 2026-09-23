@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { AppShell } from '@/components/layout/app-shell'
 import { useScrollContainer } from '@/components/layout/scroll-container'
-import { LoadingBody, Placeholder } from '@/components/muninn/placeholder'
+import { LoadingBody, LoadingSection, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Badge } from '@/components/ui/badge'
@@ -206,17 +206,15 @@ function AlbumsLoading() {
   const { t } = useTranslation()
 
   return (
-    <section aria-busy="true" aria-label={t('albums.albums')}>
-      <SectionHeading title={t('albums.albums')} />
-      <LoadingBody
-        boxed={false}
-        className="mt-3 grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7"
-      >
-        {Array.from({ length: LOADING_ALBUMS }, (_, index) => (
-          <CardLoading key={index} />
-        ))}
-      </LoadingBody>
-    </section>
+    <LoadingSection
+      title={t('albums.albums')}
+      boxed={false}
+      boxClassName="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7"
+    >
+      {Array.from({ length: LOADING_ALBUMS }, (_, index) => (
+        <CardLoading key={index} />
+      ))}
+    </LoadingSection>
   )
 }
 
@@ -228,12 +226,9 @@ function MediaLoading({ columns, count }: { columns: number; count: number | und
   const { t } = useTranslation()
 
   return (
-    <section aria-busy="true" aria-label={t('albums.media')}>
-      <SectionHeading title={t('albums.media')} />
-      <LoadingBody boxed={false} className="mt-3">
-        <MediaGridLoading columns={columns} {...(count === undefined ? {} : { tiles: count })} />
-      </LoadingBody>
-    </section>
+    <LoadingSection title={t('albums.media')} boxed={false}>
+      <MediaGridLoading columns={columns} tiles={count} />
+    </LoadingSection>
   )
 }
 

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/auth-store'
@@ -100,5 +100,22 @@ describe('start screen', () => {
     }
     // On the phone Überblick and Profil wait behind "Mehr".
     expect(screen.getByRole('button', { name: 'Mehr' })).toBeInTheDocument()
+  })
+
+  it('keeps every section in shape while its answer is on its way', async () => {
+    // The sections do not arrive one after the other any more: each one stands there in the
+    // shape it will have, so nothing below it is pushed down when its answer lands.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    )
+
+    await renderScreen(<HomeScreen />)
+
+    for (const title of ['Rückblicke', 'Neuigkeiten', 'Favoriten', 'Zuletzt hinzugefügt']) {
+      const section = screen.getByRole('region', { name: title })
+      expect(section).toHaveAttribute('aria-busy', 'true')
+      expect(within(section).getByText('Wird geladen …')).toBeInTheDocument()
+    }
   })
 })

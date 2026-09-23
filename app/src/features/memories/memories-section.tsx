@@ -86,12 +86,12 @@ export function MemoriesSection() {
  * not jump once the years are there.
  */
 function MemoriesLoading({ desktop }: { desktop: boolean }) {
-  const shapes = Array.from({ length: desktop ? 3 : 3 }, (_, index) => (
+  // Three fill the grid of a wide screen; a phone gets a fourth, which its edge cuts off the
+  // way the real row runs on past it.
+  const shapes = Array.from({ length: desktop ? 3 : 4 }, (_, index) => (
     <Placeholder
       key={index}
-      className={
-        desktop ? 'h-[280px] rounded-lg' : 'h-[316px] w-[250px] shrink-0 snap-start rounded-lg'
-      }
+      className={desktop ? 'h-[280px] rounded-lg' : 'h-[316px] w-[250px] shrink-0 rounded-lg'}
     />
   ))
 

@@ -132,6 +132,23 @@ describe('the album tree', () => {
     expect(await screen.findByRole('region', { name: 'Unteralben' })).toBeInTheDocument()
   })
 
+  it('claims nothing about an album while the tree is on its way', async () => {
+    // Before the tree lands the page used to call every album "Alben" and say it held none,
+    // and then take both back. Now it holds the same shape and says nothing.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    )
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" />)
+
+    expect(screen.queryByRole('heading', { name: 'Alben' })).not.toBeInTheDocument()
+    expect(screen.queryByText('0 Alben')).not.toBeInTheDocument()
+    // The shell brings a header of its own, so it is the album's that has to say it is busy.
+    expect(document.querySelector('header[aria-busy="true"]')).not.toBeNull()
+    expect(screen.getAllByText('Wird geladen …').length).toBeGreaterThan(0)
+  })
+
   it('keeps the header the same shape with and without a sync button', async () => {
     stubApi({
       // A folder inside a published one: it is synced with its parent, so it has no button.
