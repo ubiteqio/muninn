@@ -29,6 +29,8 @@ interface ChromeProps {
   onNext: () => void
   /** Heart, star and the conversation only where a query client is. */
   social: boolean
+  /** A panel stands open beside the picture: then nothing rests and no tap is swallowed. */
+  busy?: boolean | undefined
   findVideo: () => HTMLVideoElement | null
   /** The menu of what the pipeline can do to this medium; admins only. */
   actions?: React.ReactNode
@@ -52,6 +54,7 @@ export function ViewerChrome({
   onPrevious,
   onNext,
   social,
+  busy = false,
   findVideo,
   actions,
   onSimilar,
@@ -78,6 +81,12 @@ export function ViewerChrome({
   }, [rest])
 
   useEffect(() => {
+    // While the details or the conversation are open, one is reading and answering, not
+    // looking at a picture: the chrome has no business fading away under that.
+    if (busy) {
+      window.clearTimeout(sleep.current)
+      return undefined
+    }
     rest()
     window.addEventListener('pointermove', stir)
     window.addEventListener('keydown', stir)
@@ -86,15 +95,26 @@ export function ViewerChrome({
       window.removeEventListener('pointermove', stir)
       window.removeEventListener('keydown', stir)
     }
-  }, [medium.id, rest, stir])
+  }, [busy, medium.id, rest, stir])
 
   // A finger has no way of moving without touching, so the tap that brings the chrome back is
   // spent on that alone - the next one zooms the picture or stops the video. A mouse never gets
   // here: it wakes the chrome by moving, long before it is clicked.
+  const shown = awake || busy
+
   useEffect(() => {
-    if (awake) return
+    if (shown) return
     const wake = (event: PointerEvent) => {
       if (event.pointerType === 'mouse') return
+      // A tap inside a panel, a dialog or a menu is meant for what it lands on - a name being
+      // corrected, a comment being written. Only the picture's own taps wake the chrome.
+      const target = event.target
+      if (
+        target instanceof Element &&
+        target.closest('[data-viewer-panel], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]')
+      ) {
+        return
+      }
       event.stopPropagation()
       event.preventDefault()
       stir()
@@ -113,19 +133,19 @@ export function ViewerChrome({
     return () => {
       window.removeEventListener('pointerdown', wake, true)
     }
-  }, [awake, stir])
+  }, [shown, stir])
 
   return (
     <div
       data-viewer-chrome
       className={cn(
         'pointer-events-none absolute inset-0 z-[1580] transition-opacity duration-300 motion-reduce:transition-none',
-        awake ? 'opacity-100' : 'opacity-0',
+        shown ? 'opacity-100' : 'opacity-0',
       )}
-      aria-hidden={!awake}
+      aria-hidden={!shown}
     >
       <Top
-        awake={awake}
+        awake={shown}
         position={position}
         onBack={onBack}
         actions={actions}
@@ -133,14 +153,14 @@ export function ViewerChrome({
       />
 
       {/* The way through the album, for a screen with a mouse. */}
-      <Arrow awake={awake} side="left" label={t('media.previous')} onClick={onPrevious} />
-      <Arrow awake={awake} side="right" label={t('media.next')} onClick={onNext} />
+      <Arrow awake={shown} side="left" label={t('media.previous')} onClick={onPrevious} />
+      <Arrow awake={shown} side="right" label={t('media.next')} onClick={onNext} />
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent pb-[max(env(safe-area-inset-bottom),12px)] pt-10">
         <div
           className={cn(
             'mx-auto flex w-full max-w-[720px] flex-col gap-2 px-4',
-            awake ? 'pointer-events-auto' : 'pointer-events-none',
+            shown ? 'pointer-events-auto' : 'pointer-events-none',
           )}
         >
           <p className="truncate font-mono text-xs-plus text-white/70">
