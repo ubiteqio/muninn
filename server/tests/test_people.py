@@ -25,7 +25,9 @@ def at(similarity: float, towards: int = 1) -> list[float]:
     return vector
 
 
-async def faces_in_a_photo(session: AsyncSession, *vectors: list[float]) -> list[uuid.UUID]:
+async def faces_in_a_photo(
+    session: AsyncSession, *vectors: list[float], pixels: int = 100, score: float = 0.9
+) -> list[uuid.UUID]:
     medium = await a_medium(
         session,
         await an_album(session, f"Fest-{uuid.uuid4().hex[:6]}"),
@@ -39,8 +41,8 @@ async def faces_in_a_photo(session: AsyncSession, *vectors: list[float]) -> list
         faces=[
             FaceToStore(
                 box=(0.1 + 0.2 * index, 0.1, 0.25 + 0.2 * index, 0.3),
-                score=0.9,
-                pixels=100,
+                score=score,
+                pixels=pixels,
                 second=None,
                 embedding=vector,
             )
@@ -227,15 +229,17 @@ async def lena_confirmed(
     return await people.name_group(session, group, "Lena", anna)
 
 
-async def test_only_a_confirmed_face_vouches_for_an_automatic_one(
+async def test_a_face_muninn_was_not_sure_of_vouches_for_nobody(
     session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     lena = await lena_confirmed(session, session_factory)
-    (auto,) = await faces_in_a_photo(session, at(0.8, towards=2))
-    assert (await face(session, auto)).assigned_by == "auto"
+    # 0.38 from a confirmed face: close enough to take Lena's name, too far to hand it on.
+    (auto,) = await faces_in_a_photo(session, at(0.62, towards=2))
+    holder = await face(session, auto)
+    assert (holder.assigned_by, holder.trusted) == ("auto", False)
 
-    # Very close to the automatic face, but only half like the confirmed ones: before, the
-    # automatic face handed Lena on. Now it is a question.
+    # Very close to the automatic face, but only half like the confirmed ones: before the rule,
+    # the automatic face handed Lena on. Now it is a question.
     (look_alike,) = await faces_in_a_photo(session, at(0.5, towards=2))
 
     found = await face(session, look_alike)
@@ -304,3 +308,52 @@ async def test_copies_given_by_muninn_do_not_hide_the_confirmed_face(
 
     found = await face(session, twelfth)
     assert (found.person_id, found.assigned_by) == (lena.id, "auto")
+
+
+async def test_a_face_muninn_was_sure_of_vouches_for_the_next_one(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """Muninn may build on its own work, as long as every step is a short one.
+
+    Lena is named once. The second face lies 0.15 away and is assigned automatically - close
+    enough to speak for her from then on. The third lies 0.5 from the face that was named, too
+    far to be given her name by it, but 0.12 from the second.
+    """
+    lena = await lena_confirmed(session, session_factory)
+
+    (close,) = await faces_in_a_photo(session, at(0.85))
+    (further,) = await faces_in_a_photo(session, at(0.5))
+
+    vouching = await face(session, close)
+    assert (vouching.person_id, vouching.assigned_by, vouching.trusted) == (lena.id, "auto", True)
+    carried = await face(session, further)
+    assert (carried.person_id, carried.assigned_by) == (lena.id, "auto")
+
+
+async def test_a_small_face_stays_out_of_the_groups(session: AsyncSession) -> None:
+    """Below the bar a face says more about focus than about who it is, and such faces are what
+    tie the groups of different people together."""
+    (clear,) = await faces_in_a_photo(session, at(1.0))
+    (clear_too,) = await faces_in_a_photo(session, at(0.95))
+    (small,) = await faces_in_a_photo(session, at(0.97), pixels=40)
+    (unsure,) = await faces_in_a_photo(session, at(0.97), score=0.65)
+
+    together = await face(session, clear), await face(session, clear_too)
+    assert together[0].cluster is not None
+    assert together[0].cluster == together[1].cluster
+    assert (await face(session, small)).cluster is None
+    assert (await face(session, unsure)).cluster is None
+
+
+async def test_a_no_takes_the_vouching_with_it(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    lena = await lena_confirmed(session, session_factory)
+    (close,) = await faces_in_a_photo(session, at(0.85))
+    assert (await face(session, close)).trusted is True
+
+    await people.reject(session, close)
+
+    rejected = await face(session, close)
+    assert (rejected.person_id, rejected.trusted) == (None, False)
+    assert lena.id is not None

@@ -12,10 +12,16 @@ library: the same person in different photos lay at 0.19 to 0.40, different peop
 beyond. The automatic mark went from 0.45 to 0.50 after the first suggestions, and back to 0.45
 (similarity 55 %) once wrong ones showed up at 0.50.
 
-Only a face somebody confirmed vouches for an automatic assignment. Before, the nearest face
-with a person decided, whoever had assigned it: one mistake handed the name on to the next
-look-alike, and a woman beside Boris in two selfies became Boris in photos ten years older.
-Suggestions still come from every named face, since somebody answers them.
+Not every named face vouches for an automatic assignment. Before, the nearest face with a
+person decided, whoever had assigned it: one mistake handed the name on to the next look-alike,
+and a woman beside Boris in two selfies became Boris in photos ten years older. Since then only
+a face somebody confirmed could vouch - which meant Muninn could never build on its own correct
+work, and everything it was less than certain about piled up as a suggestion.
+
+A face Muninn assigned itself vouches too now, when it lay within VOUCH_DISTANCE of one that
+already did and is a good enough picture to speak from. Every link in such a chain is much
+shorter than the step that caused the drift. Suggestions still come from every named face, since
+somebody answers them.
 
 Nobody is twice in one photo: a person who already has another face in the picture is not
 given to a second one. Videos are left out of this rule, their frames show the same people
@@ -44,6 +50,17 @@ SUGGEST_DISTANCE = 0.62
 #: How close unnamed faces must be to form a group: a little stricter than a suggestion, since
 #: nobody looks at each pair.
 GROUP_DISTANCE = 0.5
+#: How close an automatic assignment must lie to a face that already vouches, to vouch itself.
+#: Far stricter than AUTO_DISTANCE on purpose: what the confirmed-only rule was written against
+#: is a chain of guesses each adding a little drift, and a short link adds almost none.
+VOUCH_DISTANCE = 0.30
+
+#: A face smaller or less sure than this is kept, is searched, and can be given a name by hand.
+#: It just neither founds a group nor vouches for anybody: below this its vector says more about
+#: focus and light than about who it is, and faces like it are what tie the groups of different
+#: people into one.
+SURE_PIXELS = 80
+SURE_SCORE = 0.75
 
 #: Grouping changes shared numbers; two workers doing it at once would split groups.
 _LOCK = "muninn:faces:sort"
@@ -59,6 +76,11 @@ async def _rejected(session: AsyncSession, face_id: uuid.UUID) -> set[uuid.UUID]
             select(FaceRejection.person_id).where(FaceRejection.face_id == face_id)
         )
     )
+
+
+def _sure_enough(face: Face) -> bool:
+    """Whether this face is a good enough picture to group by or to vouch from."""
+    return face.pixels >= SURE_PIXELS and face.score >= SURE_SCORE
 
 
 async def _in_the_same_photo(session: AsyncSession, face: Face) -> set[uuid.UUID]:
@@ -91,7 +113,13 @@ async def _assign_automatically(session: AsyncSession, face: Face) -> bool:
         (
             neighbor
             for neighbor in await search_service.face_neighbors(
-                session, face.id, named=True, confirmed=True, max_distance=AUTO_DISTANCE
+                session,
+                face.id,
+                named=True,
+                confirmed=True,
+                max_distance=AUTO_DISTANCE,
+                min_pixels=SURE_PIXELS,
+                min_score=SURE_SCORE,
             )
             if neighbor.person_id not in ruled_out
         ),
@@ -100,21 +128,36 @@ async def _assign_automatically(session: AsyncSession, face: Face) -> bool:
     if sure is not None:
         face.person_id = sure.person_id
         face.assigned_by = "auto"
+        # Close enough, and clear enough, to speak for this person itself from now on.
+        face.trusted = sure.distance <= VOUCH_DISTANCE and _sure_enough(face)
         face.suggested_person_id = None
         face.suggested_distance = None
         face.cluster = None
         return True
     face.person_id = None
     face.assigned_by = None
+    face.trusted = False
     face.suggested_person_id = best.person_id if best else None
     face.suggested_distance = best.distance if best else None
     return False
 
 
 async def _group(session: AsyncSession, face: Face) -> None:
-    """Put an unnamed face into the group of its unnamed neighbours, joining groups it links."""
+    """Put an unnamed face into the group of its unnamed neighbours, joining groups it links.
+
+    A face that is too small or too unsure stays out of the groups altogether. It would bring
+    nothing to name and a great deal to confuse.
+    """
+    if not _sure_enough(face):
+        face.cluster = None
+        return
     neighbors = await search_service.face_neighbors(
-        session, face.id, named=False, max_distance=GROUP_DISTANCE
+        session,
+        face.id,
+        named=False,
+        max_distance=GROUP_DISTANCE,
+        min_pixels=SURE_PIXELS,
+        min_score=SURE_SCORE,
     )
     if not neighbors:
         return
@@ -309,6 +352,8 @@ async def reject(session: AsyncSession, face_id: uuid.UUID) -> None:
         await session.flush()
     face.person_id = None
     face.assigned_by = None
+    # It vouched for that person while it had them; a "Nein" takes that with it.
+    face.trusted = False
     face.suggested_person_id = None
     face.suggested_distance = None
     face.cluster = None

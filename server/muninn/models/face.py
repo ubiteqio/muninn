@@ -58,6 +58,9 @@ class Face(Base):
     )
     #: "user" when somebody said who it is, "auto" when it lay that close to them.
     assigned_by: Mapped[str | None] = mapped_column(String(8))
+    #: An automatic assignment that lay close enough to a confirmed face to vouch for others
+    #: itself. What somebody assigned by hand always vouches and does not need this.
+    trusted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     suggested_person_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("persons.id", ondelete="SET NULL")
     )

@@ -482,12 +482,21 @@ async def face_neighbors(
     max_distance: float,
     limit: int = 10,
     confirmed: bool = False,
+    min_pixels: int = 0,
+    min_score: float = 0.0,
 ) -> list[FaceNeighbor]:
     """The faces nearest to this one - of named persons, or without a person - nearest first.
 
-    `confirmed` keeps to faces somebody assigned by hand. Asked apart, not filtered afterwards:
+    `confirmed` keeps to the faces that may vouch for a name: what somebody assigned by hand,
+    and what Muninn assigned itself and marked trusted. Asked apart, not filtered afterwards:
     copies and bursts of a photo fill the ten nearest with Muninn's own guesses, and the
     confirmed face that should decide would never be among them.
+
+    `min_pixels` and `min_score` are the caller's bar for a face good enough to be listened to.
+    A small or unsure face is kept and can still be given a name, but its vector says too little
+    to group anybody or to vouch for them, and those are the faces that glue unrelated groups
+    together. A decision somebody made by hand is never held to this bar: the person is right
+    whatever the picture is like.
 
     Only faces of the same model count: another model's vectors live in another space.
     """
@@ -502,8 +511,12 @@ async def face_neighbors(
     cast = f"f.embedding::halfvec({dimensions})"
     probe = f"CAST(:vector AS halfvec({dimensions}))"
     which = "f.person_id IS NOT NULL" if named else "f.person_id IS NULL"
+    good = _good_enough(min_pixels, min_score)
     if confirmed:
-        which += " AND f.assigned_by = 'user'"
+        trusted = f"f.trusted AND {good}" if good else "f.trusted"
+        which += f" AND (f.assigned_by = 'user' OR ({trusted}))"
+    elif good:
+        which += f" AND {good}"
     await session.execute(text(f"SET LOCAL hnsw.ef_search = {max(40, limit * 4)}"))
     await session.execute(text("SET LOCAL hnsw.iterative_scan = relaxed_order"))
     rows = await session.execute(
@@ -534,6 +547,16 @@ async def face_neighbors(
         )
         for r in rows
     ]
+
+
+def _good_enough(min_pixels: int, min_score: float) -> str:
+    """The caller's quality bar as SQL, or nothing when it does not care."""
+    parts = []
+    if min_pixels > 0:
+        parts.append(f"f.pixels >= {int(min_pixels)}")
+    if min_score > 0:
+        parts.append(f"f.score >= {float(min_score)}")
+    return " AND ".join(parts)
 
 
 def _quoted(value: str) -> str:
