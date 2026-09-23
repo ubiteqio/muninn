@@ -5,6 +5,12 @@ import { Placeholder } from '@/components/muninn/placeholder'
 /** Cards for a library that has not said yet how many years it holds. */
 const WAITING_CARDS = 12
 
+/**
+ * As many cards as a wide screen shows before one scrolls. Past the fold nothing is waiting to
+ * be pushed down, and every card here is a block with an animation of its own.
+ */
+const MOST_CARDS = 24
+
 /** Days of three rows each, for a month whose days are not known yet. */
 const WAITING_DAYS = 3
 const WAITING_ROWS = 3
@@ -27,14 +33,17 @@ export function OverviewLoading({ count }: { count: number }) {
         aria-busy="true"
         className="mt-3 grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
       >
-        {Array.from({ length: count > 0 ? count : WAITING_CARDS }, (_, index) => (
-          <div key={index}>
-            <Placeholder className="aspect-square w-full rounded-lg" />
-            {/* The label and the count under the square take 42 px together, and so do these. */}
-            <Placeholder className="mt-2 h-4 w-16" />
-            <Placeholder className="mt-1.5 h-3 w-20" />
-          </div>
-        ))}
+        {Array.from(
+          { length: Math.min(count > 0 ? count : WAITING_CARDS, MOST_CARDS) },
+          (_, index) => (
+            <div key={index}>
+              <Placeholder className="aspect-square w-full rounded-lg" />
+              {/* The label and the count under the square take 42 px together, and so do these. */}
+              <Placeholder className="mt-2 h-4 w-16" />
+              <Placeholder className="mt-1.5 h-3 w-20" />
+            </div>
+          ),
+        )}
       </div>
     </>
   )

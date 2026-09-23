@@ -125,12 +125,7 @@ export function TimelineSection({
             {summary && (
               <span className="hidden text-sm text-muted-foreground lg:inline">{summary}</span>
             )}
-            {/* No month yet, so not even the run can be mounted: it would not know what to ask for. */}
-      {level === 'days' && month === undefined && shape.isPending && (
-        <RunLoading columns={columns} />
-      )}
-
-      {level === 'days' && month && (
+            {level === 'days' && month && (
               <Badge variant="amber" className="font-bold">
                 {shortLabel(labelOf(month))}
               </Badge>
@@ -174,6 +169,11 @@ export function TimelineSection({
             onLevelChange('days', period)
           }}
         />
+      )}
+
+      {/* No month yet, so not even the run can be mounted: it would not know what to ask for. */}
+      {level === 'days' && month === undefined && shape.isPending && (
+        <RunLoading columns={columns} />
       )}
 
       {level === 'days' && month && (

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { AppShell } from '@/components/layout/app-shell'
 import { useScrollContainer } from '@/components/layout/scroll-container'
-import { LoadingBody, LoadingSection, Placeholder } from '@/components/muninn/placeholder'
+import { LoadingSection, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Badge } from '@/components/ui/badge'
@@ -132,7 +132,9 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
           </section>
         )}
 
-        {mediaIsLoading && (album?.media_count ?? 1) > 0 && (
+        {/* Not before the tree: the subalbums are laid out above the pictures, and it is the
+            tree that says how many tiles are coming. */}
+        {tree.data !== undefined && mediaIsLoading && (album?.media_count ?? 1) > 0 && (
           <MediaLoading columns={columns} count={album?.media_count} />
         )}
 
@@ -174,20 +176,23 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
  * none, and takes both back a moment later.
  */
 function HeaderLoading() {
+  const { t } = useTranslation()
+
   return (
     <header aria-busy="true">
-      <LoadingBody boxed={false}>
-        <div className="flex h-7 items-center">
-          <Placeholder className="h-3.5 w-36" />
+      {/* The page has no name yet, and a phone has no heading of its own on it: the loading
+          word carries the level, so the heading does not disappear and come back. */}
+      <h1 className="sr-only">{t('common.loading')}</h1>
+      <div className="flex h-7 items-center">
+        <Placeholder className="h-3.5 w-36" />
+      </div>
+      <div className="mt-1 flex min-h-11 items-center justify-between gap-4">
+        <div className="min-w-0">
+          <Placeholder className="h-[25px] w-48" />
+          <Placeholder className="mt-1 h-3.5 w-32" />
         </div>
-        <div className="mt-1 flex min-h-11 items-center justify-between gap-4">
-          <div className="min-w-0">
-            <Placeholder className="h-[25px] w-48" />
-            <Placeholder className="mt-1 h-3.5 w-32" />
-          </div>
-          <Placeholder className="h-11 w-[104px] shrink-0 rounded-lg" />
-        </div>
-      </LoadingBody>
+        <Placeholder className="h-11 w-[104px] shrink-0 rounded-lg" />
+      </div>
     </header>
   )
 }

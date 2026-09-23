@@ -19,7 +19,7 @@ export function AppearanceCard() {
 
   return (
     <section aria-labelledby="appearance-heading" className="space-y-3">
-      <SectionHeading title={t('profile.appearance.title')} />
+      <SectionHeading id="appearance-heading" title={t('profile.appearance.title')} />
       <div
         role="radiogroup"
         aria-label={t('profile.appearance.title')}

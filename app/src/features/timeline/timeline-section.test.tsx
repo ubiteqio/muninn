@@ -130,6 +130,24 @@ describe('TimelineSection', () => {
     })
   })
 
+  it('waits in the shape of a run when the days are asked for before the shape is here', async () => {
+    // /home?view=days on a cold cache: no month is known yet, so the run cannot be mounted.
+    // What stands there has to stand where the run will, not in the heading's lane.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    )
+
+    await renderRun()
+
+    const waiting = document.querySelector('[aria-busy="true"]')
+    expect(waiting).not.toBeNull()
+    expect(waiting?.closest('h2, [class*="h-9"]')).toBeNull()
+    expect(screen.getByText('Wird geladen …')).toBeInTheDocument()
+    // Three days of three rows, at three columns: the tiles of a screenful.
+    expect(document.querySelectorAll('.placeholder')).toHaveLength(3 * (1 + 9))
+  })
+
   it('waits with one card per year the library has, not with a round number', async () => {
     // Six squares for twenty-six years left the page ten rows short on a phone: the shape of
     // the library says how many cards are coming, so they can stand there before they arrive.

@@ -9,6 +9,9 @@ import { usePeople } from '@/features/people/use-people'
 /** As many faces as the row ever shows. */
 const FACES = 16
 
+/** As many as fit a phone: the ones past the edge hold nothing in place. */
+const WAITING_FACES = 6
+
 /**
  * The persons at the top of the search, as the concept has it: a tap searches for them, and
  * "Alle" leads to the Personen screen. While nobody is named yet, it invites to name the groups.
@@ -78,7 +81,7 @@ export function PeopleRow({ onPerson }: { onPerson: (name: string) => void }) {
 function PeopleRowLoading() {
   return (
     <LoadingBody boxed={false} className="mt-3 flex gap-4 overflow-hidden pb-1">
-      {Array.from({ length: FACES }, (_, index) => (
+      {Array.from({ length: WAITING_FACES }, (_, index) => (
         <div key={index} className="flex w-[72px] shrink-0 flex-col items-center gap-1.5">
           <Placeholder className="size-[60px] rounded-full" />
           <Placeholder className="h-4 w-14" />
