@@ -114,6 +114,11 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       counter: false,
       arrowPrev: false,
       arrowNext: false,
+      // A click on a picture zooms it, where there is a mouse. A finger pinches, or taps twice;
+      // its single tap belongs to the chrome, which it brings back when that has rested.
+      imageClickAction: 'zoom',
+      tapAction: false,
+      doubleTapAction: 'zoom',
     })
 
     // Typing is not steering: a "z" in a name or a comment is a letter, not zoom, and the arrows

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Symbol } from '@/components/muninn/symbol'
@@ -63,16 +63,22 @@ export function ViewerChrome({
   const sleep = useRef<number | undefined>(undefined)
 
   // Every sign of life puts the rest off; the chrome goes when nothing has happened for a while.
+  /** Arm the rest, without saying anything about now: the chrome starts awake by itself. */
+  const rest = useCallback(() => {
+    window.clearTimeout(sleep.current)
+    sleep.current = window.setTimeout(() => {
+      setAwake(false)
+      setEmojis(false)
+    }, REST_MS)
+  }, [])
+
+  const stir = useCallback(() => {
+    setAwake(true)
+    rest()
+  }, [rest])
+
   useEffect(() => {
-    const stir = () => {
-      setAwake(true)
-      window.clearTimeout(sleep.current)
-      sleep.current = window.setTimeout(() => {
-        setAwake(false)
-        setEmojis(false)
-      }, REST_MS)
-    }
-    stir()
+    rest()
     window.addEventListener('pointermove', stir)
     window.addEventListener('keydown', stir)
     return () => {
@@ -80,7 +86,34 @@ export function ViewerChrome({
       window.removeEventListener('pointermove', stir)
       window.removeEventListener('keydown', stir)
     }
-  }, [medium.id])
+  }, [medium.id, rest, stir])
+
+  // A finger has no way of moving without touching, so the tap that brings the chrome back is
+  // spent on that alone - the next one zooms the picture or stops the video. A mouse never gets
+  // here: it wakes the chrome by moving, long before it is clicked.
+  useEffect(() => {
+    if (awake) return
+    const wake = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse') return
+      event.stopPropagation()
+      event.preventDefault()
+      stir()
+      const swallow = (next: Event) => {
+        next.stopPropagation()
+        next.preventDefault()
+      }
+      window.addEventListener('pointerup', swallow, { capture: true, once: true })
+      window.addEventListener('click', swallow, { capture: true, once: true })
+      window.setTimeout(() => {
+        window.removeEventListener('pointerup', swallow, { capture: true })
+        window.removeEventListener('click', swallow, { capture: true })
+      }, 600)
+    }
+    window.addEventListener('pointerdown', wake, true)
+    return () => {
+      window.removeEventListener('pointerdown', wake, true)
+    }
+  }, [awake, stir])
 
   return (
     <div
@@ -92,6 +125,7 @@ export function ViewerChrome({
       aria-hidden={!awake}
     >
       <Top
+        awake={awake}
         position={position}
         onBack={onBack}
         actions={actions}
@@ -99,11 +133,16 @@ export function ViewerChrome({
       />
 
       {/* The way through the album, for a screen with a mouse. */}
-      <Arrow side="left" label={t('media.previous')} onClick={onPrevious} />
-      <Arrow side="right" label={t('media.next')} onClick={onNext} />
+      <Arrow awake={awake} side="left" label={t('media.previous')} onClick={onPrevious} />
+      <Arrow awake={awake} side="right" label={t('media.next')} onClick={onNext} />
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent pb-[max(env(safe-area-inset-bottom),12px)] pt-10">
-        <div className="pointer-events-auto mx-auto flex w-full max-w-[720px] flex-col gap-2 px-4">
+        <div
+          className={cn(
+            'mx-auto flex w-full max-w-[720px] flex-col gap-2 px-4',
+            awake ? 'pointer-events-auto' : 'pointer-events-none',
+          )}
+        >
           <p className="truncate font-mono text-xs-plus text-white/70">
             {medium.origin.filename}
           </p>
@@ -134,11 +173,13 @@ export function ViewerChrome({
 }
 
 function Top({
+  awake,
   position,
   onBack,
   actions,
   title,
 }: {
+  awake: boolean
   position: { index: number; total: number }
   onBack: () => void
   actions: React.ReactNode
@@ -152,7 +193,10 @@ function Top({
         type="button"
         aria-label={t('media.back')}
         title={title}
-        className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65"
+        className={cn(
+          'flex size-11 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/65',
+          awake ? 'pointer-events-auto' : 'pointer-events-none',
+        )}
         onClick={onBack}
       >
         <Symbol name="arrow_back" size={22} />
@@ -160,16 +204,25 @@ function Top({
       <span className="pointer-events-none rounded-full bg-black/40 px-3 py-1 text-xs-plus tabular-nums text-white/80">
         {position.index + 1} / {position.total}
       </span>
-      <div className="pointer-events-auto flex size-11 items-center justify-center">{actions}</div>
+      <div
+        className={cn(
+          'flex size-11 items-center justify-center',
+          awake ? 'pointer-events-auto' : 'pointer-events-none',
+        )}
+      >
+        {actions}
+      </div>
     </div>
   )
 }
 
 function Arrow({
+  awake,
   side,
   label,
   onClick,
 }: {
+  awake: boolean
   side: 'left' | 'right'
   label: string
   onClick: () => void
@@ -179,7 +232,8 @@ function Arrow({
       type="button"
       aria-label={label}
       className={cn(
-        'pointer-events-auto absolute top-1/2 hidden size-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white transition hover:bg-black/60 md:flex',
+        'absolute top-1/2 hidden size-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white transition hover:bg-black/60 md:flex',
+        awake ? 'pointer-events-auto' : 'pointer-events-none',
         side === 'left' ? 'left-3' : 'right-3',
       )}
       onClick={onClick}
