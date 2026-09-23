@@ -97,6 +97,12 @@ describe('a suggestion, looked at closer', () => {
       'GET /api/v1/media/m-s1': {
         body: {
           id: 'm-s1',
+          origin: {
+            library_path: '/library',
+            relative_path: 'Kinder/Alle/Simon/2017-04-16 – Simon in München/XDMU1149.png',
+            filename: 'XDMU1149.png',
+            byte_size: 1024,
+          },
           urls: {
             thumb: '/t',
             preview: '/preview/m-s1',
@@ -121,6 +127,13 @@ describe('a suggestion, looked at closer', () => {
     await waitFor(() => {
       expect(dialog.querySelector('img[src="/preview/m-s1"]')).not.toBeNull()
     })
+    // Two babies are the same face to anybody; the folder is what tells them apart, and the
+    // whole way there is on the mouseover.
+    const folder = await within(dialog).findByText('2017-04-16 – Simon in München')
+    expect(folder.closest('p')).toHaveAttribute(
+      'title',
+      'Kinder/Alle/Simon/2017-04-16 – Simon in München',
+    )
     await user.click(within(dialog).getByRole('button', { name: /Nicht Lena/ }))
 
     await waitFor(() => {

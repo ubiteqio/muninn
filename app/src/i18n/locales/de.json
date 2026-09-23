@@ -804,6 +804,7 @@
     "suggestions_one": "Ein Vorschlag",
     "suggestions_other": "{{count}} Vorschläge",
     "isThis": "Ist das {{name}}?",
+    "inAlbum": "Im Album",
     "alike": {
       "titleYes": "Diese auch als {{name}}?",
       "titleNo": "Diese auch ablehnen?",
