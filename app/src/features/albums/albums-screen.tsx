@@ -95,7 +95,6 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
   const viewer = useMediaViewer(media, { current: medium, onCurrentChange, social: true })
   useSocialUpdates()
 
-  const scroller = useScrollContainer()
   const openAlbum = useCallback(
     (id: string | null) => {
       if (id === null) void navigate({ to: '/albums' })
@@ -104,12 +103,11 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
     [navigate],
   )
   /*
-   * On a phone: sideways to the album before or after this one, upwards to the album above.
+   * On a phone: sideways to the album before or after this one.
    *
-   * Upwards only once scrolling has nothing left to do. Everywhere else that gesture is how one
-   * reads on, and taking it away would be worse than not having it; at the end of an album it
-   * means nothing else, and walking back out of a folder one has read to the end is the moment
-   * one wants it. Not while a picture is open: there the swipe belongs to the picture.
+   * Up and down stay with the page: that is how one reads a long album, and a gesture that
+   * sometimes scrolls and sometimes leaves the folder is worse than no gesture. Not while a
+   * picture is open either: there the swipe belongs to the picture.
    */
   useSwipe(
     {
@@ -118,12 +116,6 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
       },
       onRight: () => {
         if (before_) openAlbum(before_.id)
-      },
-      onUp: () => {
-        const left = scroller
-          ? scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
-          : 0
-        if (left <= 4 && album) openAlbum(album.parent_id)
       },
     },
     albumId !== undefined && medium === undefined,
