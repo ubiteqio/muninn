@@ -52,6 +52,9 @@ export function TimelineSection({
   const container = useScrollContainer()
   const shape = useTimelineShape()
   const section = useRef<HTMLElement>(null)
+  // Whether the section has already scrolled once: stepping between levels moves the page,
+  // arriving on it must not.
+  const stepped = useRef(false)
   useLibraryUpdates()
 
   // Stepping between levels means a page of a completely different height. Without this one
@@ -59,6 +62,14 @@ export function TimelineSection({
   useEffect(() => {
     const element = section.current
     if (!element || !container) return
+
+    // On the way in the page already stands at its top, and on a phone the start screen has
+    // four sections above this one that one is meant to see first. Now that they hold their
+    // height from the first frame, jumping to the timeline would scroll straight past them.
+    if (!stepped.current) {
+      stepped.current = true
+      return
+    }
 
     const top =
       element.getBoundingClientRect().top -

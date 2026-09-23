@@ -1,7 +1,9 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ScrollContainerProvider } from '@/components/layout/scroll-container'
 import type { Medium } from '@/features/albums/use-albums'
 import { TimelineSection } from '@/features/timeline/timeline-section'
 import { stubApi } from '@/test/api-stub'
@@ -80,6 +82,54 @@ afterEach(() => {
 })
 
 describe('TimelineSection', () => {
+  it('does not scroll the page to itself on the way in, only when a level is stepped', async () => {
+    // The start screen has four sections above the timeline, and they hold their height from
+    // the first frame. Scrolling to the timeline on arrival would run straight past them.
+    stubApi({
+      [MARKS]: { body: { by: 'month', total: 1, marks: [{ start: '2014-08-01', count: 1 }] } },
+      [PERIODS]: { body: [{ start: '2014-01-01', count: 1, covers: [] }] },
+    })
+    const container = document.createElement('div')
+    const scrolled: number[] = []
+    container.scrollTo = (options?: number | ScrollToOptions) => {
+      scrolled.push(typeof options === 'number' ? options : (options?.top ?? 0))
+    }
+
+    function Stepping() {
+      const [level, setLevel] = useState<'years' | 'months'>('years')
+      return (
+        <ScrollContainerProvider container={container}>
+          <button
+            type="button"
+            onClick={() => {
+              setLevel('months')
+            }}
+          >
+            Hinein
+          </button>
+          <TimelineSection
+            columns={3}
+            level={level}
+            at={undefined}
+            onLevelChange={vi.fn()}
+            medium={undefined}
+            onMediumChange={vi.fn()}
+          />
+        </ScrollContainerProvider>
+      )
+    }
+
+    await renderScreen(<Stepping />)
+    await screen.findByText('Zeitleiste')
+    expect(scrolled).toEqual([])
+
+    // Stepping into a year is another page of another height: that one does scroll.
+    await userEvent.click(screen.getByRole('button', { name: 'Hinein' }))
+    await waitFor(() => {
+      expect(scrolled).toHaveLength(1)
+    })
+  })
+
   it('waits with one card per year the library has, not with a round number', async () => {
     // Six squares for twenty-six years left the page ten rows short on a phone: the shape of
     // the library says how many cards are coming, so they can stand there before they arrive.
