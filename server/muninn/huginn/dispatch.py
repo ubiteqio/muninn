@@ -5,6 +5,7 @@ worker or Redis is not there, the caller learns that instead of waiting.
 """
 
 import uuid
+from typing import Any
 
 from kombu.exceptions import OperationalError
 from redis.exceptions import RedisError
@@ -55,6 +56,33 @@ def queue_sync(
         raise WorkerUnreachableError from error
 
     return str(result.id)
+
+
+#: Which task does which stage, for the one an admin asks for by hand.
+def _task_of(stage: str) -> Any:
+    from muninn.huginn import tasks
+
+    return {
+        "metadata": tasks.read_metadata,
+        "derive": tasks.derive_media,
+        jobs.IMAGE_VECTOR_STAGE: tasks.embed_image,
+        jobs.TRANSCRIPTION_STAGE: tasks.transcribe_media,
+        jobs.ANALYSIS_STAGE: tasks.analyze_media,
+        jobs.CAPTION_VECTOR_STAGE: tasks.embed_caption,
+        jobs.FACES_STAGE: tasks.detect_faces,
+    }[stage]
+
+
+def queue_stage(media_id: uuid.UUID, stage: str) -> None:
+    """One step for one medium, now: an admin asked for it in front of the picture.
+
+    Best effort, like the other handovers: when Redis is away the clock picks the medium up at
+    its next turn anyway, because asking dropped what the step had written.
+    """
+    try:
+        _task_of(stage).apply_async(args=[str(media_id)], priority=0, retry=False)
+    except OperationalError:
+        return
 
 
 def queue_face_sorting(face_id: uuid.UUID) -> None:

@@ -90,6 +90,89 @@ async def user_headers(
     return auth_header(await login(api_client, username="anna"))
 
 
+class TestStages:
+    """What the pipeline did to one medium, and asking for one step again."""
+
+    async def test_an_admin_sees_every_step_and_what_it_did(
+        self,
+        api_client: AsyncClient,
+        session: AsyncSession,
+        library: Path,
+        derived: Path,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        media = await indexed_medium(session, library, derived)
+        await create_user(
+            session_factory, username="odin", display_name="Odin", role=UserRole.ADMIN
+        )
+        headers = auth_header(await login(api_client, username="odin"))
+
+        answer = await api_client.get(f"/media/{media.id}/stages", headers=headers)
+
+        assert answer.status_code == 200, answer.text
+        steps = {step["stage"]: step for step in answer.json()["stages"]}
+        # The preview was made when the medium was indexed; a photo has nothing to transcribe.
+        assert steps["derive"]["state"] == "done"
+        assert steps["transcription"]["state"] == "not-for-this"
+        assert steps["faces"]["state"] == "open"
+
+    async def test_asking_for_a_step_again_drops_what_it_wrote(
+        self,
+        api_client: AsyncClient,
+        session: AsyncSession,
+        library: Path,
+        derived: Path,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        media = await indexed_medium(session, library, derived)
+        await create_user(
+            session_factory, username="odin", display_name="Odin", role=UserRole.ADMIN
+        )
+        headers = auth_header(await login(api_client, username="odin"))
+
+        answer = await api_client.post(f"/media/{media.id}/stages/derive", headers=headers)
+
+        assert answer.status_code == 202
+        steps = {step["stage"]: step for step in answer.json()["stages"]}
+        assert steps["derive"]["state"] == "open"
+        await session.refresh(media)
+        assert media.derive_version == 0
+
+    async def test_only_admins_may_ask(
+        self,
+        api_client: AsyncClient,
+        session: AsyncSession,
+        library: Path,
+        derived: Path,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        media = await indexed_medium(session, library, derived)
+        await create_user(session_factory, username="anna", display_name="Anna")
+        headers = auth_header(await login(api_client, username="anna"))
+
+        answer = await api_client.get(f"/media/{media.id}/stages", headers=headers)
+
+        assert answer.status_code == 403
+
+    async def test_a_step_nobody_knows_is_not_found(
+        self,
+        api_client: AsyncClient,
+        session: AsyncSession,
+        library: Path,
+        derived: Path,
+        session_factory: async_sessionmaker[AsyncSession],
+    ) -> None:
+        media = await indexed_medium(session, library, derived)
+        await create_user(
+            session_factory, username="odin", display_name="Odin", role=UserRole.ADMIN
+        )
+        headers = auth_header(await login(api_client, username="odin"))
+
+        answer = await api_client.post(f"/media/{media.id}/stages/telepathy", headers=headers)
+
+        assert answer.status_code == 404
+
+
 class TestDeriving:
     async def test_previews_are_written_and_written_down(
         self, session: AsyncSession, library: Path, derived: Path

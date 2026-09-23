@@ -239,3 +239,21 @@ class PeriodView(BaseModel):
     start: date
     count: int
     covers: list[PeriodCoverView]
+
+
+class MediaStageView(BaseModel):
+    """One step of the pipeline as it stands for one medium, for the admin in front of it."""
+
+    stage: str
+    #: done, open, given-up, or not-for-this - a photo has nothing to transcribe.
+    state: str
+    #: How often it failed for this medium's own sake; three is where the clock gives up.
+    attempts: int = 0
+    last_error: str | None = None
+
+
+class MediaStagesView(BaseModel):
+    """Everything the pipeline can do to one medium, in the order it does it."""
+
+    media_id: UUID
+    stages: list[MediaStageView]

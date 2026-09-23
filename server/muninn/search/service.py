@@ -161,6 +161,15 @@ async def forget(session: AsyncSession, kind: VectorKind, media_id: uuid.UUID) -
     )
 
 
+async def has_vector(session: AsyncSession, kind: VectorKind, media_id: uuid.UUID) -> bool:
+    """Whether this medium has a vector of this kind at all - for the admin's view of a medium."""
+    found = await session.scalar(
+        text(_sql("SELECT 1 FROM {table} WHERE media_id = :media_id LIMIT 1", kind)),
+        {"media_id": media_id},
+    )
+    return found is not None
+
+
 async def media_without(
     session: AsyncSession, kind: VectorKind, *, model: str, version: int, limit: int = 200
 ) -> list[uuid.UUID]:
