@@ -34,6 +34,7 @@ when somebody names a group; afterwards the unnamed faces are looked at again, s
 name may be theirs.
 """
 
+import math
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -55,6 +56,14 @@ JOIN_DISTANCE = 0.45
 #: How close two groups' middles must lie for the two to be one group. Stricter than joining on
 #: purpose: a wrong merge costs hundreds of faces their group, a group too many costs one name.
 MERGE_DISTANCE = 0.35
+#: How close a face must lie to one of a person's middles to be given their name. A middle is
+#: an average of several faces and so a steadier thing to measure against than any one of them.
+PROTOTYPE_DISTANCE = 0.40
+#: At most this many middles for one person: one for each way they looked over the years.
+PROTOTYPES_MAX = 5
+#: A person earns another middle every this many faces that vouch for them.
+PROTOTYPE_FACES = 8
+
 #: How close an automatic assignment must lie to a face that already vouches, to vouch itself.
 #: Far stricter than AUTO_DISTANCE on purpose: what the confirmed-only rule was written against
 #: is a chain of guesses each adding a little drift, and a short link adds almost none.
@@ -81,6 +90,97 @@ async def _rejected(session: AsyncSession, face_id: uuid.UUID) -> set[uuid.UUID]
             select(FaceRejection.person_id).where(FaceRejection.face_id == face_id)
         )
     )
+
+
+def _dot(first: list[float], second: list[float]) -> float:
+    return sum(a * b for a, b in zip(first, second, strict=True))
+
+
+def _pointing(vector: list[float]) -> list[float]:
+    """The same direction, length one. ArcFace vectors are only ever about direction."""
+    length = math.sqrt(sum(part * part for part in vector))
+    return [part / length for part in vector] if length else list(vector)
+
+
+def _mean(points: list[list[float]]) -> list[float]:
+    return _pointing([sum(column) / len(points) for column in zip(*points, strict=True)])
+
+
+def _nearest(point: list[float], centers: list[list[float]]) -> int:
+    return max(range(len(centers)), key=lambda index: _dot(point, centers[index]))
+
+
+def middles(
+    vectors: list[list[float]], *, most: int = PROTOTYPES_MAX, rounds: int = 8
+) -> list[tuple[list[float], int]]:
+    """Gather a person's vectors into a few middles, each with the number of faces behind it.
+
+    Plain k-means on the unit sphere, which is where these vectors live. How many middles
+    follows how many faces there are: one to start with, and another every PROTOTYPE_FACES, up
+    to `most`. A person of twenty-six years is several people to look at, and one average of all
+    of them would be none of them.
+    """
+    points = [_pointing(vector) for vector in vectors]
+    if not points:
+        return []
+    wanted = min(most, max(1, len(points) // PROTOTYPE_FACES))
+
+    # Start from the face most like all the others, then from the one least like what is chosen:
+    # the same faces always give the same middles, which keeps a reassessment from wandering.
+    centers = [max(points, key=lambda point: _dot(point, _mean(points)))]
+    while len(centers) < wanted:
+        centers.append(
+            max(points, key=lambda point: min(1 - _dot(point, chosen) for chosen in centers))
+        )
+
+    for _ in range(rounds):
+        buckets: list[list[list[float]]] = [[] for _ in centers]
+        for point in points:
+            buckets[_nearest(point, centers)].append(point)
+        moved = [
+            _mean(bucket) if bucket else centers[index] for index, bucket in enumerate(buckets)
+        ]
+        if moved == centers:
+            break
+        centers = moved
+
+    buckets = [[] for _ in centers]
+    for point in points:
+        buckets[_nearest(point, centers)].append(point)
+    return [
+        (center, len(bucket)) for center, bucket in zip(centers, buckets, strict=True) if bucket
+    ]
+
+
+async def rebuild_prototypes(session: AsyncSession) -> int:
+    """What stands for each person, made again from the faces that vouch for them.
+
+    Returns how many middles there are altogether.
+    """
+    made = 0
+    for person_id in list(await session.scalars(select(Person.id))):
+        found = await search_service.vouching_vectors(session, person_id)
+        centers = middles(found.vectors) if found is not None else []
+        await search_service.store_prototypes(
+            session,
+            person_id,
+            model=found.model if found is not None else "",
+            centers=centers,
+        )
+        made += len(centers)
+    await session.commit()
+    return made
+
+
+def _take(face: Face, person_id: uuid.UUID, *, trusted: bool) -> bool:
+    """This face is that person now, said by Muninn itself."""
+    face.person_id = person_id
+    face.assigned_by = "auto"
+    face.trusted = trusted
+    face.suggested_person_id = None
+    face.suggested_distance = None
+    face.cluster = None
+    return True
 
 
 def _sure_enough(face: Face) -> bool:
@@ -130,15 +230,30 @@ async def _assign_automatically(session: AsyncSession, face: Face) -> bool:
         ),
         None,
     )
-    if sure is not None:
-        face.person_id = sure.person_id
-        face.assigned_by = "auto"
+    if sure is not None and sure.person_id is not None:
         # Close enough, and clear enough, to speak for this person itself from now on.
-        face.trusted = sure.distance <= VOUCH_DISTANCE and _sure_enough(face)
-        face.suggested_person_id = None
-        face.suggested_distance = None
-        face.cluster = None
-        return True
+        return _take(
+            face,
+            sure.person_id,
+            trusted=sure.distance <= VOUCH_DISTANCE and _sure_enough(face),
+        )
+
+    # No single face of anybody was close enough. Their middles carry further: what a face of
+    # somebody at two has in common is with their other faces at two, not with one photo of them.
+    resembles = next(
+        (
+            neighbor
+            for neighbor in await search_service.prototype_neighbors(
+                session, face.id, max_distance=PROTOTYPE_DISTANCE
+            )
+            if neighbor.person_id not in ruled_out
+        ),
+        None,
+    )
+    if resembles is not None:
+        # A middle already speaks for several faces; what it names does not get to speak again.
+        return _take(face, resembles.person_id, trusted=False)
+
     face.person_id = None
     face.assigned_by = None
     face.trusted = False
@@ -296,6 +411,7 @@ async def reassess(session: AsyncSession, *, batch: int = 500) -> int:
 
     Returns how many changed their person or suggestion.
     """
+    await rebuild_prototypes(session)
     changed = 0
     last: uuid.UUID | None = None
     while True:

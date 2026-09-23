@@ -24,6 +24,7 @@ EXPECTED_TABLES = {
     "pending_files",
     "change_log",
     "ai_profiles",
+    "person_prototypes",
     "image_embeddings",
     "caption_embeddings",
     "media_analyses",
@@ -95,7 +96,7 @@ def test_upgrade_creates_extensions_and_tables(
 
     assert extensions >= REQUIRED_EXTENSIONS
     assert tables >= EXPECTED_TABLES
-    assert version == "0034"
+    assert version == "0035"
 
 
 def test_username_is_case_insensitive_and_unique(

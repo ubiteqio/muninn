@@ -605,6 +605,121 @@ async def gap_between_clusters(session: AsyncSession, first: int, second: int) -
     return float(found) if found is not None else 1.0
 
 
+@dataclass(frozen=True, slots=True)
+class PersonVectors:
+    """The vectors that speak for a person, and the space they live in."""
+
+    model: str
+    dimensions: int
+    vectors: list[list[float]]
+
+
+async def vouching_vectors(session: AsyncSession, person_id: uuid.UUID) -> PersonVectors | None:
+    """The vectors of the faces that may speak for this person: confirmed, or trusted and good.
+
+    None when there are none, or when they are not all of one model - a person whose faces were
+    found by two models has no one space to be averaged in.
+    """
+    rows = await session.execute(
+        text(
+            """
+            SELECT embedding::text AS vector, dimensions, model
+              FROM faces
+             WHERE person_id = :person_id
+               AND (assigned_by = 'user' OR trusted)
+             ORDER BY id
+            """
+        ),
+        {"person_id": person_id},
+    )
+    found = list(rows)
+    if not found:
+        return None
+    models = {(r.model, int(r.dimensions)) for r in found}
+    if len(models) != 1:
+        return None
+    (model, dimensions) = models.pop()
+    return PersonVectors(
+        model=model,
+        dimensions=dimensions,
+        vectors=[[float(part) for part in r.vector.strip("[]").split(",")] for r in found],
+    )
+
+
+async def store_prototypes(
+    session: AsyncSession,
+    person_id: uuid.UUID,
+    *,
+    model: str,
+    centers: list[tuple[list[float], int]],
+) -> None:
+    """Replace what stands for this person. The caller commits."""
+    await session.execute(
+        text("DELETE FROM person_prototypes WHERE person_id = :person_id"),
+        {"person_id": person_id},
+    )
+    for center, faces in centers:
+        await session.execute(
+            text(
+                """
+                INSERT INTO person_prototypes (id, person_id, model, dimensions, center, faces)
+                VALUES (:id, :person_id, :model, :dimensions, CAST(:center AS halfvec), :faces)
+                """
+            ),
+            {
+                "id": uuid.uuid4(),
+                "person_id": person_id,
+                "model": model,
+                "dimensions": len(center),
+                "center": _literal(center),
+                "faces": faces,
+            },
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PrototypeNeighbor:
+    person_id: uuid.UUID
+    distance: float
+    faces: int
+
+
+async def prototype_neighbors(
+    session: AsyncSession, face_id: uuid.UUID, *, max_distance: float, limit: int = 5
+) -> list[PrototypeNeighbor]:
+    """The persons whose middles lie nearest this face, nearest first.
+
+    One middle per way a person looked, so a face of somebody at two is asked against the middle
+    of their other baby photos and not against the average of a lifetime.
+    """
+    stored = await session.execute(
+        text("SELECT embedding::text AS vector, dimensions, model FROM faces WHERE id = :id"),
+        {"id": face_id},
+    )
+    row = stored.first()
+    if row is None:
+        return []
+    dimensions = int(row.dimensions)
+    rows = await session.execute(
+        text(
+            f"""
+            SELECT person_id, faces, center::halfvec({dimensions})
+                   <=> CAST(:vector AS halfvec({dimensions})) AS distance
+              FROM person_prototypes
+             WHERE model = {_quoted(row.model)} AND dimensions = {dimensions}
+             ORDER BY distance
+             LIMIT {int(limit)}
+            """  # noqa: S608 - the cast and the model literal are ours
+        ),
+        {"vector": row.vector},
+    )
+    return [
+        PrototypeNeighbor(person_id=r.person_id, distance=float(r.distance), faces=int(r.faces))
+        for r in rows
+        if float(r.distance) <= max_distance
+    ]
+
+
 def _good_enough(min_pixels: int, min_score: float) -> str:
     """The caller's quality bar as SQL, or nothing when it does not care."""
     parts = []

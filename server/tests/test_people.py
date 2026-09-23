@@ -384,3 +384,39 @@ async def test_regrouping_takes_apart_what_an_older_rule_ran_together(
 
     assert grouped == len(every)
     assert len({(await face(session, one)).cluster for one in every}) == 2
+
+
+def test_middles_finds_one_for_each_way_somebody_looked() -> None:
+    """Sixteen faces in two clearly different directions are two middles, not one average of
+    both - which would be a face nobody ever had."""
+    young = [at(0.99 - index / 1000, towards=1) for index in range(8)]
+    older = [at(0.02 * index, towards=2) for index in range(8)]
+
+    found = people.middles(young + older)
+
+    assert len(found) == 2
+    assert sorted(count for _, count in found) == [8, 8]
+
+
+def test_a_person_with_few_faces_has_one_middle() -> None:
+    assert len(people.middles([at(1.0), at(0.9), at(0.8)])) == 1
+
+
+async def test_a_person_is_known_by_their_middle_when_no_face_is_near_enough(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """Seven confirmed faces, each 0.5 away from the new one - too far for any of them to give
+    their name. Their middle lies 0.16 away, because they surround it."""
+    anna = await a_user(session_factory, session)
+    lena = await people.person_named(session, "Lena", anna)
+    for towards in range(1, 8):
+        (one,) = await faces_in_a_photo(session, at(0.5, towards=towards))
+        await people.assign(session, one, lena)
+    await people.rebuild_prototypes(session)
+
+    (fresh,) = await faces_in_a_photo(session, at(1.0))
+
+    found = await face(session, fresh)
+    assert (found.person_id, found.assigned_by) == (lena.id, "auto")
+    # A middle already speaks for several faces; what it names does not get to speak again.
+    assert found.trusted is False
