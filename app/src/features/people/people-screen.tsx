@@ -6,7 +6,7 @@ import { AppShell } from '@/components/layout/app-shell'
 import { PageHeading } from '@/components/layout/page-heading'
 import { EmptyNote } from '@/components/muninn/empty-note'
 import { Pagination } from '@/components/muninn/pagination'
-import { Placeholder } from '@/components/muninn/placeholder'
+import { Placeholder, PlaceholderBox } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
@@ -251,7 +251,8 @@ export interface Answered {
 
 /**
  * What stands there while the answers are on their way: the heading the section will carry and
- * tiles in its shape. Without them the groups arrive first and push the rest down as it lands.
+ * a box in its shape. Without it the groups arrive first and everything else pushes them down
+ * as it lands, so the box carries the height the section will take.
  */
 function Loading({ title, children }: { title: string; children: ReactNode }) {
   const { t } = useTranslation()
@@ -260,8 +261,19 @@ function Loading({ title, children }: { title: string; children: ReactNode }) {
     <section aria-busy="true" aria-label={title}>
       <SectionHeading title={title} />
       <span className="sr-only">{t('people.loading')}</span>
-      {children}
+      <PlaceholderBox className="mt-3">{children}</PlaceholderBox>
     </section>
+  )
+}
+
+/** A face on its way: the round picture and the two lines under it. */
+function TileLoading() {
+  return (
+    <li className="flex flex-col items-center gap-2">
+      <Placeholder className="size-[88px] rounded-full" />
+      <Placeholder className="h-4 w-20" />
+      <Placeholder className="-mt-0.5 h-3 w-12" />
+    </li>
   )
 }
 
@@ -270,15 +282,16 @@ function PersonsLoading() {
 
   return (
     <Loading title={t('people.persons')}>
-      <Placeholder className="mt-3 h-[52px] rounded-lg" />
-      <ul className="mt-5 grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
-        {Array.from({ length: 7 }, (_, index) => (
-          <li key={index}>
-            <Placeholder className="aspect-square w-full rounded-full" />
-            <Placeholder className="mx-auto mt-2 h-3 w-16" />
-          </li>
+      <Placeholder className="h-11 rounded-lg" />
+      <ul className="mt-4 grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+        {Array.from({ length: PER_PAGE }, (_, index) => (
+          <TileLoading key={index} />
         ))}
       </ul>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <Placeholder className="h-3.5 w-40" />
+        <Placeholder className="h-9 w-44 rounded-full" />
+      </div>
     </Loading>
   )
 }
@@ -288,10 +301,20 @@ function SuggestionsLoading() {
 
   return (
     <Loading title={t('people.suggestionsTitle')}>
-      <ul className="mt-3 flex gap-3 overflow-x-auto pb-1">
-        {Array.from({ length: 4 }, (_, index) => (
-          <li key={index}>
-            <Placeholder className="h-[168px] w-[132px] rounded-lg" />
+      <ul className="flex gap-3 overflow-hidden">
+        {Array.from({ length: 6 }, (_, index) => (
+          <li
+            key={index}
+            className="flex w-[168px] shrink-0 flex-col items-center gap-1.5 rounded-lg border border-hairline/10 p-3"
+          >
+            <Placeholder className="size-[80px] rounded-full" />
+            <Placeholder className="h-4 w-28" />
+            <Placeholder className="h-3 w-20" />
+            <div className="flex gap-2">
+              {Array.from({ length: 3 }, (_, slot) => (
+                <Placeholder key={slot} className="h-9 w-11 rounded-md" />
+              ))}
+            </div>
           </li>
         ))}
       </ul>
@@ -304,10 +327,12 @@ function GroupsLoading() {
 
   return (
     <Loading title={t('people.groups')}>
+      <Placeholder className="h-3.5 w-72" />
       <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {Array.from({ length: 6 }, (_, index) => (
-          <li key={index}>
-            <Placeholder className="aspect-square w-full rounded-lg" />
+          <li key={index} className="rounded-lg border border-hairline/10 p-2">
+            <Placeholder className="aspect-square w-full rounded-md" />
+            <Placeholder className="mt-2 h-3 w-16" />
           </li>
         ))}
       </ul>
