@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Medium } from '@/features/albums/use-albums'
+import { useAuthStore } from '@/features/auth/auth-store'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { stubApi } from '@/test/api-stub'
 import { renderScreen } from '@/test/render'
@@ -262,6 +263,52 @@ describe('useMediaViewer', () => {
     } finally {
       played.mockRestore()
     }
+  })
+
+  it('offers an admin what the pipeline can do to the picture, and nobody else', async () => {
+    stubApi({
+      'GET /api/v1/media/media-2': { body: { ...MEDIA[1], analysis: null, transcript: null } },
+      'GET /api/v1/media/media-2/faces': { body: [] },
+      'GET /api/v1/media/media-2/stages': {
+        body: {
+          media_id: 'media-2',
+          stages: [
+            { stage: 'derive', state: 'done', attempts: 0, last_error: null },
+            {
+              stage: 'faces',
+              state: 'given-up',
+              attempts: 3,
+              last_error: 'no frame could be read',
+            },
+          ],
+        },
+      },
+    })
+    useAuthStore.setState({
+      status: 'signed-in',
+      needsPasswordChange: false,
+      user: {
+        id: '00000000-0000-0000-0000-000000000001',
+        username: 'odin',
+        email: 'odin@muninn.local',
+        display_name: 'Odin',
+        role: 'admin',
+        status: 'active',
+        must_change_password: false,
+        created_at: '2026-09-01T10:00:00Z',
+        last_login_at: '2026-09-23T10:00:00Z',
+      },
+    })
+    await renderScreen(<Album current="media-2" />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'KI-Werkzeuge' }))
+
+    expect(await screen.findByText('Gesichter suchen')).toBeInTheDocument()
+    expect(screen.getByText('Aufgegeben nach 3 Versuchen')).toBeInTheDocument()
+    expect(screen.getByText('no frame could be read')).toBeInTheDocument()
   })
 
   it('stops the video of the picture one leaves behind', async () => {

@@ -727,7 +727,22 @@
     "mute": "Ton aus",
     "unmute": "Ton an",
     "previous": "Vorheriges Medium",
-    "next": "Nächstes Medium"
+    "next": "Nächstes Medium",
+    "stages": {
+      "title": "KI-Werkzeuge",
+      "metadata": "Metadaten lesen",
+      "derive": "Vorschau erzeugen",
+      "image_vector": "Bild-Vektor berechnen",
+      "transcription": "Transkribieren",
+      "analysis": "Beschreiben",
+      "caption_vector": "Text-Vektor berechnen",
+      "faces": "Gesichter suchen",
+      "gaveUp": "Aufgegeben nach {{count}} Versuchen",
+      "state": {
+        "done": "Fertig – neu ausführen",
+        "open": "Steht noch aus – jetzt ausführen"
+      }
+    }
   },
   "social": {
     "like": "Gefällt mir",

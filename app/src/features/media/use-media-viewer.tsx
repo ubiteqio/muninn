@@ -9,6 +9,7 @@ import { DialogContainer } from '@/components/ui/dialog'
 import type { Medium } from '@/features/albums/use-albums'
 import { MediaComments } from '@/features/media/media-comments'
 import { DescribedMediaInfo } from '@/features/media/media-info'
+import { MediaStagesMenu } from '@/features/media/media-stages'
 import { ViewerChrome } from '@/features/media/viewer-chrome'
 
 /** What the viewer assumes when a medium never got its size read. */
@@ -335,6 +336,11 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
             onNext={() => {
               gallery.current?.next()
             }}
+            actions={
+              <DialogContainer.Provider value={host}>
+                <MediaStagesMenu mediaId={shown.id} />
+              </DialogContainer.Provider>
+            }
             {...(onSimilar ? { onSimilar: () => { onSimilar(shown.id) } } : {})}
           />,
           host,
