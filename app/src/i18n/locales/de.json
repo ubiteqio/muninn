@@ -717,7 +717,17 @@
       "said_one": "Alles Gesagte · 1 Satz",
       "said_other": "Alles Gesagte · {{count, number}} Sätze"
     },
-    "similar": "Ähnliche Bilder"
+    "similar": "Ähnliche Bilder",
+    "back": "Zurück zum Album",
+    "more": "mehr",
+    "share": "Teilen",
+    "play": "Abspielen",
+    "pause": "Anhalten",
+    "speed": "Geschwindigkeit",
+    "mute": "Ton aus",
+    "unmute": "Ton an",
+    "previous": "Vorheriges Medium",
+    "next": "Nächstes Medium"
   },
   "social": {
     "like": "Gefällt mir",
@@ -744,7 +754,9 @@
     "albums": "Alben",
     "media": "Bilder und Videos",
     "all": "Alle ansehen",
-    "open": "In den Favoriten öffnen"
+    "open": "In den Favoriten öffnen",
+    "keep": "Zu Favoriten",
+    "remove": "Aus Favoriten entfernen"
   },
   "comments": {
     "title": "Kommentare",

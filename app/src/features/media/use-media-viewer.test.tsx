@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -87,14 +87,14 @@ function Album({
 const gallery = () => document.querySelector('.pswp')
 
 describe('useMediaViewer', () => {
-  it('shows nothing while the address names no medium', () => {
-    render(<Album />)
+  it('shows nothing while the address names no medium', async () => {
+    await renderScreen(<Album />)
 
     expect(gallery()).toBeNull()
   })
 
   it('opens the medium the address asks for', async () => {
-    render(<Album current="media-1" />)
+    await renderScreen(<Album current="media-1" />)
 
     await waitFor(() => {
       expect(gallery()).not.toBeNull()
@@ -102,12 +102,28 @@ describe('useMediaViewer', () => {
   })
 
   it('closes again when the medium leaves the address', async () => {
-    const { rerender } = render(<Album current="media-1" />)
+    function Album2() {
+      const [current, setCurrent] = useState<string | undefined>('media-1')
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setCurrent(undefined)
+            }}
+          >
+            Schliessen
+          </button>
+          <Album current={current} onCurrentChange={setCurrent} />
+        </div>
+      )
+    }
+    await renderScreen(<Album2 />)
     await waitFor(() => {
       expect(gallery()).not.toBeNull()
     })
 
-    rerender(<Album current={undefined} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Schliessen' }))
 
     await waitFor(() => {
       expect(gallery()).toBeNull()
@@ -116,7 +132,7 @@ describe('useMediaViewer', () => {
 
   it('opens nothing by itself: a click writes the medium into the address', async () => {
     const onCurrentChange = vi.fn()
-    render(<Album onCurrentChange={onCurrentChange} />)
+    await renderScreen(<Album onCurrentChange={onCurrentChange} />)
 
     await userEvent.click(screen.getByRole('button', { name: 'Zweites öffnen' }))
 
@@ -131,7 +147,7 @@ describe('useMediaViewer', () => {
     ) {
       clicks.push({ href: this.getAttribute('href') ?? '', download: this.download })
     })
-    render(<Album current="media-2" />)
+    await renderScreen(<Album current="media-2" />)
     await waitFor(() => {
       expect(gallery()).not.toBeNull()
     })
@@ -169,8 +185,9 @@ describe('useMediaViewer', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Details anzeigen' }))
 
-    expect(screen.getByText('media-2.jpg')).toBeInTheDocument()
-    expect(await screen.findByText('Ein Gondoliere auf dem Canal Grande.')).toBeInTheDocument()
+    const details = screen.getByRole('complementary', { name: 'Details' })
+    expect(within(details).getByText('media-2.jpg')).toBeInTheDocument()
+    expect(within(details).getByText('Ein Gondoliere auf dem Canal Grande.')).toBeInTheDocument()
   })
 
   it('closes the details with a tap beside them, and keeps them for a tap inside', async () => {
@@ -302,7 +319,7 @@ describe('useMediaViewer', () => {
       })
       return <div>{viewer.panel}</div>
     }
-    render(<Search />)
+    await renderScreen(<Search />)
     await waitFor(() => {
       expect(gallery()).not.toBeNull()
     })

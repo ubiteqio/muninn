@@ -9,8 +9,7 @@ import { DialogContainer } from '@/components/ui/dialog'
 import type { Medium } from '@/features/albums/use-albums'
 import { MediaComments } from '@/features/media/media-comments'
 import { DescribedMediaInfo } from '@/features/media/media-info'
-import { downloadOriginal } from '@/features/media/original'
-import { SocialRail } from '@/features/social/social-rail'
+import { ViewerChrome } from '@/features/media/viewer-chrome'
 
 /** What the viewer assumes when a medium never got its size read. */
 const FALLBACK_WIDTH = 1600
@@ -107,48 +106,15 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       index: wanted,
       // Fully opaque: the light page would otherwise show through, header and all.
       bgOpacity: 1,
-      counter: true,
+      // Its own buttons, counter and arrows stay off: what lies over the picture is ours, and
+      // it rests when nobody moves. A tap on a picture still zooms - that is PhotoSwipe's.
+      zoom: false,
+      close: false,
+      counter: false,
+      arrowPrev: false,
+      arrowNext: false,
     })
 
-    opened.on('uiRegister', () => {
-      if (onSimilar) {
-        // Before the info button: finding more like it is what a search result invites.
-        opened.ui?.registerElement({
-          name: 'muninn-similar',
-          order: 11,
-          isButton: true,
-          ariaLabel: t('media.similar'),
-          title: t('media.similar'),
-          html: icon('image_search'),
-          onClick: () => {
-            const medium = media[opened.currIndex]
-            if (medium) onSimilar(medium.id)
-          },
-        })
-      }
-      // Between the zoom button, which PhotoSwipe puts at 10, and its close button at 20.
-      opened.ui?.registerElement({
-        name: 'muninn-info',
-        order: 12,
-        isButton: true,
-        ariaLabel: t('media.info.show'),
-        html: icon('info'),
-        onClick: () => {
-          setSheet((open) => (open === 'info' ? null : 'info'))
-        },
-      })
-      opened.ui?.registerElement({
-        name: 'muninn-download',
-        order: 13,
-        isButton: true,
-        ariaLabel: t('media.info.download'),
-        html: icon('download'),
-        onClick: () => {
-          const medium = media[opened.currIndex]
-          if (medium) downloadOriginal(medium)
-        },
-      })
-    })
     // Typing is not steering: a "z" in a name or a comment is a letter, not zoom, and the arrows
     // move the cursor. Escape in a dialog closes the dialog, not the viewer behind it.
     opened.on('keydown', (event) => {
@@ -198,8 +164,16 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       playShown()
     })
     // The slide the viewer opens on, and every one built while it is open.
-    opened.on('contentActivate', () => {
+    opened.on('contentActivate', ({ content }) => {
       playShown()
+      // A tap on a picture zooms, which PhotoSwipe does itself; a tap on a video is what one
+      // means by tapping a video. Its own controls keep their taps.
+      const video = content.element?.querySelector('video')
+      video?.addEventListener('click', (event) => {
+        event.stopPropagation()
+        if (video.paused) void video.play().catch(() => undefined)
+        else video.pause()
+      })
     })
     // The slide one leaves: its content goes, but a video that was playing carries on - taken
     // out of the page it keeps its sound. This is the moment to stop it.
@@ -288,7 +262,7 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       if (!(target instanceof Element)) return
       if (
         target.closest(
-          '[data-viewer-panel], [data-viewer-toggle], .pswp__button--muninn-info, [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]',
+          '[data-viewer-panel], [data-viewer-toggle], [data-viewer-chrome], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]',
         )
       ) {
         return
@@ -336,35 +310,45 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
           host,
         )
 
-  const rail =
-    social && host !== null && shown !== undefined
-      ? createPortal(
-          <SocialRail
+  const chrome =
+    host === null || shown === undefined
+      ? null
+      : createPortal(
+          <ViewerChrome
             key={shown.id}
-            target={{ kind: 'media', id: shown.id }}
-            shifted={sheet !== null}
+            medium={shown}
+            position={{ index, total: media.length }}
+            social={social}
+            findVideo={findVideo}
+            onBack={() => {
+              onCurrentChange(undefined)
+            }}
             onComments={() => {
               setSheet((open) => (open === 'comments' ? null : 'comments'))
             }}
+            onInfo={() => {
+              setSheet((open) => (open === 'info' ? null : 'info'))
+            }}
+            onPrevious={() => {
+              gallery.current?.prev()
+            }}
+            onNext={() => {
+              gallery.current?.next()
+            }}
+            {...(onSimilar ? { onSimilar: () => { onSimilar(shown.id) } } : {})}
           />,
           host,
         )
-      : null
 
   return {
     open,
     panel: (
       <>
         {panel}
-        {rail}
+        {chrome}
       </>
     ),
   }
-}
-
-/** One icon from the font, for a button PhotoSwipe builds itself. Centred by index.css. */
-function icon(name: string): string {
-  return `<span class="symbol" aria-hidden="true">${name}</span>`
 }
 
 function slideOf(medium: Medium, startAt?: number) {
