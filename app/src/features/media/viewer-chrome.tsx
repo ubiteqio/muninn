@@ -208,18 +208,20 @@ function Summary({
   if (!said) return null
 
   return (
-    <p className={cn('text-base text-white/90', expanded ? '' : 'line-clamp-2')}>
-      {said}
+    <div>
+      {/* Clipped rather than cut with three dots: "mehr" stands under it, where it is a line
+          of its own and cannot be swallowed by the clamp. */}
+      <p className={cn('text-base text-white/90', expanded ? '' : 'line-clamp-2')}>{said}</p>
       {!expanded && said.length > 90 && (
         <button
           type="button"
-          className="ml-1 font-medium text-white underline-offset-2 hover:underline"
+          className="mt-0.5 text-base font-medium text-white/70 underline-offset-2 hover:text-white hover:underline"
           onClick={onExpand}
         >
           {t('media.more')}
         </button>
       )}
-    </p>
+    </div>
   )
 }
 

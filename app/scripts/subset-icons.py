@@ -48,12 +48,14 @@ ICONS = [
     "home",
     "image_search",
     "info",
+    "ios_share",
     "light_mode",
     "lock_reset",
     "logout",
     "map",
     "more_horiz",
     "notifications",
+    "pause",
     "person",
     "person_add",
     "person_search",
@@ -66,6 +68,8 @@ ICONS = [
     "sync",
     "tune",
     "visibility_off",
+    "volume_off",
+    "volume_up",
     "warning",
 ]
 
