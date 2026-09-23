@@ -96,7 +96,13 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
         {albumId !== undefined && tree.isPending ? (
           <HeaderLoading />
         ) : (
-          <LibraryHeader album={album} path={path} albums={children.length} tree={tree.data} />
+          <LibraryHeader
+            album={album}
+            path={path}
+            albums={children.length}
+            tree={tree.data}
+            counting={tree.isPending}
+          />
         )}
         {/* The pills carry their height without an answer, so the row is there from the start
             instead of arriving with the tree and pushing the album down. */}
@@ -310,6 +316,8 @@ interface LibraryHeaderProps {
   path: Album[]
   albums: number
   tree: { items: Album[] } | undefined
+  /** The tree is still on its way, so the facts of this level are not known yet. */
+  counting?: boolean
 }
 
 /**
@@ -321,7 +329,7 @@ interface LibraryHeaderProps {
  * appears - would push the tiles down, and the eye would have to find them again after every
  * click.
  */
-function LibraryHeader({ album, path, albums, tree }: LibraryHeaderProps) {
+function LibraryHeader({ album, path, albums, tree, counting = false }: LibraryHeaderProps) {
   const { t } = useTranslation()
 
   const title = album?.title ?? t('albums.root')
@@ -334,19 +342,24 @@ function LibraryHeader({ album, path, albums, tree }: LibraryHeaderProps) {
       <div className="mt-1 flex min-h-11 items-center justify-between gap-4">
         <div className="min-w-0">
           <Title text={title} />
-          {/* One line, always: the facts of this level, as many as fit. */}
-          <p className="mt-0.5 truncate text-xs-plus text-muted-foreground">
-            {album === undefined
-              ? t('albums.albumCount', { count: albums })
-              : t('albums.count', { count: media })}
-            {albums > 0 && album !== undefined && (
-              <> · {t('albums.subalbumCount', { count: albums })}</>
-            )}
-            {album?.description && <> · {album.description}</>}
-            {album?.last_sync_status === 'unavailable' && (
-              <span className="text-destructive"> · {t('albums.unreachable')}</span>
-            )}
-          </p>
+          {/* One line, always: the facts of this level, as many as fit. While they are being
+              counted it stands empty rather than saying nought and taking it back. */}
+          {counting ? (
+            <Placeholder className="mt-1 h-3.5 w-24" />
+          ) : (
+            <p className="mt-0.5 truncate text-xs-plus text-muted-foreground">
+              {album === undefined
+                ? t('albums.albumCount', { count: albums })
+                : t('albums.count', { count: media })}
+              {albums > 0 && album !== undefined && (
+                <> · {t('albums.subalbumCount', { count: albums })}</>
+              )}
+              {album?.description && <> · {album.description}</>}
+              {album?.last_sync_status === 'unavailable' && (
+                <span className="text-destructive"> · {t('albums.unreachable')}</span>
+              )}
+            </p>
+          )}
         </div>
 
         {/* The lane for actions keeps its height empty, so nothing below it moves. */}
