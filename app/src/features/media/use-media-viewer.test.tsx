@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Medium } from '@/features/albums/use-albums'
@@ -43,18 +44,30 @@ function aMedium(id: string): Medium {
   }
 }
 
+function aVideo(id: string): Medium {
+  const medium = aMedium(id)
+  return {
+    ...medium,
+    kind: 'video',
+    duration_seconds: 12,
+    urls: { ...medium.urls, video: `/api/v1/media/${id}/video?token=abc`, poster: null },
+  }
+}
+
 const MEDIA = [aMedium('media-1'), aMedium('media-2')]
 
 function Album({
   current,
   onCurrentChange = vi.fn(),
   social = false,
+  media = MEDIA,
 }: {
   current?: string | undefined
   onCurrentChange?: (id: string | undefined) => void
   social?: boolean
+  media?: Medium[]
 }) {
-  const viewer = useMediaViewer(MEDIA, { current, onCurrentChange, social })
+  const viewer = useMediaViewer(media, { current, onCurrentChange, social })
 
   return (
     <div>
@@ -217,6 +230,49 @@ describe('useMediaViewer', () => {
     const details = await screen.findByRole('complementary', { name: 'Details' })
     expect(within(details).queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('complementary', { name: 'Kommentare' })).not.toBeInTheDocument()
+  })
+
+  it('stops the video of the picture one leaves behind', async () => {
+    // PhotoSwipe keeps the neighbouring slides in the DOM, and a video taken out of the page
+    // carries on with its sound. Moving on has to stop it.
+    const paused = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+
+    function Films() {
+      const [current, setCurrent] = useState<string | undefined>('film-1')
+      const viewer = useMediaViewer([aVideo('film-1'), aVideo('film-2')], {
+        current,
+        onCurrentChange: setCurrent,
+      })
+
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setCurrent('film-2')
+            }}
+          >
+            Weiter
+          </button>
+          {viewer.panel}
+        </div>
+      )
+    }
+
+    try {
+      await renderScreen(<Films />)
+      await waitFor(() => {
+        expect(document.querySelectorAll('video').length).toBeGreaterThan(0)
+      })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+
+      await waitFor(() => {
+        expect(paused).toHaveBeenCalled()
+      })
+    } finally {
+      paused.mockRestore()
+    }
   })
 
   it('offers pictures like the one on screen when asked to', async () => {

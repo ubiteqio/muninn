@@ -162,6 +162,19 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     opened.on('change', () => {
       setIndex(opened.currIndex)
       onCurrentChange(media[opened.currIndex]?.id)
+      // PhotoSwipe keeps the neighbouring slides in the DOM, so a video that is left behind
+      // plays on - out of sight and, worse, still audible. Only the slide on screen may play.
+      const shown = opened.currSlide?.container
+      for (const video of opened.element?.querySelectorAll('video') ?? []) {
+        if (!shown?.contains(video)) video.pause()
+      }
+    })
+    // The slide one leaves: its content goes, but a video that was playing carries on - taken
+    // out of the page it keeps its sound. This is the moment to stop it.
+    opened.on('contentDeactivate', ({ content }) => {
+      content.element?.querySelectorAll('video').forEach((video) => {
+        video.pause()
+      })
     })
     opened.on('destroy', () => {
       gallery.current = null
