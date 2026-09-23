@@ -431,3 +431,59 @@ def test_many_faces_are_sampled_so_the_middles_stay_quick() -> None:
 
     assert 1 <= len(found) <= people.PROTOTYPES_MAX
     assert sum(count for _, count in found) == people.PROTOTYPE_SAMPLE
+
+
+async def three_questions_about(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> tuple[Person, list[uuid.UUID]]:
+    """Lena, and three faces alike enough to be asked about her but not to be given her."""
+    lena = await lena_confirmed(session, session_factory)
+    asked = [
+        (await faces_in_a_photo(session, at(0.5 + index / 100, towards=2)))[0] for index in range(3)
+    ]
+    for one in asked:
+        assert (await face(session, one)).suggested_person_id == lena.id
+    return lena, asked
+
+
+async def test_the_open_questions_that_look_like_the_one_just_answered(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    lena, asked = await three_questions_about(session, session_factory)
+    (nobody,) = await faces_in_a_photo(session, at(0.05, towards=5))
+
+    found = await people.alike_suggestions(session, asked[0], lena.id)
+
+    assert [one.id for one, _ in found] == asked[1:]
+    assert all(similarity > 0.9 for _, similarity in found)
+    assert nobody not in [one.id for one, _ in found]
+
+
+async def test_the_same_answer_for_several_faces_at_once(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    lena, asked = await three_questions_about(session, session_factory)
+
+    answered = await people.decide_many(session, asked, lena, confirm=True)
+
+    assert answered == len(asked)
+    for one in asked:
+        named = await face(session, one)
+        assert (named.person_id, named.assigned_by) == (lena.id, "user")
+
+
+async def test_a_no_for_several_faces_at_once_and_none_of_them_asked_again(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    lena, asked = await three_questions_about(session, session_factory)
+
+    answered = await people.decide_many(session, asked, lena, confirm=False)
+
+    assert answered == len(asked)
+    for one in asked:
+        said_no = await face(session, one)
+        assert (said_no.person_id, said_no.suggested_person_id) == (None, None)
+
+    # A list somebody answered may have moved on between seeing it and sending it back. What is
+    # no longer an open question about Lena is skipped, not refused.
+    assert await people.decide_many(session, asked, lena, confirm=True) == 0

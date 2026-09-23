@@ -27,6 +27,10 @@ LIBRARY_TOPIC = "library"
 #: Likes and, later, comments: who did what is visible to everybody signed in anyway.
 SOCIAL_TOPIC = "social"
 
+#: The faces were looked at again, so who is known and what is still being asked has moved. The
+#: Personen screen answers a list of questions; it must not be a list from ten minutes ago.
+PEOPLE_TOPIC = "people"
+
 
 async def publish(redis: Redis, topic: str, **payload: Any) -> None:
     """Tell whoever is listening that something happened. Nobody listening is not an error."""

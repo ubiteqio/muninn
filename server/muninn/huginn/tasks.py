@@ -851,7 +851,15 @@ async def _reassess_faces() -> int:
         # A name given today can put somebody on a video they were already on: a duplicate the
         # moment it happens.
         await faces_service.collapse_all_videos(session, get_settings().derived_path)
-        return changed
+
+    if changed:
+        # Somebody may be looking at the questions this pass has just answered.
+        redis = jobs.connect()
+        try:
+            await events.publish(redis, events.PEOPLE_TOPIC, kind="reassessed", changed=changed)
+        finally:
+            await redis.aclose()
+    return changed
 
 
 async def _place_media() -> int:

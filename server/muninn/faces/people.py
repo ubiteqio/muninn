@@ -61,6 +61,11 @@ MERGE_DISTANCE = 0.35
 PROTOTYPE_DISTANCE = 0.40
 #: At most this many middles for one person: one for each way they looked over the years.
 PROTOTYPES_MAX = 5
+#: How far a face may lie from the one just answered and still be offered along with it. The
+#: loosest the app ever asks for: somebody draws their own line inside this, and sees what each
+#: line costs them. Wide enough that the line is theirs to draw, not ours.
+ALIKE_DISTANCE = 0.40
+
 #: A person earns another middle every this many faces that vouch for them.
 PROTOTYPE_FACES = 8
 #: At most this many of a person's faces are gathered into middles. Beyond it the middles do not
@@ -538,6 +543,57 @@ async def assign(session: AsyncSession, face_id: uuid.UUID, person: Person) -> N
         )
     )
     await session.commit()
+
+
+async def alike_suggestions(
+    session: AsyncSession,
+    face_id: uuid.UUID,
+    person_id: uuid.UUID,
+    *,
+    max_distance: float = ALIKE_DISTANCE,
+    limit: int = 60,
+) -> list[tuple[Face, float]]:
+    """The open questions about this person whose faces look like the one just answered.
+
+    Only faces nobody has decided, only about this one person, the most alike first, each with
+    how alike it is. Answering a screenful of nearly the same face one click at a time is what
+    makes a pile of suggestions hopeless; this is what lets somebody answer them together.
+    """
+    neighbors = await search_service.face_neighbors(
+        session,
+        face_id,
+        named=False,
+        max_distance=max_distance,
+        limit=limit,
+        suggested_for=person_id,
+    )
+    found: list[tuple[Face, float]] = []
+    for neighbor in neighbors:
+        face = await session.get(Face, neighbor.face_id)
+        if face is not None and face.suggested_person_id == person_id:
+            found.append((face, 1.0 - neighbor.distance))
+    return found
+
+
+async def decide_many(
+    session: AsyncSession, face_ids: Sequence[uuid.UUID], person: Person, *, confirm: bool
+) -> int:
+    """The same yes or no for several faces at once. Returns how many were answered.
+
+    Only faces that are still an open question about this person; anything else is skipped
+    rather than refused, because the list somebody answered may have moved on since they saw it.
+    """
+    answered = 0
+    for face_id in face_ids:
+        face = await session.get(Face, face_id)
+        if face is None or face.person_id is not None or face.suggested_person_id != person.id:
+            continue
+        if confirm:
+            await assign(session, face_id, person)
+        else:
+            await reject(session, face_id)
+        answered += 1
+    return answered
 
 
 async def reject(session: AsyncSession, face_id: uuid.UUID) -> None:

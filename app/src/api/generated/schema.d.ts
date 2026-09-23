@@ -1351,6 +1351,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/faces/alike': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Answer several open questions about one person the same way
+     * @description Yes or no for a whole list at once, as the modal after a decision offers it.
+     *
+     *     Faces that are no longer an open question about this person are skipped: the list somebody
+     *     answered may have moved on between seeing it and sending it back.
+     */
+    post: operations['decide_alike_faces_api_v1_faces_alike_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/faces/{face_id}/confirm': {
     parameters: {
       query?: never
@@ -1382,6 +1405,29 @@ export interface paths {
      * @description The suggestion goes - or, for a face that has a person, the face leaves them.
      */
     post: operations['reject_face_api_v1_faces__face_id__reject_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/faces/{face_id}/alike': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Open questions about the same person that look like this face
+     * @description Asked right after a yes or a no, to offer the same answer for what looks the same.
+     *
+     *     Everything within the widest distance Muninn would ever offer comes back, each with how
+     *     alike it is, so the app can let somebody draw the line themselves without asking again.
+     */
+    get: operations['read_alike_faces_api_v1_faces__face_id__alike_get']
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -1937,6 +1983,28 @@ export interface components {
       place?: components['schemas']['PlaceView'] | null
     }
     /**
+     * AlikeFace
+     * @description An open question that looks like the one just answered.
+     */
+    AlikeFace: {
+      face: components['schemas']['FaceView']
+      /** Similarity */
+      similarity: number
+    }
+    /**
+     * AlikeFaces
+     * @description What can be answered along with a face, most alike first.
+     */
+    AlikeFaces: {
+      /**
+       * Person Id
+       * Format: uuid
+       */
+      person_id: string
+      /** Items */
+      items: components['schemas']['AlikeFace'][]
+    }
+    /**
      * AnalysisView
      * @description What the describing model saw. Shown in the info panel, read-only.
      */
@@ -2126,6 +2194,26 @@ export interface components {
      * @enum {string}
      */
     DateSource: 'exif' | 'gps' | 'filename' | 'folder_name' | 'file_mtime'
+    /**
+     * DecideManyRequest
+     * @description The same yes or no for several open questions about one person.
+     */
+    DecideManyRequest: {
+      /**
+       * Person Id
+       * Format: uuid
+       */
+      person_id: string
+      /** Face Ids */
+      face_ids: string[]
+      /** Confirm */
+      confirm: boolean
+    }
+    /** DecidedMany */
+    DecidedMany: {
+      /** Answered */
+      answered: number
+    }
     /** DuplicateGroupView */
     DuplicateGroupView: {
       /** Id */
@@ -6218,6 +6306,39 @@ export interface operations {
       }
     }
   }
+  decide_alike_faces_api_v1_faces_alike_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DecideManyRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DecidedMany']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   confirm_face_api_v1_faces__face_id__confirm_post: {
     parameters: {
       query?: never
@@ -6264,6 +6385,39 @@ export interface operations {
           [name: string]: unknown
         }
         content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  read_alike_faces_api_v1_faces__face_id__alike_get: {
+    parameters: {
+      query: {
+        person: string
+      }
+      header?: never
+      path: {
+        face_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AlikeFaces']
+        }
       }
       /** @description Validation Error */
       422: {

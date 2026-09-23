@@ -9,6 +9,19 @@ from muninn.core.signing import sign_media
 from muninn.models.face import Face, Person
 
 
+class DecideManyRequest(BaseModel):
+    """The same yes or no for several open questions about one person."""
+
+    person_id: UUID
+    face_ids: list[UUID] = Field(max_length=200)
+    #: True for yes, false for no.
+    confirm: bool
+
+
+class DecidedMany(BaseModel):
+    answered: int
+
+
 class BoxView(BaseModel):
     """Fractions of the picture's width and height."""
 
@@ -128,6 +141,21 @@ class MergeRequest(BaseModel):
     """The person the other one becomes."""
 
     into: UUID
+
+
+class AlikeFace(BaseModel):
+    """An open question that looks like the one just answered."""
+
+    face: FaceView
+    #: How alike this face is to the one just answered, from 0 to 1.
+    similarity: float
+
+
+class AlikeFaces(BaseModel):
+    """What can be answered along with a face, most alike first."""
+
+    person_id: UUID
+    items: list[AlikeFace]
 
 
 class MediaFaceView(BaseModel):

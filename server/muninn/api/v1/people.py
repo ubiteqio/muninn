@@ -12,6 +12,10 @@ from muninn.albums.service import cursor_value
 from muninn.api.schemas.media import MediaView
 from muninn.api.schemas.pagination import Page, decode_cursor, encode_cursor
 from muninn.api.schemas.people import (
+    AlikeFace,
+    AlikeFaces,
+    DecidedMany,
+    DecideManyRequest,
     FacePage,
     FaceView,
     ForgottenFaces,
@@ -273,6 +277,25 @@ async def _face(session: AsyncSession, face_id: uuid.UUID) -> Face:
 
 
 @router.post(
+    "/faces/alike",
+    summary="Answer several open questions about one person the same way",
+)
+async def decide_alike_faces(
+    payload: DecideManyRequest, user: ActiveUser, session: SessionDep
+) -> DecidedMany:
+    """Yes or no for a whole list at once, as the modal after a decision offers it.
+
+    Faces that are no longer an open question about this person are skipped: the list somebody
+    answered may have moved on between seeing it and sending it back.
+    """
+    person = await _person(session, payload.person_id)
+    answered = await people.decide_many(session, payload.face_ids, person, confirm=payload.confirm)
+    if payload.confirm and answered:
+        await queue_face_reassessment()
+    return DecidedMany(answered=answered)
+
+
+@router.post(
     "/faces/{face_id}/confirm",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Yes: the suggestion, or the person Muninn gave, is right",
@@ -300,6 +323,33 @@ async def reject_face(face_id: uuid.UUID, user: ActiveUser, session: SessionDep)
     await people.reject(session, face_id)
     queue_face_sorting(face_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/faces/{face_id}/alike",
+    summary="Open questions about the same person that look like this face",
+)
+async def read_alike_faces(
+    face_id: uuid.UUID,
+    person: uuid.UUID,
+    user: ActiveUser,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> AlikeFaces:
+    """Asked right after a yes or a no, to offer the same answer for what looks the same.
+
+    Everything within the widest distance Muninn would ever offer comes back, each with how
+    alike it is, so the app can let somebody draw the line themselves without asking again.
+    """
+    await _face(session, face_id)
+    found = await people.alike_suggestions(session, face_id, person)
+    return AlikeFaces(
+        person_id=person,
+        items=[
+            AlikeFace(face=FaceView.of(face, secret=settings.jwt_secret), similarity=similarity)
+            for face, similarity in found
+        ],
+    )
 
 
 @router.post("/faces/{face_id}/name", summary="Say who this face is")

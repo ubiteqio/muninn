@@ -485,6 +485,7 @@ async def face_neighbors(
     confirmed: bool = False,
     min_pixels: int = 0,
     min_score: float = 0.0,
+    suggested_for: uuid.UUID | None = None,
 ) -> list[FaceNeighbor]:
     """The faces nearest to this one - of named persons, or without a person - nearest first.
 
@@ -492,6 +493,9 @@ async def face_neighbors(
     and what Muninn assigned itself and marked trusted. Asked apart, not filtered afterwards:
     copies and bursts of a photo fill the ten nearest with Muninn's own guesses, and the
     confirmed face that should decide would never be among them.
+
+    `suggested_for` keeps to the faces that are an open question about that one person, which is
+    what answering several of them at once is about.
 
     `min_pixels` and `min_score` are the caller's bar for a face good enough to be listened to.
     A small or unsure face is kept and can still be given a name, but its vector says too little
@@ -518,6 +522,8 @@ async def face_neighbors(
         which += f" AND (f.assigned_by = 'user' OR ({trusted}))"
     elif good:
         which += f" AND {good}"
+    if suggested_for is not None:
+        which += " AND f.suggested_person_id = :suggested_for"
     await session.execute(text(f"SET LOCAL hnsw.ef_search = {max(40, limit * 4)}"))
     await session.execute(text("SET LOCAL hnsw.iterative_scan = relaxed_order"))
     rows = await session.execute(
@@ -536,7 +542,12 @@ async def face_neighbors(
              ORDER BY distance
             """  # noqa: S608 - the cast, the model literal and the condition are ours
         ),
-        {"vector": row.vector, "id": face_id, "max_distance": max_distance},
+        {
+            "vector": row.vector,
+            "id": face_id,
+            "max_distance": max_distance,
+            "suggested_for": suggested_for,
+        },
     )
     return [
         FaceNeighbor(
