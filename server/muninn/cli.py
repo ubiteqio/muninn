@@ -105,6 +105,22 @@ async def _regroup_faces() -> int:
     return 0
 
 
+async def _reassess_faces() -> int:
+    """Every face nobody named asked again, with the middles of the persons made anew first."""
+    settings = get_settings()
+    engine = create_engine(settings.database_url)
+    session_factory = create_session_factory(engine)
+
+    try:
+        async with session_factory() as session:
+            changed = await people.reassess(session)
+    finally:
+        await engine.dispose()
+
+    print(f"{changed} face(s) changed their person or their suggestion.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="muninn", description="Muninn maintenance commands")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -132,6 +148,11 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     subparsers.add_parser(
+        "reassess-faces",
+        help="ask every unnamed face again, after making the middles of the persons anew",
+    )
+
+    subparsers.add_parser(
         "regroup-faces",
         help="build the groups of unnamed faces again, under the rule as it stands now",
     )
@@ -149,6 +170,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "regroup-faces":
         return asyncio.run(_regroup_faces())
+
+    if args.command == "reassess-faces":
+        return asyncio.run(_reassess_faces())
 
     return 1
 
