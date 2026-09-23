@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from muninn.ai.base import Check, DetectedFace
 from muninn.ai.openai_compatible import OpenAiFaceDetector
 from muninn.faces import people, service
+from muninn.models.attempt import GIVE_UP_AFTER
 from muninn.models.face import Face, Person
 from muninn.models.media import Media, MediaKind
 from muninn.search import service as search_service
@@ -91,6 +92,34 @@ async def test_a_picture_without_faces_is_done_too(session: AsyncSession, tmp_pa
 
     assert await service.media_without(session) == []
     assert await service.count_without(session) == 0
+
+
+async def test_a_video_nobody_can_read_is_given_up_on(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    """Two damaged files used to keep a worker busy all day: the stage failed, wrote nothing
+    down, and the clock handed the same media out again a minute later."""
+    medium = await a_medium(
+        session, await an_album(session, "Fest"), taken_at=JULY, name="broken.mpg"
+    )
+    medium.kind = MediaKind.VIDEO
+    medium.video_path = "nothing/here.mp4"
+    medium.thumbnail_path = "nothing/here.webp"
+    await session.commit()
+
+    for _ in range(GIVE_UP_AFTER):
+        assert await service.media_without(session) == [medium.id]
+        looked = await service.apply_faces(
+            session,
+            medium.id,
+            detector=FakeDetector([[]]),
+            model="buffalo_l",
+            derived_root=tmp_path,
+        )
+        assert looked is False
+
+    # Three attempts were enough. It keeps its place in the album, and the clock leaves it be.
+    assert await service.media_without(session) == []
 
 
 def test_a_long_video_is_looked_at_less_often() -> None:

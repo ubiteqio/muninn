@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
+from muninn.huginn import attempts
 from muninn.huginn.derive import DERIVE_VERSION, Derivatives, DeriveError, derive
 from muninn.models.media import Media, MediaKind, MediaStatus, shown
 from muninn.models.settings import AppSettings
@@ -278,9 +279,11 @@ async def apply_derivatives(
             quality=settings.image_quality,
             video_height=settings.video_height,
         )
-    except DeriveError:
+    except DeriveError as error:
         # A broken or unreadable original is not worth a failed task: the medium stays in the
-        # library without previews, and the admin sees it in the index status.
+        # library without previews, and the admin sees it in the index status. It is counted,
+        # so the clock stops handing the same file out every minute for ever.
+        await attempts.note_failure(session, media_id, "derive", str(error))
         return False
 
     previous = [
@@ -300,6 +303,7 @@ async def apply_derivatives(
         _size_of, folder, [made.thumbnail, made.preview, made.video, made.poster]
     )
     media.derive_version = DERIVE_VERSION
+    await attempts.forget(session, media_id, "derive")
     if made.width is not None:
         # The decoded picture beats the tag: this is the size everything that shows it needs.
         media.width = made.width

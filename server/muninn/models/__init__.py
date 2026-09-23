@@ -2,6 +2,7 @@
 
 from muninn.models.album import Album
 from muninn.models.analysis import MediaAnalysis, MediaTranscript, VideoFrame
+from muninn.models.attempt import GIVE_UP_AFTER, MediaAttempt
 from muninn.models.base import Base
 from muninn.models.change_log import ChangeKind, ChangeLogEntry, SyncTrigger
 from muninn.models.duplicate import DuplicateGroup, DuplicateMember
@@ -29,6 +30,7 @@ from muninn.models.social import Comment, CommentMention, Favorite, Like
 from muninn.models.user import User, UserRole, UserStatus
 
 __all__ = [
+    "GIVE_UP_AFTER",
     "Album",
     "AppSettings",
     "Base",
@@ -45,6 +47,7 @@ __all__ = [
     "Like",
     "Media",
     "MediaAnalysis",
+    "MediaAttempt",
     "MediaFile",
     "MediaFileRole",
     "MediaKind",

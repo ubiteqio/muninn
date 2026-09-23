@@ -34,6 +34,7 @@ from muninn.ai.analysis import Analysis, frame_context
 from muninn.ai.base import Analyzer
 from muninn.analysis import transcripts
 from muninn.analysis.frames import DESCRIBE_EVERY_SECONDS, ChangeFilter, frames_of
+from muninn.huginn import attempts, jobs
 from muninn.models.analysis import MediaAnalysis, MediaTranscript, VideoFrame
 from muninn.models.media import Media, MediaKind, MediaStatus
 from muninn.search import service as search_service
@@ -82,7 +83,12 @@ def _missing(
             transcripts.heard_by(transcriber_model) if transcriber_model else true(),
         ),
     )
-    return select(Media.id).where(Media.status == MediaStatus.ACTIVE, viewable, ~answered)
+    return select(Media.id).where(
+        Media.status == MediaStatus.ACTIVE,
+        viewable,
+        ~answered,
+        attempts.still_open(jobs.ANALYSIS_STAGE, Media.id),
+    )
 
 
 async def media_without(

@@ -18,7 +18,7 @@ from muninn.core.config import get_settings
 from muninn.duplicates import service as duplicates_service
 from muninn.faces import people
 from muninn.faces import service as faces_service
-from muninn.huginn import jobs
+from muninn.huginn import attempts, jobs
 from muninn.huginn.app import celery_app
 from muninn.huginn.runtime import run, session_scope
 from muninn.library import service
@@ -629,6 +629,9 @@ async def _transcribe_media(media_id: uuid.UUID, task_id: str) -> bool:
         except (AiError, transcripts.SoundError) as error:
             if isinstance(error, AiError):
                 await _pause_if_unreachable(error, outcome)
+            else:
+                # Nothing to hear in this one, and that will not change by asking again.
+                await attempts.note_failure(session, media_id, jobs.TRANSCRIPTION_STAGE, str(error))
             logger.warning("No transcript for %s: %s", media_id, error)
             outcome.failed = True
             return False

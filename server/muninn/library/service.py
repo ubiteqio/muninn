@@ -20,6 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from muninn.huginn import attempts
 from muninn.huginn.derive import DERIVE_VERSION
 from muninn.library import safety
 from muninn.library.formats import kind_of
@@ -1127,6 +1128,7 @@ async def _media_without_derivatives(
         Media.status == MediaStatus.ACTIVE,
         Media.derive_version < DERIVE_VERSION,
         Media.album_id.in_([album.id for album in albums.values()]),
+        attempts.still_open("derive", Media.id),
     )
     return list(await session.scalars(query))
 

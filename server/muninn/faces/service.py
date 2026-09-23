@@ -22,6 +22,7 @@ from sqlalchemy.orm import aliased
 from muninn.ai.base import DetectedFace, FaceDetector
 from muninn.analysis.frames import FrameError, frames_of
 from muninn.faces import people
+from muninn.huginn import attempts, jobs
 from muninn.media.service import relative_of
 from muninn.models.face import Face
 from muninn.models.media import Media, MediaKind, MediaStatus
@@ -140,7 +141,9 @@ async def apply_faces(
             looks = await _looks_at_video(
                 derived_root / media.video_path, video_step(media.duration_seconds)
             )
-        except (FrameError, FileNotFoundError):
+        except (FrameError, FileNotFoundError) as error:
+            # No frame can be read from this one. Counted, so it is not tried for ever.
+            await attempts.note_failure(session, media_id, jobs.FACES_STAGE, str(error))
             return False
         answers = await detector.detect([_data_url(jpeg, "image/jpeg") for _, jpeg in looks])
         for (second, jpeg), faces in zip(looks, answers, strict=True):
@@ -153,7 +156,8 @@ async def apply_faces(
             return False
         try:
             picture = await asyncio.to_thread((derived_root / path).read_bytes)
-        except FileNotFoundError:
+        except FileNotFoundError as error:
+            await attempts.note_failure(session, media_id, jobs.FACES_STAGE, str(error))
             return False
         mime = _MIME_TYPES.get(Path(path).suffix.lower(), "image/webp")
         (faces,) = await detector.detect([_data_url(picture, mime)])
@@ -182,6 +186,7 @@ async def apply_faces(
     await session.execute(
         update(Media).where(Media.id == media_id).values(face_version=FACE_VERSION)
     )
+    await attempts.forget(session, media_id, jobs.FACES_STAGE)
 
     def write_crops() -> None:
         folder.mkdir(parents=True, exist_ok=True)
@@ -253,6 +258,7 @@ def _missing() -> Select[tuple[uuid.UUID]]:
         Media.duplicate_of.is_(None),
         Media.thumbnail_path.is_not(None),
         Media.face_version < FACE_VERSION,
+        attempts.still_open(jobs.FACES_STAGE, Media.id),
     )
 
 
