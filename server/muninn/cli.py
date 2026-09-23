@@ -97,11 +97,12 @@ async def _regroup_faces() -> int:
 
     try:
         async with session_factory() as session:
-            grouped = await people.regroup(session)
+            found = await people.regroup(session)
     finally:
         await engine.dispose()
 
-    print(f"{grouped} face(s) are in a group now.")
+    print(f"{found.groups} group(s), {found.faces} face(s) in them, largest {found.largest}.")
+    print(f"{found.ungrouped} unnamed face(s) are in no group: too small or unsure, or alone.")
     return 0
 
 

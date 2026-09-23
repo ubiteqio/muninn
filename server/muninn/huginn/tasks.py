@@ -166,7 +166,7 @@ def reassess_faces() -> int:
 
 
 @celery_app.task(name="muninn.regroup_faces", queue="people")
-def regroup_faces() -> int:
+def regroup_faces() -> dict[str, int]:
     """Build the groups of the unnamed faces again, under the rule as it stands now."""
     return run(_regroup_faces())
 
@@ -828,9 +828,16 @@ async def _sort_faces(face_ids: list[uuid.UUID]) -> None:
         await people.sort_faces(session, face_ids)
 
 
-async def _regroup_faces() -> int:
+async def _regroup_faces() -> dict[str, int]:
     async with session_scope() as session:
-        return await people.regroup(session)
+        found = await people.regroup(session)
+    # A plain answer: Celery carries the result of a task as JSON.
+    return {
+        "groups": found.groups,
+        "faces": found.faces,
+        "largest": found.largest,
+        "ungrouped": found.ungrouped,
+    }
 
 
 async def _reassess_faces() -> int:

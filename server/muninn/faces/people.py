@@ -333,7 +333,17 @@ async def sort_faces(session: AsyncSession, face_ids: Sequence[uuid.UUID]) -> No
     await session.commit()
 
 
-async def regroup(session: AsyncSession, *, batch: int = 500) -> int:
+@dataclass(frozen=True, slots=True)
+class Grouping:
+    """What building the groups again left behind."""
+
+    groups: int
+    faces: int
+    largest: int
+    ungrouped: int
+
+
+async def regroup(session: AsyncSession, *, batch: int = 500) -> Grouping:
     """Build the groups of every face nobody named again, under the rule as it stands now.
 
     A face is only ever put into a group when it is new, so groups made under an older rule stay
@@ -341,12 +351,11 @@ async def regroup(session: AsyncSession, *, batch: int = 500) -> int:
     and builds them up again. Faces that have a person are not touched: what somebody decided
     is never undone here.
 
-    Returns how many faces ended up in a group.
+    Returns how many groups there are, how many faces are in them, and how big the largest is.
     """
     await session.execute(update(Face).where(Face.person_id.is_(None)).values(cluster=None))
     await session.commit()
 
-    grouped = 0
     last: uuid.UUID | None = None
     while True:
         query = select(Face).where(Face.person_id.is_(None)).order_by(Face.id).limit(batch)
@@ -362,13 +371,30 @@ async def regroup(session: AsyncSession, *, batch: int = 500) -> int:
         await session.commit()
         last = faces[-1].id
 
-    grouped = int(
+    sizes = (
+        select(Face.cluster, func.count().label("faces"))
+        .where(Face.cluster.is_not(None))
+        .group_by(Face.cluster)
+        .subquery()
+    )
+    row = (
+        await session.execute(
+            select(
+                func.count(),
+                func.coalesce(func.sum(sizes.c.faces), 0),
+                func.coalesce(func.max(sizes.c.faces), 0),
+            ).select_from(sizes)
+        )
+    ).one()
+    ungrouped = int(
         await session.scalar(
-            select(func.count()).select_from(Face).where(Face.cluster.is_not(None))
+            select(func.count())
+            .select_from(Face)
+            .where(Face.person_id.is_(None), Face.cluster.is_(None))
         )
         or 0
     )
-    return grouped
+    return Grouping(groups=int(row[0]), faces=int(row[1]), largest=int(row[2]), ungrouped=ungrouped)
 
 
 def _clearest(face: Face) -> tuple[int, float]:

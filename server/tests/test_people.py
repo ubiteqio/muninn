@@ -380,9 +380,9 @@ async def test_regrouping_takes_apart_what_an_older_rule_ran_together(
     await session.execute(update(Face).where(Face.id.in_(every)).values(cluster=1))
     await session.commit()
 
-    grouped = await people.regroup(session)
+    found = await people.regroup(session)
 
-    assert grouped == len(every)
+    assert (found.groups, found.faces, found.largest) == (2, len(every), 2)
     assert len({(await face(session, one)).cluster for one in every}) == 2
 
 
