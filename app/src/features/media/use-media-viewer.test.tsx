@@ -232,6 +232,21 @@ describe('useMediaViewer', () => {
     expect(screen.queryByRole('complementary', { name: 'Kommentare' })).not.toBeInTheDocument()
   })
 
+  it('starts the video one opens, and the one moved on to', async () => {
+    // Opening a film is asking to watch it; a second tap on play is a tap too many.
+    const played = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+
+    try {
+      await renderScreen(<Album current="film-1" media={[aVideo('film-1'), aVideo('film-2')]} />)
+
+      await waitFor(() => {
+        expect(played).toHaveBeenCalled()
+      })
+    } finally {
+      played.mockRestore()
+    }
+  })
+
   it('stops the video of the picture one leaves behind', async () => {
     // PhotoSwipe keeps the neighbouring slides in the DOM, and a video taken out of the page
     // carries on with its sound. Moving on has to stop it.

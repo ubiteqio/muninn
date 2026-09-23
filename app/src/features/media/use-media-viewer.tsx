@@ -16,6 +16,10 @@ import { SocialRail } from '@/features/social/social-rail'
 const FALLBACK_WIDTH = 1600
 const FALLBACK_HEIGHT = 1200
 
+/** How often the video of a slide is looked for while PhotoSwipe is still building it. */
+const LOOK_AGAIN_MS = 80
+const LOOK_AT_MOST = 25
+
 interface ViewerAddress {
   /** The medium the address asks for, or nothing when the album itself is on screen. */
   current: string | undefined
@@ -159,6 +163,29 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
         event.preventDefault()
       }
     })
+    // A video one opened is a video one wants to see: it starts by itself.
+    //
+    // PhotoSwipe builds the slide a moment after the tap, so the element is looked for a few
+    // times rather than once. And the browser may refuse to play - by then the play no longer
+    // answers the tap - so it is then played without sound, which is always allowed, with the
+    // controls right there to turn it on.
+    let waiting: ReturnType<typeof setTimeout> | undefined
+    const playShown = (tries = 0) => {
+      clearTimeout(waiting)
+      const video = opened.currSlide?.container.querySelector('video')
+      if (!video) {
+        if (tries < LOOK_AT_MOST)
+          waiting = setTimeout(() => {
+            playShown(tries + 1)
+          }, LOOK_AGAIN_MS)
+        return
+      }
+      void video.play().catch(() => {
+        video.muted = true
+        void video.play().catch(() => undefined)
+      })
+    }
+
     opened.on('change', () => {
       setIndex(opened.currIndex)
       onCurrentChange(media[opened.currIndex]?.id)
@@ -168,6 +195,11 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       for (const video of opened.element?.querySelectorAll('video') ?? []) {
         if (!shown?.contains(video)) video.pause()
       }
+      playShown()
+    })
+    // The slide the viewer opens on, and every one built while it is open.
+    opened.on('contentActivate', () => {
+      playShown()
     })
     // The slide one leaves: its content goes, but a video that was playing carries on - taken
     // out of the page it keeps its sound. This is the moment to stop it.
@@ -177,6 +209,7 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       })
     })
     opened.on('destroy', () => {
+      clearTimeout(waiting)
       gallery.current = null
       setHost(null)
       setSheet(null)
