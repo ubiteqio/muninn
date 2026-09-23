@@ -46,6 +46,12 @@ services:
       context: ./postgres
     image: muninn/postgres:local
     restart: unless-stopped
+    # PostgreSQL hands plans above a cost threshold to LLVM, which compiles them to machine code
+    # at runtime. On one NAS that code segfaulted the backend every time - the overview counts,
+    # the worker asking what still needs analysing - while everything simple ran fine and every
+    # integrity check came back clean. Muninn's queries are small enough that compiling them
+    # buys nothing, so the interpreter does the work.
+    command: ["postgres", "-c", "jit=off"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
