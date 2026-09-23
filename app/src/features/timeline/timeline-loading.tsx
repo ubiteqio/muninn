@@ -11,9 +11,9 @@ const WAITING_CARDS = 12
  */
 const MOST_CARDS = 24
 
-/** Days of three rows each, for a month whose days are not known yet. */
+/** Days for a month whose days are not known yet, and the page they share between them. */
 const WAITING_DAYS = 3
-const WAITING_ROWS = 3
+const WAITING_MEDIA = 100
 
 /**
  * The cards of a level while they are on their way: the square the mosaic will fill and the two
@@ -84,6 +84,9 @@ export function DayLoading({ columns, count }: { columns: number; count: number 
  */
 export function RunLoading({ columns }: { columns: number }) {
   const { t } = useTranslation()
+  // The window asks for one page, whatever the month holds, so the tiles of one page are what
+  // stands here - spread over three days, at however many columns this screen has.
+  const rows = Math.ceil(WAITING_MEDIA / WAITING_DAYS / columns)
 
   return (
     <>
@@ -91,7 +94,7 @@ export function RunLoading({ columns }: { columns: number }) {
       <div aria-busy="true" className="mt-3 flex gap-0">
         <div className="min-w-0 flex-1 space-y-4">
           {Array.from({ length: WAITING_DAYS }, (_, index) => (
-            <DayLoading key={index} columns={columns} count={WAITING_ROWS * columns} />
+            <DayLoading key={index} columns={columns} count={rows * columns} />
           ))}
         </div>
         {/* The reserved column of the rail, so the tiles are not wider now than later. */}

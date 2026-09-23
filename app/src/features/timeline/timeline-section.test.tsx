@@ -144,8 +144,9 @@ describe('TimelineSection', () => {
     expect(waiting).not.toBeNull()
     expect(waiting?.closest('h2, [class*="h-9"]')).toBeNull()
     expect(screen.getByText('Wird geladen …')).toBeInTheDocument()
-    // Three days of three rows, at three columns: the tiles of a screenful.
-    expect(document.querySelectorAll('.placeholder')).toHaveLength(3 * (1 + 9))
+    // Three days sharing one page of a hundred: at three columns that is twelve rows each,
+    // and a heading block on top of them.
+    expect(document.querySelectorAll('.placeholder')).toHaveLength(3 * (1 + 12 * 3))
   })
 
   it('waits with one card per year the library has, not with a round number', async () => {
