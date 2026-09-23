@@ -420,3 +420,14 @@ async def test_a_person_is_known_by_their_middle_when_no_face_is_near_enough(
     assert (found.person_id, found.assigned_by) == (lena.id, "auto")
     # A middle already speaks for several faces; what it names does not get to speak again.
     assert found.trusted is False
+
+
+def test_many_faces_are_sampled_so_the_middles_stay_quick() -> None:
+    """Gathering the middles is plain Python. A person with thousands of faces must not hold up
+    every other person waiting behind them."""
+    many = [at(0.99 - (index % 50) / 500, towards=1 + index % 6) for index in range(2000)]
+
+    found = people.middles(many)
+
+    assert 1 <= len(found) <= people.PROTOTYPES_MAX
+    assert sum(count for _, count in found) == people.PROTOTYPE_SAMPLE

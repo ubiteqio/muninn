@@ -63,6 +63,10 @@ PROTOTYPE_DISTANCE = 0.40
 PROTOTYPES_MAX = 5
 #: A person earns another middle every this many faces that vouch for them.
 PROTOTYPE_FACES = 8
+#: At most this many of a person's faces are gathered into middles. Beyond it the middles do not
+#: get better, and the gathering is plain Python: a person with thousands of faces would hold up
+#: every other person waiting behind them.
+PROTOTYPE_SAMPLE = 600
 
 #: How close an automatic assignment must lie to a face that already vouches, to vouch itself.
 #: Far stricter than AUTO_DISTANCE on purpose: what the confirmed-only rule was written against
@@ -124,10 +128,16 @@ def middles(
     if not points:
         return []
     wanted = min(most, max(1, len(points) // PROTOTYPE_FACES))
+    if len(points) > PROTOTYPE_SAMPLE:
+        # Evenly across the faces as they were ordered, which is by id and so by nothing in
+        # particular: a part of them says as much about the shape of the whole as all of them.
+        apart = len(points) / PROTOTYPE_SAMPLE
+        points = [points[int(index * apart)] for index in range(PROTOTYPE_SAMPLE)]
 
     # Start from the face most like all the others, then from the one least like what is chosen:
     # the same faces always give the same middles, which keeps a reassessment from wandering.
-    centers = [max(points, key=lambda point: _dot(point, _mean(points)))]
+    average = _mean(points)
+    centers = [max(points, key=lambda point: _dot(point, average))]
     while len(centers) < wanted:
         centers.append(
             max(points, key=lambda point: min(1 - _dot(point, chosen) for chosen in centers))
