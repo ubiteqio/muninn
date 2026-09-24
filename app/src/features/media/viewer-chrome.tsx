@@ -9,7 +9,7 @@ import { useSocial, useToggleFavorite, useToggleLike } from '@/features/social/u
 import { cn } from '@/lib/utils'
 
 /** How long the chrome stays after the last sign of life. */
-const REST_MS = 5000
+const REST_MS = 3000
 
 interface ChromeProps {
   medium: Medium
