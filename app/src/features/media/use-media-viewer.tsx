@@ -170,17 +170,16 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       }
       playShown()
     })
-    // The slide the viewer opens on, and every one built while it is open.
-    opened.on('contentActivate', ({ content }) => {
+    /*
+     * The slide the viewer opens on, and every one built while it is open.
+     *
+     * Nothing here answers a tap on the video. The element carries `controls`, so the browser
+     * draws play, pause and the scrubber and answers them itself - and a click on one of those
+     * bubbles out of the element as a click on the video. A listener of ours that toggled the
+     * playback would undo what the button had just done, which is why there is none.
+     */
+    opened.on('contentActivate', () => {
       playShown()
-      // A tap on a picture zooms, which PhotoSwipe does itself; a tap on a video is what one
-      // means by tapping a video. Its own controls keep their taps.
-      const video = content.element?.querySelector('video')
-      video?.addEventListener('click', (event) => {
-        event.stopPropagation()
-        if (video.paused) void video.play().catch(() => undefined)
-        else video.pause()
-      })
     })
     // The slide one leaves: its content goes, but a video that was playing carries on - taken
     // out of the page it keeps its sound. This is the moment to stop it.

@@ -36,6 +36,9 @@ export function PeriodCard({
         className={cn(
           'grid aspect-square w-full gap-0.5 overflow-hidden rounded-lg bg-secondary/60 transition group-hover:ring-1 group-hover:ring-primary/35',
           covers.length > 1 && 'grid-cols-2',
+          // Named, not left to the pictures. Without this the square is divided by what landed
+          // in it - each row as tall as its photograph - and the mosaic comes out lopsided.
+          covers.length > 2 && 'grid-rows-2',
         )}
       >
         {covers.length === 0 ? (
@@ -51,7 +54,7 @@ export function PeriodCard({
               loading="lazy"
               decoding="async"
               className={cn(
-                'h-full w-full object-cover',
+                'h-full min-h-0 w-full min-w-0 object-cover',
                 // Three pictures: the first one takes the whole left half.
                 covers.length === 3 && index === 0 && 'row-span-2',
               )}
