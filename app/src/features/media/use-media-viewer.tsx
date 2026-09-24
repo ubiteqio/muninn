@@ -370,7 +370,15 @@ function slideOf(medium: Medium, startAt?: number) {
     // A media fragment: the browser starts the video at that second, no script needed.
     const source =
       startAt === undefined ? medium.urls.video : `${medium.urls.video}#t=${String(startAt)}`
-    return { html: videoMarkup(source, medium.urls.poster), width, height }
+    // A picture is scaled to fill the screen; a video is not - PhotoSwipe lays out its own
+    // markup at the size it is given and leaves it there. Given the video's own size, a
+    // portrait clip filmed on a phone sat as a small rectangle in the middle of a black
+    // screen. The slide is the screen, and the video fits itself into it.
+    return {
+      html: videoMarkup(source, medium.urls.poster),
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }
   }
 
   return { src: medium.urls.preview ?? medium.urls.original, width, height, alt: '' }
@@ -380,11 +388,11 @@ function videoMarkup(source: string, poster: string | null): string {
   const attributes = [
     'controls',
     'playsinline',
-    'style="max-width:100%;max-height:100%;margin:auto"',
+    'style="width:100%;height:100%;object-fit:contain"',
     `src="${escapeAttribute(source)}"`,
     poster ? `poster="${escapeAttribute(poster)}"` : '',
   ]
-  return `<div class="flex h-full w-full items-center"><video ${attributes.join(' ')}></video></div>`
+  return `<div class="flex h-full w-full items-center justify-center"><video ${attributes.join(' ')}></video></div>`
 }
 
 /** The addresses come from our own API, but building markup without escaping is a bad habit. */
