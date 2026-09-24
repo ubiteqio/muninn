@@ -9,8 +9,14 @@ import { cn } from '@/lib/utils'
 
 /** Where the line sits when nobody has moved it: inside "the same person, another photo". */
 const DEFAULT_FROM = 80
-/** The server never offers below this, so the slider cannot ask for more than there is. */
-const LOWEST = 60
+/**
+ * The server never offers below this, so the slider cannot ask for more than there is.
+ *
+ * As far down as a suggestion reaches: a face Muninn would ask about is one it can offer
+ * here. Higher than that and the slider ran out of travel before it ran out of faces - one
+ * picture at the bottom of the range and no way to look further.
+ */
+const LOWEST = 40
 const HIGHEST = 95
 const REMEMBERED = 'muninn.alike.from'
 

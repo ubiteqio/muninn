@@ -487,3 +487,22 @@ async def test_a_no_for_several_faces_at_once_and_none_of_them_asked_again(
     # A list somebody answered may have moved on between seeing it and sending it back. What is
     # no longer an open question about Lena is skipped, not refused.
     assert await people.decide_many(session, asked, lena, confirm=True) == 0
+
+
+async def test_a_face_as_far_off_as_a_question_is_offered_too(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """The offer reaches as far as a suggestion does. At 0.40 there was often one face below
+    the line and no way to move the slider far enough to find the others."""
+    lena, asked = await three_questions_about(session, session_factory)
+
+    # Half alike to Lena, so she is suggested for it - and only half alike to the face just
+    # answered, which is further than the old 0.40 and nearer than a suggestion's 0.62.
+    (distant,) = await faces_in_a_photo(session, [0.5, 0.0, 0.2887, 0.8165, 0.0, 0.0, 0.0, 0.0])
+    assert (await face(session, distant)).suggested_person_id == lena.id
+
+    found = await people.alike_suggestions(session, asked[0], lena.id)
+
+    offered = {one.id: similarity for one, similarity in found}
+    assert distant in offered
+    assert 0.4 < offered[distant] < 0.62

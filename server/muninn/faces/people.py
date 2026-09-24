@@ -66,10 +66,14 @@ MERGE_DISTANCE = 0.35
 PROTOTYPE_DISTANCE = 0.40
 #: At most this many middles for one person: one for each way they looked over the years.
 PROTOTYPES_MAX = 5
-#: How far a face may lie from the one just answered and still be offered along with it. The
-#: loosest the app ever asks for: somebody draws their own line inside this, and sees what each
-#: line costs them. Wide enough that the line is theirs to draw, not ours.
-ALIKE_DISTANCE = 0.40
+#: How far a face may lie from the one just answered and still be offered along with it.
+#:
+#: As far as a suggestion reaches, and for the same reason: a face Muninn is willing to ask
+#: about is one it can offer here. Nothing is taken without being seen - the faces are on the
+#: screen and the count says how many the line takes - so the line is somebody's to draw, and
+#: drawing it needs something to draw through. At 0.40 there was often only one face below it,
+#: and the slider could not be moved far enough to find the others.
+ALIKE_DISTANCE = SUGGEST_DISTANCE
 
 #: A person earns another middle every this many faces that vouch for them.
 PROTOTYPE_FACES = 8
