@@ -214,13 +214,41 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     // A video is laid out at the size it is handed - PhotoSwipe scales pictures, not markup -
     // so a phone that is turned would leave it in the shape of the orientation it was opened
     // in. Before every new measurement the video slides are handed the screen as it is now.
-    opened.on('beforeResize', () => {
+    const measure = () => {
       for (const slide of slides) {
         if ('html' in slide) {
           slide.width = window.innerWidth
           slide.height = window.innerHeight
         }
       }
+    }
+    opened.on('beforeResize', measure)
+
+    /*
+     * Turning a phone is not an ordinary resize. iOS still reports the old screen while the
+     * rotation is running, so measuring when it says so measures what was there before. It is
+     * measured again once the turn has settled - after two frames, and once more a beat later
+     * for the browser whose bars are still sliding into place - and PhotoSwipe is made to lay
+     * everything out again with what it now knows.
+     */
+    const settled = () => {
+      measure()
+      opened.updateSize(true)
+    }
+    let again = 0
+    const turned = () => {
+      window.clearTimeout(again)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(settled)
+      })
+      again = window.setTimeout(settled, 300)
+    }
+    window.addEventListener('orientationchange', turned)
+    window.visualViewport?.addEventListener('resize', turned)
+    opened.on('destroy', () => {
+      window.clearTimeout(again)
+      window.removeEventListener('orientationchange', turned)
+      window.visualViewport?.removeEventListener('resize', turned)
     })
 
     setIndex(wanted)
