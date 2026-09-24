@@ -598,6 +598,11 @@ async def sync_publication(
             continue
 
         judged_folders.add(scanned.relative_path)
+        # A file that was waiting and is no longer in the folder was deleted before it ever
+        # settled. Nothing else would ever look at it again - the waiting are only compared
+        # against what a listing contains - so the observation would wait for ever, and the
+        # engine room would go on counting a file that is not there.
+        await _forget_vanished(session, pending, folder=scanned.relative_path, listed=scanned.files)
         ready, waiting = await _split_by_stability(
             session, scanned.files, known=files, pending=pending, settings=settings, now=now
         )
@@ -933,6 +938,26 @@ async def _split_by_stability(
         ready.append(file)
 
     return ready, waiting
+
+
+async def _forget_vanished(
+    session: AsyncSession,
+    pending: dict[str, PendingFile],
+    *,
+    folder: str,
+    listed: Iterable[ScannedFile],
+) -> None:
+    """Forget what was waiting in this folder and is not in it any more.
+
+    Only for a folder that was listed, and only for that folder: a listing that failed proves
+    nothing, and the safety net turns on exactly this distinction. A file deleted while it was
+    still waiting has no medium, nothing derived and nothing to delete - only the note that it
+    was once seen.
+    """
+    there = {file.relative_path for file in listed}
+    gone = [path for path in list(pending) if _folder_of(path) == folder and path not in there]
+    for path in gone:
+        await _forget_observation(session, pending, path)
 
 
 async def _forget_observation(

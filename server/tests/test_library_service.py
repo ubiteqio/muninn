@@ -853,3 +853,47 @@ async def test_a_file_nobody_may_read_is_walked_past_not_crashed_on(
     locked.chmod(0o644)
     await sync(session, publication, library, settings, now=EVEN_LATER)
     assert await service.unreadable_files(session) == []
+
+
+async def test_a_file_deleted_while_it_was_still_waiting_is_forgotten(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """It never settled, so nothing else would ever look at it again: the waiting are only
+    compared against what a listing contains, and it is not in one any more."""
+    write(library, "Autos/bleibt.jpg")
+    copied = write(library, "Autos/DSC_0024 copy.JPG")
+    publication = await publish(session, library, "Autos")
+
+    # Seen once, and waiting for the listing that would confirm it.
+    await sync(session, publication, library, settings)
+    assert set(await session.scalars(select(PendingFile.relative_path))) == {
+        "Autos/bleibt.jpg",
+        "Autos/DSC_0024 copy.JPG",
+    }
+
+    copied.unlink()
+    await sync(session, publication, library, settings, now=LATER)
+
+    # The one that is still there became a medium; the one that went is forgotten, not counted.
+    assert await session.scalars(select(PendingFile.relative_path)) is not None
+    assert set(await session.scalars(select(PendingFile.relative_path))) == set()
+    names = set(await session.scalars(select(MediaFile.relative_path)))
+    assert names == {"Autos/bleibt.jpg"}
+
+
+async def test_a_folder_that_cannot_be_listed_forgets_nothing(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """A listing that failed proves nothing - least of all that a file is gone."""
+    write(library, "Autos/warten.jpg")
+    publication = await publish(session, library, "Autos")
+    await sync(session, publication, library, settings)
+    assert set(await session.scalars(select(PendingFile.relative_path))) == {"Autos/warten.jpg"}
+
+    (library / "Autos").chmod(0o000)
+    try:
+        await sync(session, publication, library, settings, now=LATER)
+    finally:
+        (library / "Autos").chmod(0o755)
+
+    assert set(await session.scalars(select(PendingFile.relative_path))) == {"Autos/warten.jpg"}
