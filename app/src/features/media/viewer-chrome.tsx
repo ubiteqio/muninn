@@ -264,7 +264,7 @@ function Actions({
                     aria-label={reaction.key}
                     aria-pressed={mine}
                     className={cn(
-                      'flex size-9 items-center justify-center rounded-full text-[20px] transition hover:bg-white/15',
+                      'flex size-9 items-center justify-center rounded-full text-[20px] leading-none transition hover:bg-white/15',
                       mine && 'bg-white/20 ring-1 ring-white/40',
                     )}
                     onClick={() => {
