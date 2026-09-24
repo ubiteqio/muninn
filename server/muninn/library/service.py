@@ -9,13 +9,15 @@ reader below it are pure; what they find is turned into rows here.
 """
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import NamedTuple
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -34,6 +36,7 @@ from muninn.models.media import Media, MediaFile, MediaFileRole, MediaStatus
 from muninn.models.pending_file import PendingFile
 from muninn.models.publication import Publication, ScanStatus
 from muninn.models.settings import AppSettings
+from muninn.models.unreadable import UnreadableFile
 
 
 class PublicationNotFoundError(Exception):
@@ -75,6 +78,15 @@ ProgressCallback = Callable[[SyncProgress], Awaitable[None]]
 #: Asked between folders. True means an admin wants this read to stop.
 StopCheck = Callable[[], Awaitable[bool]]
 
+_logger = logging.getLogger(__name__)
+
+
+class Unreadable(NamedTuple):
+    """A file the reading could not open, and what the operating system said about it."""
+
+    relative_path: str
+    reason: str
+
 
 @dataclass(slots=True)
 class SyncReport:
@@ -96,6 +108,8 @@ class SyncReport:
     unchanged_folders: int = 0
     #: Folders that could not be listed. They prove nothing and are left as they are.
     failed_folders: int = 0
+    #: Files that could not be read. Skipped, never treated as gone, and reported.
+    unreadable: list["Unreadable"] = field(default_factory=list)
     #: Media whose metadata still have to be read; the caller queues them.
     pending_metadata: list[uuid.UUID] = field(default_factory=list)
     #: Media whose previews still have to be made.
@@ -285,6 +299,19 @@ async def files_waiting(session: AsyncSession, *, limit: int = 200) -> list[Pend
         select(PendingFile).order_by(PendingFile.first_seen_at).limit(limit)
     )
     return list(rows)
+
+
+async def unreadable_files(session: AsyncSession, *, limit: int = 200) -> list[UnreadableFile]:
+    """The files the reading had to walk past, worst first by nothing but age."""
+    rows = await session.scalars(
+        select(UnreadableFile).order_by(UnreadableFile.relative_path).limit(limit)
+    )
+    return list(rows)
+
+
+async def count_unreadable(session: AsyncSession) -> int:
+    found = await session.scalar(select(func.count()).select_from(UnreadableFile))
+    return int(found or 0)
 
 
 async def covering_publication(session: AsyncSession, relative_path: str) -> Publication | None:
@@ -579,18 +606,29 @@ async def sync_publication(
         seen |= waiting
 
         for group in group_files(ready):
-            await _sync_group(
-                session,
-                library_base=library_base,
-                album=album,
-                group=group,
-                known=files,
-                by_quick=by_quick,
-                seen=seen,
-                trigger=trigger,
-                now=now,
-                report=report,
-            )
+            try:
+                await _sync_group(
+                    session,
+                    library_base=library_base,
+                    album=album,
+                    group=group,
+                    known=files,
+                    by_quick=by_quick,
+                    seen=seen,
+                    trigger=trigger,
+                    now=now,
+                    report=report,
+                )
+            except OSError as error:
+                # One file nobody may read must not take the whole library's reading down with
+                # it. A permission that came with a copy did exactly that: every pass died on
+                # the same file, and no other file anywhere was ever confirmed again.
+                #
+                # It is left exactly as it is - the file counts as seen, so nothing treats it
+                # as gone - and the reason is written down where the engine room can show it.
+                seen |= {file.relative_path for _, file in group.files}
+                report.unreadable.append(Unreadable(str(group.primary.relative_path), str(error)))
+                _logger.warning("Skipped %s: %s", group.primary.relative_path, error)
             files_done += len(group.files)
 
             # Hashing a thousand pictures takes minutes; say so while it happens rather than
@@ -666,8 +704,39 @@ async def sync_publication(
 
     report.pending_metadata = await _media_without_metadata(session, albums)
     report.pending_derivatives = await _media_without_derivatives(session, albums)
+    await _note_unreadable(session, publication, report.unreadable, now)
     await _finish(session, publication, now, ScanStatus.OK)
     return report
+
+
+async def _note_unreadable(
+    session: AsyncSession,
+    publication: Publication,
+    found: Sequence[Unreadable],
+    now: datetime,
+) -> None:
+    """What this reading of the folder had to walk past, in place of what the last one did.
+
+    Replaced rather than added to, and only under this published folder: a permission put right
+    is read on the next pass, is not among the findings, and so leaves the engine room by
+    itself. Nobody has to remember to clear it.
+    """
+    under = publication.relative_path
+    await session.execute(
+        delete(UnreadableFile).where(
+            or_(
+                UnreadableFile.relative_path == under,
+                UnreadableFile.relative_path.startswith(f"{under}/"),
+            )
+            if under
+            else true()
+        )
+    )
+    for one in found:
+        session.add(
+            UnreadableFile(relative_path=one.relative_path, reason=one.reason[:500], last_at=now)
+        )
+    await session.flush()
 
 
 def _files_in(files: dict[str, MediaFile], folder: str) -> set[str]:

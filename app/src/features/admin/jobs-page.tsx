@@ -413,6 +413,11 @@ function Behind({ stage }: { stage: string }) {
       {files.map((file) => (
         <li key={file.relative_path} className="py-1 text-xs-plus">
           <span className="font-mono text-foreground">{file.relative_path}</span>
+          {file.reason && (
+            <span className="mt-0.5 block break-words font-mono text-2xs text-destructive">
+              {file.reason}
+            </span>
+          )}
         </li>
       ))}
       {items.map((item) => (
@@ -454,6 +459,9 @@ function OpenWork({ jobs }: { jobs: Jobs }) {
   const [open, setOpen] = useState<string | null>(null)
 
   const steps = [
+    // First, because it is the only one nothing will clear by itself: somebody has to give
+    // Muninn leave to read those files.
+    { key: 'unreadable', stage: 'unreadable', value: jobs.unreadable_files },
     { key: 'check', stage: 'files', value: jobs.waiting_files },
     { key: 'metadata', stage: 'metadata', value: jobs.pending_metadata },
     { key: 'preview', stage: 'derive', value: jobs.pending_derivatives },

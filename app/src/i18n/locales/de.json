@@ -484,6 +484,7 @@
         },
         "nothing": "Alles erledigt, nichts wartet.",
         "faces": "Medien ohne Gesichtersuche",
+        "unreadable": "Dateien, die nicht gelesen werden konnten",
         "loading": "Wird geladen …",
         "gone": "Nichts mehr offen – die Zahl ist schon älter.",
         "attempts_one": "1 Versuch",

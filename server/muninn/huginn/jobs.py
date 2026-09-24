@@ -243,6 +243,9 @@ MEDIA_STAGES = ("metadata", "derive", *AI_STAGES)
 #: list of them names paths rather than media.
 WAITING_FILES = "files"
 
+#: Nor a stage: the files the reading could not open at all.
+UNREADABLE_FILES = "unreadable"
+
 #: How long the clock hands a stage no work after its machine did not answer at all.
 AI_PAUSE_SECONDS = 300
 

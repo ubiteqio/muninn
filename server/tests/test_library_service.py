@@ -14,7 +14,7 @@ from muninn.library import service
 from muninn.library.safety import MARKER_NAME, device_of
 from muninn.models.album import Album
 from muninn.models.change_log import ChangeKind, ChangeLogEntry, SyncTrigger
-from muninn.models.media import Media, MediaFileRole, MediaKind, MediaStatus
+from muninn.models.media import Media, MediaFile, MediaFileRole, MediaKind, MediaStatus
 from muninn.models.pending_file import PendingFile
 from muninn.models.publication import Publication, ScanStatus
 from muninn.models.settings import AppSettings
@@ -822,3 +822,34 @@ class TestProgressInsideAFolder:
         # Every ten files, and once more when the folder is through.
         assert [step.files_done for step in seen] == [10, 20, 25]
         assert all(step.files_total == 25 for step in seen)
+
+
+async def test_a_file_nobody_may_read_is_walked_past_not_crashed_on(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """One file with a permission that came with a copy took every reading down with it: the
+    pass died on it, and no other file anywhere was confirmed again."""
+    write(library, "Fest/gut.jpg")
+    write(library, "Fest/auch-gut.jpg")
+    locked = write(library, "Fest/gesperrt.jpg")
+    locked.chmod(0o000)
+    publication = await publish(session, library, "Fest")
+
+    await sync(session, publication, library, settings)
+    report = await sync(session, publication, library, settings, now=LATER)
+
+    # The pass finished, and the two readable files are in.
+    assert report.status is ScanStatus.OK
+    assert [one.relative_path for one in report.unreadable] == ["Fest/gesperrt.jpg"]
+    names = set(await session.scalars(select(MediaFile.relative_path)))
+    assert {"Fest/gut.jpg", "Fest/auch-gut.jpg"} <= names
+
+    # And it is written down where the engine room can show it.
+    (walked_past,) = await service.unreadable_files(session)
+    assert walked_past.relative_path == "Fest/gesperrt.jpg"
+    assert await service.count_unreadable(session) == 1
+
+    # Put right, it leaves by itself on the next reading.
+    locked.chmod(0o644)
+    await sync(session, publication, library, settings, now=EVEN_LATER)
+    assert await service.unreadable_files(session) == []

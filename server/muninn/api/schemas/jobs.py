@@ -105,6 +105,8 @@ class JobsView(BaseModel):
     pending_faces: int | None = None
     #: Files seen once, waiting for the listing that confirms them.
     waiting_files: int
+    #: Files the reading had to walk past because it could not open them.
+    unreadable_files: int = 0
     #: The last few pieces of work that were finished, newest first.
     finished: list[FinishedTask]
     #: How many media each stage finished in the last minute, by stage name.
@@ -132,6 +134,8 @@ class WaitingFile(BaseModel):
 
     relative_path: str
     first_seen_at: datetime
+    #: Why it is still here, where anybody knows: what the operating system said.
+    reason: str | None = None
 
 
 class WaitingView(BaseModel):

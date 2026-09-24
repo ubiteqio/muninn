@@ -2587,6 +2587,11 @@ export interface components {
             pending_faces?: number | null;
             /** Waiting Files */
             waiting_files: number;
+            /**
+             * Unreadable Files
+             * @default 0
+             */
+            unreadable_files: number;
             /** Finished */
             finished: components["schemas"]["FinishedTask"][];
             /** Done Last Minute */
@@ -3856,6 +3861,8 @@ export interface components {
              * Format: date-time
              */
             first_seen_at: string;
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * WaitingItem

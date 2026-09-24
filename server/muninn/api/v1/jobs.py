@@ -101,6 +101,7 @@ async def read_jobs(admin: AdminUser, session: SessionDep, redis: RedisDep) -> J
         pending_analyses=await _pending_analyses(session),
         pending_caption_vectors=await _pending_caption_vectors(session),
         pending_faces=await _pending_faces(session),
+        unreadable_files=await service.count_unreadable(session),
         waiting_files=waiting_files,
         finished=finished,
         done_last_minute=await jobs.done_last_minute(redis),
@@ -250,6 +251,19 @@ async def read_waiting(
     ``files`` is for the one number that is not about media at all: files seen once and waiting
     for the listing that confirms them. They have no medium yet to name.
     """
+    if stage == jobs.UNREADABLE_FILES:
+        walked_past = await service.unreadable_files(session, limit=limit)
+        return WaitingView(
+            stage=stage,
+            items=[],
+            files=[
+                WaitingFile(
+                    relative_path=one.relative_path, first_seen_at=one.last_at, reason=one.reason
+                )
+                for one in walked_past
+            ],
+        )
+
     if stage == jobs.WAITING_FILES:
         rows = await service.files_waiting(session, limit=limit)
         return WaitingView(

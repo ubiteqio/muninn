@@ -170,6 +170,36 @@ describe('the engine room', () => {
     expect(calls.some((call) => call.path.includes('/waiting/'))).toBe(false)
   })
 
+  it('names the files it had to walk past, and why', async () => {
+    // Nothing clears these by itself: somebody has to give Muninn leave to read them.
+    stubApi({
+      [JOBS]: { body: { ...idle, unreadable_files: 1 } },
+      [CHANGES]: { body: [] },
+      'GET /api/v1/admin/jobs/waiting/unreadable': {
+        body: {
+          stage: 'unreadable',
+          items: [],
+          files: [
+            {
+              relative_path: 'Kinder/2019/IMG_3829.MOV',
+              first_seen_at: new Date().toISOString(),
+              reason: "[Errno 13] Permission denied: '/library/Kinder/2019/IMG_3829.MOV'",
+            },
+          ],
+        },
+      },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: /nicht gelesen werden konnten/ }),
+    )
+
+    expect(await screen.findByText('Kinder/2019/IMG_3829.MOV')).toBeInTheDocument()
+    expect(screen.getByText(/Permission denied/)).toBeInTheDocument()
+  })
+
   it('says when there is nothing to do', async () => {
     stubApi({ [JOBS]: { body: idle }, [CHANGES]: { body: [] } })
 
