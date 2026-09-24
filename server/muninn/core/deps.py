@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from typing import Annotated
 
+import httpx
 from fastapi import Depends, Request
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -35,6 +36,17 @@ async def get_session(connection: HTTPConnection) -> AsyncIterator[AsyncSession]
 def get_redis(connection: HTTPConnection) -> Redis:
     redis: Redis = connection.app.state.redis
     return redis
+
+
+def get_ai_client(connection: HTTPConnection) -> httpx.AsyncClient | None:
+    """The process-wide client for the AI machine, so its connection is kept between calls.
+
+    Nothing where the lifespan did not run - a test that builds the application by hand. The
+    caller then opens a client of its own for the one call, which is what it did before there
+    was a shared one.
+    """
+    client: httpx.AsyncClient | None = getattr(connection.app.state, "ai_client", None)
+    return client
 
 
 def get_login_rate_limiter(

@@ -4,6 +4,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -46,10 +47,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
     app.state.redis = create_redis(settings.redis_url)
+    # One client for the AI machine, kept open. A search asks it twice, and building a client
+    # for each of those threw the connection away every time: a handshake before every word
+    # that is looked up. The workers keep their own; this one belongs to the API.
+    app.state.ai_client = httpx.AsyncClient()
 
     try:
         yield
     finally:
+        await app.state.ai_client.aclose()
         await app.state.redis.aclose()
         await engine.dispose()
 

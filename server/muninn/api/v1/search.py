@@ -3,6 +3,7 @@
 import uuid
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, Query, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +22,13 @@ from muninn.api.schemas.search import (
     encode_offset,
 )
 from muninn.core.config import Settings
-from muninn.core.deps import ActiveUser, get_redis, get_session, get_settings_from_state
+from muninn.core.deps import (
+    ActiveUser,
+    get_ai_client,
+    get_redis,
+    get_session,
+    get_settings_from_state,
+)
 from muninn.core.problem import ProblemError, problem_type
 from muninn.media import service as media_service
 from muninn.places import service as places_service
@@ -32,6 +39,7 @@ router = APIRouter(tags=["search"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings_from_state)]
 RedisDep = Annotated[Redis, Depends(get_redis)]
+AiClientDep = Annotated[httpx.AsyncClient | None, Depends(get_ai_client)]
 
 
 @router.get("/search/abilities", summary="What the search can look into")
@@ -53,6 +61,7 @@ async def search(
     session: SessionDep,
     settings: SettingsDep,
     redis: RedisDep,
+    client: AiClientDep,
 ) -> SearchPage:
     """Words, periods and filters in, the best matches out - one page at a time.
 
@@ -87,6 +96,7 @@ async def search(
         by_date=request.sort == "date",
         offset=_offset(request.cursor),
         limit=request.limit,
+        client=client,
     )
     return _page(found, settings)
 

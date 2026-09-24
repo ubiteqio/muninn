@@ -14,15 +14,18 @@ of that model; everything else is bound.
 """
 
 import asyncio
+import contextlib
 import logging
+import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any
 
+import httpx
 from redis.asyncio import Redis
-from sqlalchemy import Integer, func, select, text
+from sqlalchemy import Integer, Text, and_, func, join, literal, select, text, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -428,64 +431,88 @@ FACET_LIMIT = 40
 
 
 async def _facets(session: AsyncSession, media_ids: list[uuid.UUID]) -> Facets:
-    """Count the years, towns, cameras and albums of these media."""
+    """Count the years, towns, cameras and albums of these media - in one question.
+
+    Four counts, four times the same list of ids to send and four waits for an answer: asked
+    one after another they were the slowest part of a search that had already been found. One
+    session cannot ask them at the same time, so they are asked as one - four branches under a
+    UNION, each with its own limit, sorted out again here by the name of the branch.
+    """
     if not media_ids:
         return Facets()
 
+    of_these = Media.id.in_(media_ids)
     year = func.cast(func.extract("year", Media.taken_at), Integer)
-    years = (
-        await session.execute(
-            select(year, func.count())
-            .where(Media.id.in_(media_ids), Media.taken_at.is_not(None))
-            .group_by(year)
-            .order_by(year.desc())
-            .limit(FACET_LIMIT)
-        )
-    ).all()
-
     camera = func.trim(func.concat(func.coalesce(Media.camera_make, ""), " ", Media.camera_model))
-    cameras = (
-        await session.execute(
-            select(camera, func.count())
-            .where(Media.id.in_(media_ids), Media.camera_model.is_not(None))
-            .group_by(camera)
+
+    def branch(
+        name: str, value: Any, label: Any, source: Any, *, where: Any, group: Sequence[Any]
+    ) -> Any:
+        counted = (
+            select(
+                literal(name).label("facet"),
+                func.cast(value, Text).label("value"),
+                func.cast(label, Text).label("label"),
+                func.count().label("count"),
+            )
+            .select_from(source)
+            .where(where)
+            .group_by(*group)
             .order_by(func.count().desc())
             .limit(FACET_LIMIT)
         )
-    ).all()
+        return select(counted.subquery())
 
-    towns = (
+    rows = (
         await session.execute(
-            select(Place.name, Place.country, func.count())
-            .join(Media, Media.place_id == Place.id)
-            .where(Media.id.in_(media_ids))
-            .group_by(Place.name, Place.country)
-            .order_by(func.count().desc())
-            .limit(FACET_LIMIT)
+            union_all(
+                branch(
+                    "year",
+                    year,
+                    year,
+                    Media,
+                    where=and_(of_these, Media.taken_at.is_not(None)),
+                    group=[year],
+                ),
+                branch(
+                    "camera",
+                    camera,
+                    camera,
+                    Media,
+                    where=and_(of_these, Media.camera_model.is_not(None)),
+                    group=[camera],
+                ),
+                branch(
+                    "town",
+                    Place.name,
+                    func.concat_ws(", ", Place.name, func.nullif(Place.country, "")),
+                    join(Media, Place, Media.place_id == Place.id),
+                    where=of_these,
+                    group=[Place.name, Place.country],
+                ),
+                branch(
+                    "album",
+                    Album.id,
+                    Album.relative_path,
+                    join(Media, Album, Media.album_id == Album.id),
+                    where=of_these,
+                    group=[Album.id, Album.relative_path],
+                ),
+            )
         )
     ).all()
 
-    albums = (
-        await session.execute(
-            select(Album.id, Album.relative_path, func.count())
-            .join(Media, Media.album_id == Album.id)
-            .where(Media.id.in_(media_ids))
-            .group_by(Album.id, Album.relative_path)
-            .order_by(func.count().desc())
-            .limit(FACET_LIMIT)
-        )
-    ).all()
+    found: dict[str, list[Facet]] = {"year": [], "camera": [], "town": [], "album": []}
+    for facet, value, label, count in rows:
+        found[facet].append(Facet(value=value, label=label, count=count))
 
+    # The years read best newest first; the rest are led by what there is most of, which is the
+    # order they were counted in.
     return Facets(
-        years=[Facet(value=str(one), label=str(one), count=count) for one, count in years],
-        towns=[
-            Facet(value=name, label=f"{name}, {country}" if country else name, count=count)
-            for name, country, count in towns
-        ],
-        cameras=[Facet(value=name, label=name, count=count) for name, count in cameras],
-        albums=[
-            Facet(value=str(album_id), label=path, count=count) for album_id, path, count in albums
-        ],
+        years=sorted(found["year"], key=lambda one: one.value, reverse=True),
+        towns=found["town"],
+        cameras=found["camera"],
+        albums=found["album"],
     )
 
 
@@ -501,8 +528,22 @@ class Found:
     facets: Facets = field(default_factory=Facets)
 
 
+@contextlib.contextmanager
+def _timed(parts: dict[str, float], name: str) -> Iterator[None]:
+    """How long this part of a search took, in milliseconds, for the one line at the end."""
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        parts[name] = (time.perf_counter() - started) * 1000
+
+
 async def _probe(
-    redis: Redis, kind: AiKind, profile: AiProfile | None, words: str
+    redis: Redis,
+    kind: AiKind,
+    profile: AiProfile | None,
+    words: str,
+    client: httpx.AsyncClient | None = None,
 ) -> tuple[Probe | None, bool]:
     """The words as a vector of this profile's model; nothing when there is no profile.
 
@@ -516,7 +557,9 @@ async def _probe(
     if await _resting(redis, kind):
         return None, True
     try:
-        embedder = ai_service.embedder_for(profile, timeout_seconds=PROBE_TIMEOUT_SECONDS)
+        embedder = ai_service.embedder_for(
+            profile, timeout_seconds=PROBE_TIMEOUT_SECONDS, client=client
+        )
         (vector,) = await embedder.embed([words])
     except AiError as error:
         logger.warning("Search without %s: %s", profile.model, error)
@@ -534,10 +577,13 @@ async def find(
     by_date: bool = False,
     offset: int = 0,
     limit: int = 60,
+    client: httpx.AsyncClient | None = None,
 ) -> Found:
+    parts: dict[str, float] = {}
     understood = parse(query)
-    persons = await people.persons_in(session, understood.text)
-    places = await places_service.places_in(session, persons.text)
+    with _timed(parts, "names"):
+        persons = await people.persons_in(session, understood.text)
+        places = await places_service.places_in(session, persons.text)
     understood = replace(understood, text=places.text, places=places.phrases, persons=persons.names)
     merged = Filters(
         date_from=filters.date_from or understood.date_from,
@@ -550,28 +596,44 @@ async def find(
         person_ids=persons.person_ids,
     )
 
-    pictures = await ai_service.active_profile(session, AiKind.IMAGE_EMBEDDER)
-    meanings = await ai_service.active_profile(session, AiKind.TEXT_EMBEDDER)
-    (image, image_failed), (caption, caption_failed) = await asyncio.gather(
-        _probe(redis, AiKind.IMAGE_EMBEDDER, pictures, understood.text),
-        _probe(redis, AiKind.TEXT_EMBEDDER, meanings, understood.text),
-    )
+    with _timed(parts, "profiles"):
+        pictures = await ai_service.active_profile(session, AiKind.IMAGE_EMBEDDER)
+        meanings = await ai_service.active_profile(session, AiKind.TEXT_EMBEDDER)
+    with _timed(parts, "embed"):
+        (image, image_failed), (caption, caption_failed) = await asyncio.gather(
+            _probe(redis, AiKind.IMAGE_EMBEDDER, pictures, understood.text, client),
+            _probe(redis, AiKind.TEXT_EMBEDDER, meanings, understood.text, client),
+        )
 
-    hits = await search(
-        session, words=understood.text, filters=merged, image=image, caption=caption
-    )
-    if by_date and understood.text:
-        hits = await _newest_first(session, hits)
+    with _timed(parts, "match"):
+        hits = await search(
+            session, words=understood.text, filters=merged, image=image, caption=caption
+        )
+        if by_date and understood.text:
+            hits = await _newest_first(session, hits)
 
     chunk, following = page_of(hits, offset=offset, limit=limit)
+    with _timed(parts, "media"):
+        media = await _media_of(session, [hit.media_id for hit in chunk])
+    with _timed(parts, "facets"):
+        # Over everything that was found, not only the page being looked at.
+        facets = await _facets(session, [hit.media_id for hit in hits])
+
+    # One line an admin can read off a log: where the seconds of a slow search actually went.
+    logger.info(
+        "Search %r: %d hits in %.0fms (%s)",
+        query,
+        len(hits),
+        sum(parts.values()),
+        ", ".join(f"{name} {spent:.0f}ms" for name, spent in parts.items()),
+    )
     return Found(
         hits=chunk,
-        media=await _media_of(session, [hit.media_id for hit in chunk]),
+        media=media,
         next_offset=following,
         understood=understood,
         degraded=image_failed or caption_failed,
-        # Over everything that was found, not only the page being looked at.
-        facets=await _facets(session, [hit.media_id for hit in hits]),
+        facets=facets,
     )
 
 
