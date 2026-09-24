@@ -205,7 +205,8 @@ describe('SearchScreen', () => {
       kind: 'video',
       sort: 'relevance',
     })
-    expect(screen.getByRole('button', { name: 'Videos' })).toHaveAttribute('aria-pressed', 'true')
+    // The dropdown carries the chosen kind rather than three chips side by side.
+    expect(screen.getByText('Videos')).toBeInTheDocument()
   })
 
   it('shows the period it read out of the words', async () => {

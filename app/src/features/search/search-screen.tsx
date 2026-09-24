@@ -338,6 +338,9 @@ export function SearchField({
   )
 }
 
+/** "Alle" is the absence of a kind, and a dropdown needs a value to stand for it. */
+const ALL = 'all'
+
 interface Choice {
   value: string
   label: string
@@ -357,12 +360,15 @@ function Picker({
   label,
   chosen,
   choices,
+  clearable = true,
   onChoose,
 }: {
   icon: string
   label: string
   chosen: string | undefined
   choices: Choice[]
+  /** A filter can be taken off again; a choice between two or three cannot be unmade. */
+  clearable?: boolean
   onChoose: (value: string | undefined) => void
 }) {
   const { t } = useTranslation()
@@ -403,12 +409,14 @@ function Picker({
               }}
             >
               <span className="flex-1">{choice.label}</span>
-              <span className="ml-3 tabular-nums text-muted-foreground">{choice.note}</span>
+              {choice.note !== undefined && (
+                <span className="ml-3 tabular-nums text-muted-foreground">{choice.note}</span>
+              )}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      {shown !== undefined && (
+      {clearable && shown !== undefined && (
         <button
           type="button"
           aria-label={t('search.filter.clear', { label })}
@@ -518,12 +526,12 @@ function Chips({
   onSort: (sort: SearchSort) => void
 }) {
   const { t } = useTranslation()
-  const kinds: { value: MediaKind | undefined; label: string }[] = [
-    { value: undefined, label: t('search.kind.all') },
+  const kinds: Choice[] = [
+    { value: ALL, label: t('search.kind.all') },
     { value: 'image', label: t('search.kind.image') },
     { value: 'video', label: t('search.kind.video') },
   ]
-  const sorts: { value: SearchSort; label: string }[] = [
+  const sorts: Choice[] = [
     { value: 'relevance', label: t('search.sort.relevance') },
     { value: 'date', label: t('search.sort.date') },
   ]
@@ -532,36 +540,30 @@ function Chips({
     /* On a phone one row that scrolls sideways, as the breadcrumb does: wrapped, the groups fell
        into four lines and the strokes between them ended up stranded at the ends of lines. It
        bleeds into the page's margin so the last chip does not sit against the edge. */
-    <div className="-mx-5 flex items-center gap-2 overflow-x-auto px-5 pb-1 md:mx-0 md:flex-wrap md:px-0">
-      <div role="group" aria-label={t('search.kind.label')} className="flex shrink-0 gap-1.5">
-        {kinds.map((option) => (
-          <Chip
-            key={option.label}
-            pressed={kind === option.value}
-            onClick={() => {
-              onKind(option.value)
-            }}
-          >
-            {option.label}
-          </Chip>
-        ))}
-      </div>
+    <div className="no-scrollbar -mx-5 flex items-center gap-2 overflow-x-auto px-5 md:mx-0 md:flex-wrap md:px-0">
+      <Picker
+        icon="photo_library"
+        label={t('search.kind.label')}
+        chosen={kind ?? ALL}
+        choices={kinds}
+        clearable={false}
+        onChoose={(value) => {
+          onKind(value === ALL ? undefined : (value as MediaKind))
+        }}
+      />
       <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-hairline/20" />
       {filters}
       <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-hairline/20" />
-      <div role="group" aria-label={t('search.sort.label')} className="flex shrink-0 gap-1.5">
-        {sorts.map((option) => (
-          <Chip
-            key={option.value}
-            pressed={(sort ?? 'relevance') === option.value}
-            onClick={() => {
-              onSort(option.value)
-            }}
-          >
-            {option.label}
-          </Chip>
-        ))}
-      </div>
+      <Picker
+        icon="tune"
+        label={t('search.sort.label')}
+        chosen={sort ?? 'relevance'}
+        choices={sorts}
+        clearable={false}
+        onChoose={(value) => {
+          onSort((value ?? 'relevance') as SearchSort)
+        }}
+      />
       {/* The period found in the words: taken as a filter, and shown, so nobody wonders why
           the results stop at one year. */}
       {range && (
@@ -591,32 +593,6 @@ function Chips({
         </span>
       ))}
     </div>
-  )
-}
-
-function Chip({
-  pressed,
-  onClick,
-  children,
-}: {
-  pressed: boolean
-  onClick: () => void
-  children: string
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        'flex h-9 shrink-0 items-center rounded-full border px-3.5 text-sm transition',
-        pressed
-          ? 'border-accent bg-accent/15 text-foreground'
-          : 'border-hairline/15 text-muted-foreground hover:text-foreground',
-      )}
-    >
-      {children}
-    </button>
   )
 }
 
