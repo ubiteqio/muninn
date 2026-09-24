@@ -156,6 +156,26 @@ export function useNameGroup() {
   })
 }
 
+/**
+ * Stand by what Muninn decided for a whole page of faces at once.
+ *
+ * A face Muninn assigned itself vouches for nobody when the next face is sorted - one wrong
+ * guess would otherwise teach the rest - so a person may have thousands of faces and still be
+ * recognised poorly. Going through them a page at a time, taking the wrong ones out with the
+ * cross and standing by the rest, is what turns those conclusions into evidence.
+ */
+export function useConfirmMany(personId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (faceIds: string[]) =>
+      unwrap(await api.POST('/api/v1/faces/confirm', { body: { face_ids: faceIds } })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...KEY, 'person', personId] })
+      void queryClient.invalidateQueries({ queryKey: KEY })
+    },
+  })
+}
+
 export function useAnswer() {
   const refresh = useRefresh()
   return useMutation({

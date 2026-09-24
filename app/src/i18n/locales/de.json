@@ -906,6 +906,11 @@
       "auto": "Von Muninn zugeordnet",
       "twice": "Doppelt im selben Foto"
     },
+    "standBy": {
+      "hint": "Diese hat Muninn selbst zugeordnet. Nimm falsche mit dem Kreuz heraus – die übrigen bestätigst du hier, damit Muninn {{name}} künftig besser erkennt.",
+      "button_one": "1 Gesicht bestätigen",
+      "button_other": "{{count, number}} Gesichter bestätigen"
+    },
     "noneToCheck": "Hier gibt es nichts zu prüfen.",
     "checkFace": "Im ganzen Foto ansehen, ob das {{name}} ist",
     "auto": "Von Muninn zugeordnet, noch nicht bestätigt",

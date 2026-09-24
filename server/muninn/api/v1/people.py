@@ -14,6 +14,7 @@ from muninn.api.schemas.pagination import Page, decode_cursor, encode_cursor
 from muninn.api.schemas.people import (
     AlikeFace,
     AlikeFaces,
+    ConfirmManyRequest,
     DecidedMany,
     DecideManyRequest,
     FacePage,
@@ -293,6 +294,32 @@ async def decide_alike_faces(
     if payload.confirm and answered:
         await queue_face_reassessment()
     return DecidedMany(answered=answered)
+
+
+@router.post("/faces/confirm", summary="Stand by what Muninn decided for several faces")
+async def confirm_many_faces(
+    payload: ConfirmManyRequest, user: ActiveUser, session: SessionDep, settings: SettingsDep
+) -> DecidedMany:
+    """A page of the faces Muninn assigned itself, confirmed in one go.
+
+    What Muninn decided by itself vouches for nobody - one wrong guess would otherwise teach
+    the rest - so a person may have thousands of faces and still be recognised poorly. Going
+    through them a page at a time, taking the wrong ones out with the cross and standing by
+    the rest, is worth more than answering a hundred questions.
+
+    Only the faces Muninn gave, and each keeps its own person. Anything else is skipped.
+    """
+    media_ids = {
+        face.media_id
+        for face in [await session.get(Face, face_id) for face_id in payload.face_ids]
+        if face is not None
+    }
+    confirmed = await people.confirm_many(session, payload.face_ids)
+    if confirmed:
+        for media_id in media_ids:
+            await _one_face_each(session, settings, media_id)
+        await queue_face_reassessment()
+    return DecidedMany(answered=confirmed)
 
 
 @router.post(

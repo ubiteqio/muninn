@@ -18,6 +18,12 @@ class DecideManyRequest(BaseModel):
     confirm: bool
 
 
+class ConfirmManyRequest(BaseModel):
+    """Stand by what Muninn decided for these faces: each keeps the person it already has."""
+
+    face_ids: list[UUID] = Field(max_length=200)
+
+
 class DecidedMany(BaseModel):
     answered: int
 

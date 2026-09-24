@@ -612,6 +612,31 @@ async def alike_suggestions(
     return found
 
 
+async def confirm_many(session: AsyncSession, face_ids: Sequence[uuid.UUID]) -> int:
+    """Stand by what Muninn decided for each of these faces. Returns how many were confirmed.
+
+    A face Muninn assigned itself is a conclusion, not evidence: it vouches for nobody when the
+    next face is sorted, because one wrong guess would otherwise teach the rest. Confirming it
+    makes it evidence - which is why going through a person's automatic faces is worth more
+    than answering a hundred questions.
+
+    Each face keeps the person it already has; this says yes to that person, not to another.
+    A face that was not Muninn's to give - one somebody already decided, or one with nobody at
+    all - is skipped rather than refused: the list may have moved on since it was seen.
+    """
+    confirmed = 0
+    for face_id in face_ids:
+        face = await session.get(Face, face_id)
+        if face is None or face.assigned_by != "auto" or face.person_id is None:
+            continue
+        person = await session.get(Person, face.person_id)
+        if person is None:
+            continue
+        await assign(session, face_id, person)
+        confirmed += 1
+    return confirmed
+
+
 async def decide_many(
     session: AsyncSession, face_ids: Sequence[uuid.UUID], person: Person, *, confirm: bool
 ) -> int:

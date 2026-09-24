@@ -16,6 +16,7 @@ import {
   type FaceFilter,
   type FaceView,
   useAnswer,
+  useConfirmMany,
   useMerge,
   usePeople,
   usePerson,
@@ -223,7 +224,11 @@ function FacesTab({ personId, name }: { personId: string; name: string }) {
   const [checking, setChecking] = useState<FaceView | null>(null)
   const faces = usePersonFaces(personId, only)
   const answer = useAnswer()
+  const confirmMany = useConfirmMany(personId)
   const all = faces.data?.pages.flatMap((page) => page.items) ?? []
+  // Only what is on the screen. A button that reached the whole list would stand by faces
+  // nobody had looked at, and a wrong one vouches just as loudly as a right one.
+  const muninns = all.filter((face) => face.assigned_by === 'auto')
 
   return (
     <div>
@@ -243,6 +248,22 @@ function FacesTab({ personId, name }: { personId: string; name: string }) {
           </Button>
         ))}
       </div>
+      {muninns.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-hairline/10 bg-secondary/30 px-4 py-3">
+          <p className="min-w-0 flex-1 text-base text-muted-foreground">
+            {t('people.standBy.hint', { name })}
+          </p>
+          <Button
+            size="sm"
+            disabled={confirmMany.isPending}
+            onClick={() => {
+              confirmMany.mutate(muninns.map((face) => face.id))
+            }}
+          >
+            {t('people.standBy.button', { count: muninns.length })}
+          </Button>
+        </div>
+      )}
       {faces.isSuccess && all.length === 0 && (
         <p className="mt-4 text-base text-muted-foreground">{t('people.noneToCheck')}</p>
       )}

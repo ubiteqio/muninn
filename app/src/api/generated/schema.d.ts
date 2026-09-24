@@ -1428,6 +1428,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/faces/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stand by what Muninn decided for several faces
+         * @description A page of the faces Muninn assigned itself, confirmed in one go.
+         *
+         *     What Muninn decided by itself vouches for nobody - one wrong guess would otherwise teach
+         *     the rest - so a person may have thousands of faces and still be recognised poorly. Going
+         *     through them a page at a time, taking the wrong ones out with the cross and standing by
+         *     the rest, is worth more than answering a hundred questions.
+         *
+         *     Only the faces Muninn gave, and each keeps its own person. Anything else is skipped.
+         */
+        post: operations["confirm_many_faces_api_v1_faces_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/faces/{face_id}/confirm": {
         parameters: {
             query?: never;
@@ -2261,6 +2288,14 @@ export interface components {
              * @default []
              */
             replies: components["schemas"]["CommentView"][];
+        };
+        /**
+         * ConfirmManyRequest
+         * @description Stand by what Muninn decided for these faces: each keeps the person it already has.
+         */
+        ConfirmManyRequest: {
+            /** Face Ids */
+            face_ids: string[];
         };
         /** Content */
         Content: {
@@ -6612,6 +6647,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DecideManyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecidedMany"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_many_faces_api_v1_faces_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmManyRequest"];
             };
         };
         responses: {
