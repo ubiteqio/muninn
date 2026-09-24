@@ -102,8 +102,9 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       return
     }
 
+    const slides = media.map((medium) => slideOf(medium, startAt?.get(medium.id)))
     const opened = new PhotoSwipe({
-      dataSource: media.map((medium) => slideOf(medium, startAt?.get(medium.id))),
+      dataSource: slides,
       index: wanted,
       // Fully opaque: the light page would otherwise show through, header and all.
       bgOpacity: 1,
@@ -209,6 +210,18 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       opened.on('keydown', stop)
       opened.on('destroy', stop)
     }
+
+    // A video is laid out at the size it is handed - PhotoSwipe scales pictures, not markup -
+    // so a phone that is turned would leave it in the shape of the orientation it was opened
+    // in. Before every new measurement the video slides are handed the screen as it is now.
+    opened.on('beforeResize', () => {
+      for (const slide of slides) {
+        if ('html' in slide) {
+          slide.width = window.innerWidth
+          slide.height = window.innerHeight
+        }
+      }
+    })
 
     setIndex(wanted)
     opened.init()
@@ -370,10 +383,15 @@ function slideOf(medium: Medium, startAt?: number) {
     // A media fragment: the browser starts the video at that second, no script needed.
     const source =
       startAt === undefined ? medium.urls.video : `${medium.urls.video}#t=${String(startAt)}`
-    // The size is what PhotoSwipe lays the markup out at; the stylesheet then makes the slide
-    // fill the screen, whatever it was given. Measuring the screen here instead would be right
-    // until the phone is turned, and stale from then on.
-    return { html: videoMarkup(source, medium.urls.poster), width, height }
+    // A picture is scaled to fill the screen; a video is not - PhotoSwipe lays out its own
+    // markup at the size it is given and leaves it there. Given the video's own size, a
+    // portrait clip filmed on a phone sat as a small rectangle in the middle of a black
+    // screen. The slide is the screen, and the video fits itself into it.
+    return {
+      html: videoMarkup(source, medium.urls.poster),
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }
   }
 
   return { src: medium.urls.preview ?? medium.urls.original, width, height, alt: '' }

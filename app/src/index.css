@@ -249,24 +249,6 @@
   }
 
   /**
-   * A video fills the screen, as a picture does.
-   *
-   * PhotoSwipe scales a picture to fit and leaves its own markup at the size it was handed, so
-   * a portrait clip - smaller than the phone it is watched on - sat as a little rectangle in
-   * the middle of the black, its controls squeezed into it. The slide it lives in already
-   * covers the screen, so the content is stretched to it and the video fits itself inside.
-   *
-   * In the stylesheet rather than measured when the slide is built: this follows the screen
-   * when the phone is turned, where a measurement taken once would be stale from then on.
-   */
-  .pswp__content:has(video) {
-    inset: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    transform: none !important;
-  }
-
-  /**
    * Where there is no mouse there is no cursor to promise anything. PhotoSwipe paints a
    * magnifier over the picture and a hand while it is dragged, which under a finger is a
    * cursor nobody asked for.
