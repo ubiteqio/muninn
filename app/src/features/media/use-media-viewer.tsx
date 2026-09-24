@@ -10,6 +10,7 @@ import type { Medium } from '@/features/albums/use-albums'
 import { MediaComments } from '@/features/media/media-comments'
 import { DescribedMediaInfo } from '@/features/media/media-info'
 import { MediaStagesMenu } from '@/features/media/media-stages'
+import { STIRRED } from '@/features/media/stirred'
 import { ViewerChrome } from '@/features/media/viewer-chrome'
 
 /** What the viewer assumes when a medium never got its size read. */
@@ -19,6 +20,15 @@ const FALLBACK_HEIGHT = 1200
 /** How often the video of a slide is looked for while PhotoSwipe is still building it. */
 const LOOK_AGAIN_MS = 80
 const LOOK_AT_MOST = 25
+
+/**
+ * What counts as a hand on the video, and so brings the buttons back.
+ *
+ * The tap first, for the browser that passes it on. Where it does not - a phone keeps the taps
+ * that land on the media controls to itself - what the tap did is heard instead: a playback
+ * started, stopped, wound on, or the sound turned up. One of the two always arrives.
+ */
+const TOUCHED_BY = ['pointerdown', 'click', 'play', 'pause', 'seeking', 'volumechange'] as const
 
 interface ViewerAddress {
   /** The medium the address asks for, or nothing when the album itself is on screen. */
@@ -173,13 +183,22 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     /*
      * The slide the viewer opens on, and every one built while it is open.
      *
-     * Nothing here answers a tap on the video. The element carries `controls`, so the browser
-     * draws play, pause and the scrubber and answers them itself - and a click on one of those
-     * bubbles out of the element as a click on the video. A listener of ours that toggled the
-     * playback would undo what the button had just done, which is why there is none.
+     * Nothing here answers a tap on the video: the element carries `controls`, so the browser
+     * draws play, pause and the scrubber and answers them itself. A listener of ours that
+     * toggled the playback would undo what the button had just done.
+     *
+     * What it does do is notice that the video was touched at all - the tap itself where the
+     * page is told about it, and otherwise what came of it, a play or a pause or a seek. Only
+     * the buttons are brought back by this; the video is left to do what it was asked.
      */
-    opened.on('contentActivate', () => {
+    opened.on('contentActivate', ({ content }) => {
       playShown()
+      const video = content.element?.querySelector('video')
+      if (!video) return
+      const touched = () => {
+        window.dispatchEvent(new Event(STIRRED))
+      }
+      for (const name of TOUCHED_BY) video.addEventListener(name, touched)
     })
     // The slide one leaves: its content goes, but a video that was playing carries on - taken
     // out of the page it keeps its sound. This is the moment to stop it.

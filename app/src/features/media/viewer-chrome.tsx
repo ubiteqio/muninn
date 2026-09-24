@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Symbol } from '@/components/muninn/symbol'
 import type { Medium } from '@/features/albums/use-albums'
 import { downloadOriginal } from '@/features/media/original'
+import { STIRRED } from '@/features/media/stirred'
 import { REACTIONS } from '@/features/social/reactions'
 import { useSocial, useToggleFavorite, useToggleLike } from '@/features/social/use-social'
 import { cn } from '@/lib/utils'
@@ -49,6 +50,8 @@ export function ViewerChrome({
   const [awake, setAwake] = useState(true)
   const [emojis, setEmojis] = useState(false)
   const sleep = useRef<number | undefined>(undefined)
+  /** The chrome itself, to tell the viewer's own dialog from one opened on top of it. */
+  const root = useRef<HTMLDivElement>(null)
 
   // Every sign of life puts the rest off; the chrome goes when nothing has happened for a while.
   /** Arm the rest, without saying anything about now: the chrome starts awake by itself. */
@@ -75,10 +78,15 @@ export function ViewerChrome({
     rest()
     window.addEventListener('pointermove', stir)
     window.addEventListener('keydown', stir)
+    // A video keeps its own taps: the browser draws the controls and answers them, and a phone
+    // does not tell the page at all. So the window hears nothing and the buttons would stay
+    // away. The viewer listens at the video itself and says so here.
+    window.addEventListener(STIRRED, stir)
     return () => {
       window.clearTimeout(sleep.current)
       window.removeEventListener('pointermove', stir)
       window.removeEventListener('keydown', stir)
+      window.removeEventListener(STIRRED, stir)
     }
   }, [busy, medium.id, rest, stir])
 
@@ -91,17 +99,23 @@ export function ViewerChrome({
   useEffect(() => {
     if (shown) return
     const wake = (event: PointerEvent) => {
-      // A tap inside a panel, a dialog or a menu is meant for what it lands on - a name being
-      // corrected, a comment being written. Only the picture's own taps wake the chrome.
+      // A tap inside a panel or a menu is meant for what it lands on - a name being corrected,
+      // a comment being written. Only the picture's own taps wake the chrome.
       const target = event.target
+      if (!(target instanceof Element)) return
       if (
-        target instanceof Element &&
-        target.closest(
-          '[data-viewer-panel], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]',
-        )
+        target.closest('[data-viewer-panel], [role="menu"], [data-radix-popper-content-wrapper]')
       ) {
         return
       }
+      /*
+       * The viewer is a dialog itself, and so is every tap that lands on the picture. Turning
+       * away from all of them - which is what a bare `[role="dialog"]` did - meant no tap on a
+       * picture ever brought the buttons back. Only a dialog opened on top of the viewer, a
+       * confirmation or a menu of its own, keeps its taps to itself.
+       */
+      const dialog = target.closest('[role="dialog"]')
+      if (dialog !== null && dialog !== root.current?.closest('[role="dialog"]')) return
       // A video's own controls are the browser's, inside the element itself. Swallowing the
       // first tap there is swallowing play, pause or a drag of the scrubber - and the chrome
       // is not worth that. It wakes, and the tap goes through to them all the same.
@@ -131,6 +145,7 @@ export function ViewerChrome({
 
   return (
     <div
+      ref={root}
       data-viewer-chrome
       className={cn(
         'pointer-events-none absolute inset-0 z-[1580] transition-opacity duration-300 motion-reduce:transition-none',

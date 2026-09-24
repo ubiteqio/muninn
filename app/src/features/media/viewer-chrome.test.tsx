@@ -3,6 +3,7 @@ import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Medium } from '@/features/albums/use-albums'
+import { STIRRED } from '@/features/media/stirred'
 import { ViewerChrome } from '@/features/media/viewer-chrome'
 
 /** Longer than the rest, so the chrome has certainly gone. */
@@ -46,7 +47,7 @@ function aMedium(kind: 'image' | 'video'): Medium {
 
 function show(kind: 'image' | 'video') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const view = render(
+  const chromeOf = () => (
     <QueryClientProvider client={client}>
       <ViewerChrome
         medium={aMedium(kind)}
@@ -56,11 +57,24 @@ function show(kind: 'image' | 'video') {
         onInfo={() => undefined}
         social={false}
       />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
+  // PhotoSwipe gives its root role="dialog" and the chrome is portaled into it. The wrapper
+  // stands for that root, so a tap "on the picture" is a tap inside a dialog, as it really is.
+  const viewer = document.createElement('div')
+  viewer.setAttribute('role', 'dialog')
+  document.body.append(viewer)
+  const view = render(chromeOf(), { container: viewer })
   const chrome = view.container.querySelector('[data-viewer-chrome]')
   expect(chrome).toBeInstanceOf(HTMLElement)
-  return chrome as HTMLElement
+  return { chrome: chrome as HTMLElement, viewer }
+}
+
+/** The viewer says it: the video on screen was touched. */
+function touchTheVideo() {
+  act(() => {
+    window.dispatchEvent(new Event(STIRRED))
+  })
 }
 
 /** Nothing happens for longer than the chrome waits. */
@@ -86,7 +100,7 @@ describe('the chrome over a picture', () => {
   })
 
   it('rests when nothing happens, and a tap on the picture brings it back', () => {
-    const chrome = show('image')
+    const { chrome } = show('image')
     expect(chrome).toHaveClass('opacity-100')
 
     waitItOut()
@@ -101,7 +115,7 @@ describe('the chrome over a picture', () => {
   it('comes back on a tap on the video too, which keeps its own tap', () => {
     // The browser draws the controls inside the video, so a tap on play is reported as a tap
     // on the video. It wakes the chrome and is not swallowed: play still plays.
-    const chrome = show('video')
+    const { chrome } = show('video')
     const video = document.createElement('video')
     document.body.append(video)
 
@@ -118,8 +132,58 @@ describe('the chrome over a picture', () => {
     video.remove()
   })
 
+  it('comes back when the video says it was touched, which is all a phone gives us', () => {
+    // A phone keeps a tap on the media controls to itself: the window hears nothing, and the
+    // buttons would stay away. The video is what reports it, and the buttons return.
+    const { chrome } = show('video')
+
+    waitItOut()
+    expect(chrome).toHaveClass('opacity-0')
+
+    touchTheVideo()
+    expect(chrome).toHaveClass('opacity-100')
+
+    waitItOut()
+    expect(chrome).toHaveClass('opacity-0')
+
+    // And again - not only the first touch counts.
+    touchTheVideo()
+    expect(chrome).toHaveClass('opacity-100')
+  })
+
+  it('wakes on a tap inside the viewer, which is a dialog itself', () => {
+    // PhotoSwipe gives its root role="dialog". Turning away from every dialog meant turning
+    // away from the picture as well, and no tap on one ever brought the buttons back.
+    const { chrome, viewer } = show('image')
+    const picture = document.createElement('img')
+    viewer.append(picture)
+
+    waitItOut()
+    expect(chrome).toHaveClass('opacity-0')
+
+    tap(picture)
+    expect(chrome).toHaveClass('opacity-100')
+    picture.remove()
+  })
+
+  it('leaves a dialog opened on top of it alone', () => {
+    // A confirmation over the picture answers its own taps: a name being corrected there must
+    // not be spent on bringing the buttons back.
+    const { chrome } = show('image')
+    const over = document.createElement('div')
+    over.setAttribute('role', 'dialog')
+    document.body.append(over)
+
+    waitItOut()
+    expect(chrome).toHaveClass('opacity-0')
+
+    tap(over)
+    expect(chrome).toHaveClass('opacity-0')
+    over.remove()
+  })
+
   it('rests again once the tap that woke it is over', () => {
-    const chrome = show('image')
+    const { chrome } = show('image')
     waitItOut()
     tap(document.body)
     expect(chrome).toHaveClass('opacity-100')
