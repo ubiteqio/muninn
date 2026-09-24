@@ -258,7 +258,9 @@ async def read_waiting(
             items=[],
             files=[
                 WaitingFile(
-                    relative_path=one.relative_path, first_seen_at=one.last_at, reason=one.reason
+                    relative_path=one.relative_path,
+                    first_seen_at=one.last_at,
+                    reason=one.reason,
                 )
                 for one in walked_past
             ],
@@ -270,7 +272,11 @@ async def read_waiting(
             stage=stage,
             items=[],
             files=[
-                WaitingFile(relative_path=row.relative_path, first_seen_at=row.first_seen_at)
+                WaitingFile(
+                    relative_path=row.relative_path,
+                    first_seen_at=row.first_seen_at,
+                    byte_size=row.byte_size or 0,
+                )
                 for row in rows
             ],
         )
@@ -286,7 +292,9 @@ async def read_waiting(
                 filename=labels[one.media_id].filename,
                 album=labels[one.media_id].album_path,
                 album_id=labels[one.media_id].album_id,
+                byte_size=labels[one.media_id].byte_size,
                 attempts=one.attempts,
+                last_at=one.last_at,
                 last_error=one.last_error,
             )
             for one in waiting

@@ -484,6 +484,9 @@ async def test_the_numbers_say_which_media_and_why(
     assert item["album"] == "Fest"
     assert item["attempts"] == 1
     assert "UnicodeDecodeError" in item["last_error"]
+    # How big it is, and when the stage last gave up on it.
+    assert item["byte_size"] > 0
+    assert item["last_at"] is not None
 
 
 async def test_the_files_waiting_are_named_too(
@@ -506,7 +509,9 @@ async def test_the_files_waiting_are_named_too(
     answer = await api_client.get("/admin/jobs/waiting/files", headers=headers)
 
     assert answer.status_code == 200
-    assert [one["relative_path"] for one in answer.json()["files"]] == ["Kinder/IMG_3829.MOV"]
+    (file,) = answer.json()["files"]
+    assert file["relative_path"] == "Kinder/IMG_3829.MOV"
+    assert file["byte_size"] == 419_396_824
 
 
 async def test_a_stage_nobody_knows_has_nothing_waiting(

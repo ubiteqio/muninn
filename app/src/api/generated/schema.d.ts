@@ -3886,6 +3886,11 @@ export interface components {
              * Format: date-time
              */
             first_seen_at: string;
+            /**
+             * Byte Size
+             * @default 0
+             */
+            byte_size: number;
             /** Reason */
             reason?: string | null;
         };
@@ -3910,8 +3915,12 @@ export interface components {
              * Format: uuid
              */
             album_id: string;
+            /** Byte Size */
+            byte_size: number;
             /** Attempts */
             attempts: number;
+            /** Last At */
+            last_at?: string | null;
             /** Last Error */
             last_error: string | null;
         };

@@ -422,6 +422,8 @@ class MediaLabel:
     kind: MediaKind
     album_id: uuid.UUID
     album_path: str
+    #: Of the primary file. A picture that will not be read is often one that is unusually big.
+    byte_size: int = 0
 
 
 async def labels_of(
@@ -442,6 +444,7 @@ async def labels_of(
             kind=media.kind,
             album_id=media.album_id,
             album_path=media.album.relative_path,
+            byte_size=media.primary_file.byte_size,
         )
         for media in rows
         if media.files

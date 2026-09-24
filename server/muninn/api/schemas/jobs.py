@@ -123,8 +123,12 @@ class WaitingItem(BaseModel):
     album: str
     #: Where the medium lies, so the list can lead to the picture itself.
     album_id: UUID
+    #: How big the file is. One that will not be read is often an unusually big one.
+    byte_size: int
     #: How often this stage has tried and failed at this medium; three is where it gives up.
     attempts: int
+    #: When it last tried. Nothing where it has not failed at all.
+    last_at: datetime | None = None
     #: What the machine said the last time, in its own words. Nothing where it never spoke.
     last_error: str | None
 
@@ -134,6 +138,7 @@ class WaitingFile(BaseModel):
 
     relative_path: str
     first_seen_at: datetime
+    byte_size: int = 0
     #: Why it is still here, where anybody knows: what the operating system said.
     reason: str | None = None
 

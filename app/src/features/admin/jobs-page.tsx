@@ -24,6 +24,7 @@ import {
   useStopTask,
   useWaiting,
 } from '@/features/admin/use-jobs'
+import { formatBytes } from '@/features/media/format'
 import { useTicker } from '@/hooks/use-ticker'
 import { cn } from '@/lib/utils'
 
@@ -413,6 +414,9 @@ function Behind({ stage }: { stage: string }) {
       {files.map((file) => (
         <li key={file.relative_path} className="py-1 text-xs-plus">
           <span className="font-mono text-foreground">{file.relative_path}</span>
+          {file.byte_size > 0 && (
+            <span className="text-muted-foreground"> · {formatBytes(file.byte_size)}</span>
+          )}
           {file.reason && (
             <span className="mt-0.5 block break-words font-mono text-2xs text-destructive">
               {file.reason}
@@ -431,10 +435,14 @@ function Behind({ stage }: { stage: string }) {
             {item.filename}
           </Link>
           <span className="text-muted-foreground"> · {item.album}</span>
+          {item.byte_size > 0 && (
+            <span className="text-muted-foreground"> · {formatBytes(item.byte_size)}</span>
+          )}
           {item.attempts > 0 && (
             <span className="text-muted-foreground">
               {' · '}
               {t('admin.jobs.open.attempts', { count: item.attempts })}
+              {item.last_at && ` · ${when(item.last_at)}`}
             </span>
           )}
           {item.last_error && (

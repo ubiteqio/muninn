@@ -137,7 +137,9 @@ describe('the engine room', () => {
               filename: 'VIDEO0001.3gp',
               album: 'Kinder/2010',
               album_id: 'a1',
+              byte_size: 41_943_040,
               attempts: 3,
+              last_at: new Date().toISOString(),
               last_error: "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xfe",
             },
           ],
@@ -154,6 +156,7 @@ describe('the engine room', () => {
     expect(await screen.findByText('VIDEO0001.3gp')).toBeInTheDocument()
     expect(screen.getByText(/Kinder\/2010/)).toBeInTheDocument()
     expect(screen.getByText(/3 Versuche/)).toBeInTheDocument()
+    expect(screen.getByText(/41,9 MB/)).toBeInTheDocument()
     expect(screen.getByText(/UnicodeDecodeError/)).toBeInTheDocument()
     expect(line).toHaveAttribute('aria-expanded', 'true')
   })
@@ -183,6 +186,7 @@ describe('the engine room', () => {
             {
               relative_path: 'Kinder/2019/IMG_3829.MOV',
               first_seen_at: new Date().toISOString(),
+              byte_size: 419_396_824,
               reason: "[Errno 13] Permission denied: '/library/Kinder/2019/IMG_3829.MOV'",
             },
           ],

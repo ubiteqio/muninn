@@ -11,6 +11,7 @@ cannot drift from the count beside it.
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +40,8 @@ class Waiting:
     media_id: uuid.UUID
     attempts: int
     last_error: str | None
+    #: When the stage last tried and failed. Nothing where it has not failed at all.
+    last_at: datetime | None
 
 
 async def media_waiting_for(
@@ -54,16 +57,21 @@ async def media_waiting_for(
         return []
 
     rows = await session.execute(
-        select(MediaAttempt.media_id, MediaAttempt.attempts, MediaAttempt.last_error).where(
-            MediaAttempt.media_id.in_(media_ids), MediaAttempt.stage == stage
-        )
+        select(
+            MediaAttempt.media_id,
+            MediaAttempt.attempts,
+            MediaAttempt.last_error,
+            MediaAttempt.last_at,
+        ).where(MediaAttempt.media_id.in_(media_ids), MediaAttempt.stage == stage)
     )
-    tried = {row[0]: (row[1], row[2]) for row in rows}
+    tried = {row[0]: (row[1], row[2], row[3]) for row in rows}
+    nothing: tuple[int, str | None, datetime | None] = (0, None, None)
     return [
         Waiting(
             media_id=media_id,
-            attempts=tried.get(media_id, (0, None))[0],
-            last_error=tried.get(media_id, (0, None))[1],
+            attempts=tried.get(media_id, nothing)[0],
+            last_error=tried.get(media_id, nothing)[1],
+            last_at=tried.get(media_id, nothing)[2],
         )
         for media_id in media_ids
     ]
