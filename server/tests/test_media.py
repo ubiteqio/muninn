@@ -1,6 +1,8 @@
 """Media over HTTP: the previews, the originals, and who may load them."""
 
 import os
+import shutil
+import subprocess
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -586,3 +588,27 @@ class TestUnpublishing:
 
         assert response.status_code == 204
         assert not folder.exists()
+
+
+def test_a_tool_that_prints_a_byte_that_is_not_utf8_is_still_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 3GP from 2010 carries such a byte in its metadata. Decoding strictly raised before a
+    single field could be read, and the whole stage died for that medium."""
+    from muninn.library import metadata
+
+    seen: dict[str, object] = {}
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen.update(kwargs)
+        # What `text=True, errors="replace"` makes of a stray 0xfe.
+        spoiled = '[{"Titel": "Ma\ufffdrz"}]'
+        return subprocess.CompletedProcess(command, 0, stdout=spoiled, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(shutil, "which", lambda name: f"/usr/bin/{name}")
+
+    tags = metadata.read_exiftool(Path("clip.3gp"))
+
+    assert tags == {"Titel": "Ma\ufffdrz"}
+    assert seen["errors"] == "replace"

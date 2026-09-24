@@ -9,10 +9,12 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from muninn.huginn import jobs
+from muninn.huginn import attempts, jobs
 from muninn.library import service
+from muninn.models.pending_file import PendingFile
 from muninn.models.user import UserRole
 from tests.helpers import auth_header, create_user, login
+from tests.test_timeline import JULY, a_medium, an_album
 
 pytestmark = pytest.mark.usefixtures("api_client")
 
@@ -455,3 +457,65 @@ class TestUnpublishing:
 
         assert response.status_code == 204
         assert await jobs.claim(api_app.state.redis, "derive", media_id) is True
+
+
+async def test_the_numbers_say_which_media_and_why(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """ "2 Medien ohne Vorschau" is a true answer to the wrong question. Which two, and what
+    stopped them, was only ever in a worker's log."""
+    headers = await admin_headers(api_client, session_factory)
+    album = await an_album(session, "Fest")
+    medium = await a_medium(session, album, taken_at=JULY, name="VIDEO0001.3gp")
+    medium.derive_version = 0
+    await session.commit()
+    await attempts.note_failure(
+        session, medium.id, "derive", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xfe"
+    )
+
+    answer = await api_client.get("/admin/jobs/waiting/derive", headers=headers)
+
+    assert answer.status_code == 200
+    body = answer.json()
+    (item,) = [one for one in body["items"] if one["media_id"] == str(medium.id)]
+    assert item["filename"] == "VIDEO0001.3gp"
+    assert item["album"] == "Fest"
+    assert item["attempts"] == 1
+    assert "UnicodeDecodeError" in item["last_error"]
+
+
+async def test_the_files_waiting_are_named_too(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """They have no medium yet, so they are named by their path."""
+    headers = await admin_headers(api_client, session_factory)
+    session.add(
+        PendingFile(
+            relative_path="Kinder/IMG_3829.MOV",
+            byte_size=419_396_824,
+            modified_at=JULY,
+            first_seen_at=JULY,
+        )
+    )
+    await session.commit()
+
+    answer = await api_client.get("/admin/jobs/waiting/files", headers=headers)
+
+    assert answer.status_code == 200
+    assert [one["relative_path"] for one in answer.json()["files"]] == ["Kinder/IMG_3829.MOV"]
+
+
+async def test_a_stage_nobody_knows_has_nothing_waiting(
+    api_client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """The admin area and the server are deployed together, but not always in that order."""
+    headers = await admin_headers(api_client, session_factory)
+
+    answer = await api_client.get("/admin/jobs/waiting/erfunden", headers=headers)
+
+    assert answer.status_code == 200
+    assert answer.json() == {"stage": "erfunden", "items": [], "files": []}

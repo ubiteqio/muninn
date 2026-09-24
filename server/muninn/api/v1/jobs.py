@@ -25,12 +25,15 @@ from muninn.api.schemas.jobs import (
     RunningRead,
     ScheduleView,
     TaskMedia,
+    WaitingFile,
+    WaitingItem,
+    WaitingView,
 )
 from muninn.api.schemas.library import SyncProgressView
 from muninn.core.deps import AdminUser, get_redis, get_session
 from muninn.core.problem import ProblemError, problem_type
 from muninn.faces import service as faces_service
-from muninn.huginn import jobs
+from muninn.huginn import jobs, outstanding
 from muninn.huginn.app import celery_app
 from muninn.library import service
 from muninn.media import service as media_service
@@ -232,6 +235,49 @@ async def _schedule(
         quick_sync_seconds=quick_sync_seconds,
         full_sync_hour=full_sync_hour,
         stability_seconds=stability_seconds,
+    )
+
+
+@router.get("/waiting/{stage}", summary="What is behind one of the numbers")
+async def read_waiting(
+    stage: str, admin: AdminUser, session: SessionDep, limit: int = outstanding.MOST
+) -> WaitingView:
+    """Which media a stage has not finished with, and what stopped each of them.
+
+    The number beside a stage says how much is left; this says what. Every stage is asked the
+    same question it is asked when work is handed out, so the list cannot drift from the count.
+
+    ``files`` is for the one number that is not about media at all: files seen once and waiting
+    for the listing that confirms them. They have no medium yet to name.
+    """
+    if stage == jobs.WAITING_FILES:
+        rows = await service.files_waiting(session, limit=limit)
+        return WaitingView(
+            stage=stage,
+            items=[],
+            files=[
+                WaitingFile(relative_path=row.relative_path, first_seen_at=row.first_seen_at)
+                for row in rows
+            ],
+        )
+
+    waiting = await outstanding.media_waiting_for(session, stage, limit=limit)
+    labels = await media_service.labels_of(session, [one.media_id for one in waiting])
+    return WaitingView(
+        stage=stage,
+        items=[
+            WaitingItem(
+                media_id=one.media_id,
+                kind=labels[one.media_id].kind.value,
+                filename=labels[one.media_id].filename,
+                album=labels[one.media_id].album_path,
+                attempts=one.attempts,
+                last_error=one.last_error,
+            )
+            for one in waiting
+            if one.media_id in labels
+        ],
+        files=[],
     )
 
 

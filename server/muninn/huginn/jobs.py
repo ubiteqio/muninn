@@ -239,6 +239,10 @@ AI_STAGES = (
 #: The stages that work on one medium at a time: what a medium carries into the queues.
 MEDIA_STAGES = ("metadata", "derive", *AI_STAGES)
 
+#: Not a stage: the files seen once and waiting to be confirmed. They have no medium yet, so a
+#: list of them names paths rather than media.
+WAITING_FILES = "files"
+
 #: How long the clock hands a stage no work after its machine did not answer at all.
 AI_PAUSE_SECONDS = 300
 

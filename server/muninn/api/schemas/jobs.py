@@ -112,6 +112,34 @@ class JobsView(BaseModel):
     schedule: ScheduleView
 
 
+class WaitingItem(BaseModel):
+    """One medium behind a number in the engine room, and what is known about why."""
+
+    media_id: UUID
+    kind: str
+    filename: str
+    album: str
+    #: How often this stage has tried and failed at this medium; three is where it gives up.
+    attempts: int
+    #: What the machine said the last time, in its own words. Nothing where it never spoke.
+    last_error: str | None
+
+
+class WaitingFile(BaseModel):
+    """One file seen once and waiting for the listing that confirms it."""
+
+    relative_path: str
+    first_seen_at: datetime
+
+
+class WaitingView(BaseModel):
+    """What is behind one of the numbers: the media themselves, or the files still waiting."""
+
+    stage: str
+    items: list[WaitingItem]
+    files: list[WaitingFile]
+
+
 class PurgedQueue(BaseModel):
     """What emptying a queue threw away."""
 

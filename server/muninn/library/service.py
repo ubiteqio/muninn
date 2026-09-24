@@ -275,6 +275,18 @@ async def waiting_for_a_second_look(
     ]
 
 
+async def files_waiting(session: AsyncSession, *, limit: int = 200) -> list[PendingFile]:
+    """The files seen once and waiting for the listing that confirms them, oldest first.
+
+    A number alone ("33 Dateien warten") cannot be acted on. Named, they can: they were all in
+    one folder the day a permission stopped the scan from reading it.
+    """
+    rows = await session.scalars(
+        select(PendingFile).order_by(PendingFile.first_seen_at).limit(limit)
+    )
+    return list(rows)
+
+
 async def covering_publication(session: AsyncSession, relative_path: str) -> Publication | None:
     """The published folder this path belongs to, if there is one."""
     for publication in await list_publications(session):
