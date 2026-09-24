@@ -1,4 +1,10 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { useEffect } from 'react'
 
 import { api, unwrap } from '@/api/client'
@@ -132,6 +138,50 @@ export function useMediaFaces(mediaId: string | undefined) {
   })
 }
 
+/** One page of a person's faces, as the infinite list holds it. */
+interface FacePage {
+  items: FaceView[]
+  next_cursor?: string | null
+}
+
+/**
+ * Take these faces out of every list that holds them, without asking the server again.
+ *
+ * The lists are paged by offset. Answering one face and then refetching moves every later
+ * face up by one, so page two comes back starting where page one now ends: the order appears
+ * to scatter and one face is skipped over entirely. Taking it out of what is already loaded
+ * leaves the rest exactly where it was, one place higher - which is all that happened.
+ */
+function useDropFaces() {
+  const queryClient = useQueryClient()
+  return (faceIds: string[]) => {
+    const gone = new Set(faceIds)
+    queryClient.setQueriesData<InfiniteData<FacePage>>(
+      { predicate: (query) => query.queryKey[3] === 'faces' },
+      (data) =>
+        data && {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((face) => !gone.has(face.id)),
+          })),
+        },
+    )
+  }
+}
+
+/** Everything about people but the face lists, which are put right in place instead. */
+function useRefreshBesideFaces() {
+  const queryClient = useQueryClient()
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'people' && query.queryKey[3] !== 'faces',
+      }),
+      queryClient.invalidateQueries({ queryKey: ['media'] }),
+    ])
+}
+
 /** Everything that may show a person again: the screens here, and the photos. */
 function useRefresh() {
   const queryClient = useQueryClient()
@@ -164,20 +214,24 @@ export function useNameGroup() {
  * recognised poorly. Going through them a page at a time, taking the wrong ones out with the
  * cross and standing by the rest, is what turns those conclusions into evidence.
  */
-export function useConfirmMany(personId: string) {
-  const queryClient = useQueryClient()
+export function useConfirmMany() {
+  const drop = useDropFaces()
+  const refresh = useRefreshBesideFaces()
   return useMutation({
     mutationFn: async (faceIds: string[]) =>
       unwrap(await api.POST('/api/v1/faces/confirm', { body: { face_ids: faceIds } })),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: [...KEY, 'person', personId] })
-      void queryClient.invalidateQueries({ queryKey: KEY })
+    onSuccess: async (_answer, faceIds) => {
+      // They are no longer Muninn's own, so they leave that filter - and the ones around them
+      // stay where they are rather than being dealt out again.
+      drop(faceIds)
+      await refresh()
     },
   })
 }
 
 export function useAnswer() {
-  const refresh = useRefresh()
+  const drop = useDropFaces()
+  const refresh = useRefreshBesideFaces()
   return useMutation({
     mutationFn: async ({ faceId, yes }: { faceId: string; yes: boolean }) => {
       const params = { params: { path: { face_id: faceId } } }
@@ -187,7 +241,10 @@ export function useAnswer() {
           : await api.POST('/api/v1/faces/{face_id}/reject', params),
       )
     },
-    onSuccess: refresh,
+    onSuccess: async (_answer, { faceId }) => {
+      drop([faceId])
+      await refresh()
+    },
   })
 }
 

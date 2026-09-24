@@ -243,7 +243,7 @@ function FacesTab({
   const [checking, setChecking] = useState<FaceView | null>(null)
   const faces = usePersonFaces(personId, only)
   const answer = useAnswer()
-  const confirmMany = useConfirmMany(personId)
+  const confirmMany = useConfirmMany()
   const all = faces.data?.pages.flatMap((page) => page.items) ?? []
   // Only what is on the screen. A button that reached the whole list would stand by faces
   // nobody had looked at, and a wrong one vouches just as loudly as a right one.

@@ -48,6 +48,26 @@ function stub(faces: object[], extra: object = {}) {
 }
 
 describe('a person and their faces', () => {
+  it('takes a face out of the list in place, leaving the order alone', async () => {
+    // The list is paged by offset: answering one and asking again moves every later face up
+    // by one, so a page comes back starting where the one before it now ends.
+    const { calls } = stub([aFace('f1', 'auto'), aFace('f2', 'auto'), aFace('f3', 'auto')], {
+      'POST /api/v1/faces/f2/reject': { status: 204 },
+    })
+    await renderScreen(<PersonScreen personId="p1" />)
+
+    await userEvent.click(await screen.findByRole('tab', { name: 'Gesichter' }))
+    const faces = await screen.findAllByRole('button', { name: /^Nicht Olivia$/ })
+    expect(faces).toHaveLength(3)
+    await userEvent.click(faces[1] as HTMLElement)
+
+    // The other two stay, and nobody asked the server for the list again.
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /^Nicht Olivia$/ })).toHaveLength(2)
+    })
+    expect(calls.filter((call) => call.path === '/api/v1/people/p1/faces')).toHaveLength(1)
+  })
+
   it('says how large each filter is before anybody scrolls', async () => {
     // "Von Muninn zugeordnet" without a number says nothing about how much work is in it.
     stub([aFace('f1', 'auto')])
