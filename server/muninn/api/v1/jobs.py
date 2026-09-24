@@ -271,6 +271,7 @@ async def read_waiting(
                 kind=labels[one.media_id].kind.value,
                 filename=labels[one.media_id].filename,
                 album=labels[one.media_id].album_path,
+                album_id=labels[one.media_id].album_id,
                 attempts=one.attempts,
                 last_error=one.last_error,
             )

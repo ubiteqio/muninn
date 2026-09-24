@@ -14,6 +14,27 @@ export type FinishedTask = components['schemas']['FinishedTask']
 export const JOBS_KEY = ['admin', 'jobs'] as const
 
 export type AiService = components['schemas']['AiServiceView']
+export type Waiting = components['schemas']['WaitingView']
+export type WaitingItem = components['schemas']['WaitingItem']
+
+/**
+ * What is behind one of the numbers: which media a stage still owes, and what stopped them.
+ *
+ * Asked only while the line is open - one number of seven is usually the one being wondered
+ * about, and the others would be seven queries nobody reads.
+ */
+export function useWaiting(stage: string | null) {
+  return useQuery({
+    queryKey: ['admin', 'jobs', 'waiting', stage],
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/api/v1/admin/jobs/waiting/{stage}', {
+          params: { path: { stage: stage ?? '' } },
+        }),
+      ),
+    enabled: stage !== null,
+  })
+}
 
 /**
  * Asked on a clock of its own, not with the jobs: the server keeps each answer for half a

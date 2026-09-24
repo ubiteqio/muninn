@@ -468,6 +468,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/jobs/waiting/{stage}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What is behind one of the numbers
+         * @description Which media a stage has not finished with, and what stopped each of them.
+         *
+         *     The number beside a stage says how much is left; this says what. Every stage is asked the
+         *     same question it is asked when work is handed out, so the list cannot drift from the count.
+         *
+         *     ``files`` is for the one number that is not about media at all: files seen once and waiting
+         *     for the listing that confirms them. They have no medium yet to name.
+         */
+        get: operations["read_waiting_api_v1_admin_jobs_waiting__stage__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/jobs/ai": {
         parameters: {
             query?: never;
@@ -3818,6 +3844,57 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /**
+         * WaitingFile
+         * @description One file seen once and waiting for the listing that confirms it.
+         */
+        WaitingFile: {
+            /** Relative Path */
+            relative_path: string;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+        };
+        /**
+         * WaitingItem
+         * @description One medium behind a number in the engine room, and what is known about why.
+         */
+        WaitingItem: {
+            /**
+             * Media Id
+             * Format: uuid
+             */
+            media_id: string;
+            /** Kind */
+            kind: string;
+            /** Filename */
+            filename: string;
+            /** Album */
+            album: string;
+            /**
+             * Album Id
+             * Format: uuid
+             */
+            album_id: string;
+            /** Attempts */
+            attempts: number;
+            /** Last Error */
+            last_error: string | null;
+        };
+        /**
+         * WaitingView
+         * @description What is behind one of the numbers: the media themselves, or the files still waiting.
+         */
+        WaitingView: {
+            /** Stage */
+            stage: string;
+            /** Items */
+            items: components["schemas"]["WaitingItem"][];
+            /** Files */
+            files: components["schemas"]["WaitingFile"][];
+        };
         /** YearCount */
         YearCount: {
             /** Year */
@@ -4770,6 +4847,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobsView"];
+                };
+            };
+        };
+    };
+    read_waiting_api_v1_admin_jobs_waiting__stage__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                stage: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaitingView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

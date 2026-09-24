@@ -119,6 +119,8 @@ class WaitingItem(BaseModel):
     kind: str
     filename: str
     album: str
+    #: Where the medium lies, so the list can lead to the picture itself.
+    album_id: UUID
     #: How often this stage has tried and failed at this medium; three is where it gives up.
     attempts: int
     #: What the machine said the last time, in its own words. Nothing where it never spoke.

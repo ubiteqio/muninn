@@ -120,6 +120,56 @@ describe('the engine room', () => {
     expect(sockets[0]?.url).not.toContain('token')
   })
 
+  it('names the media behind a number, and what stopped them', async () => {
+    // A number can only be watched; a list can be acted on. Until now the reason lived in a
+    // worker's log and only if something had crashed loudly enough to print it.
+    stubApi({
+      [JOBS]: { body: { ...idle, pending_derivatives: 2 } },
+      [CHANGES]: { body: [] },
+      'GET /api/v1/admin/jobs/waiting/derive': {
+        body: {
+          stage: 'derive',
+          files: [],
+          items: [
+            {
+              media_id: 'm1',
+              kind: 'video',
+              filename: 'VIDEO0001.3gp',
+              album: 'Kinder/2010',
+              album_id: 'a1',
+              attempts: 3,
+              last_error: "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xfe",
+            },
+          ],
+        },
+      },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+
+    const line = await screen.findByRole('button', { name: /Medien ohne Vorschau/ })
+    expect(line).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(line)
+
+    expect(await screen.findByText('VIDEO0001.3gp')).toBeInTheDocument()
+    expect(screen.getByText(/Kinder\/2010/)).toBeInTheDocument()
+    expect(screen.getByText(/3 Versuche/)).toBeInTheDocument()
+    expect(screen.getByText(/UnicodeDecodeError/)).toBeInTheDocument()
+    expect(line).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('asks nothing until a number is opened', async () => {
+    const { calls } = stubApi({
+      [JOBS]: { body: { ...idle, pending_derivatives: 2 } },
+      [CHANGES]: { body: [] },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+    await screen.findByRole('button', { name: /Medien ohne Vorschau/ })
+
+    expect(calls.some((call) => call.path.includes('/waiting/'))).toBe(false)
+  })
+
   it('says when there is nothing to do', async () => {
     stubApi({ [JOBS]: { body: idle }, [CHANGES]: { body: [] } })
 

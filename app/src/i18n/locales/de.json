@@ -483,7 +483,11 @@
           "people": "Personen"
         },
         "nothing": "Alles erledigt, nichts wartet.",
-        "faces": "Medien ohne Gesichtersuche"
+        "faces": "Medien ohne Gesichtersuche",
+        "loading": "Wird geladen …",
+        "gone": "Nichts mehr offen – die Zahl ist schon älter.",
+        "attempts_one": "1 Versuch",
+        "attempts_other": "{{count, number}} Versuche"
       },
       "schedule": {
         "title": "Zeitplan",

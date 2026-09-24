@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/muninn/confirm-dialog'
@@ -21,6 +22,7 @@ import {
   usePurgeQueue,
   useStopRead,
   useStopTask,
+  useWaiting,
 } from '@/features/admin/use-jobs'
 import { useTicker } from '@/hooks/use-ticker'
 import { cn } from '@/lib/utils'
@@ -382,30 +384,95 @@ function Throughput({ done }: { done: Record<string, number> }) {
 }
 
 /**
+ * What is behind one of the numbers: the media themselves, and what stopped each of them.
+ *
+ * A number can only be watched; a list can be acted on. The file and the album say which
+ * pictures these are, the count of tries says whether the pipeline has given up, and the last
+ * error says what the machine actually said - which until now lived only in a worker's log.
+ */
+function Behind({ stage }: { stage: string }) {
+  const { t } = useTranslation()
+  const waiting = useWaiting(stage)
+
+  if (waiting.isPending) {
+    return (
+      <p className="px-4 pb-3 text-xs-plus text-muted-foreground">{t('admin.jobs.open.loading')}</p>
+    )
+  }
+
+  const items = waiting.data?.items ?? []
+  const files = waiting.data?.files ?? []
+  if (items.length === 0 && files.length === 0) {
+    return (
+      <p className="px-4 pb-3 text-xs-plus text-muted-foreground">{t('admin.jobs.open.gone')}</p>
+    )
+  }
+
+  return (
+    <ul className="border-t border-hairline/[0.06] bg-secondary/25 px-4 py-2">
+      {files.map((file) => (
+        <li key={file.relative_path} className="py-1 text-xs-plus">
+          <span className="font-mono text-foreground">{file.relative_path}</span>
+        </li>
+      ))}
+      {items.map((item) => (
+        <li key={item.media_id} className="py-1 text-xs-plus">
+          <Link
+            to="/albums/$albumId"
+            params={{ albumId: item.album_id }}
+            search={{ medium: item.media_id }}
+            className="font-mono text-foreground hover:underline"
+          >
+            {item.filename}
+          </Link>
+          <span className="text-muted-foreground"> · {item.album}</span>
+          {item.attempts > 0 && (
+            <span className="text-muted-foreground">
+              {' · '}
+              {t('admin.jobs.open.attempts', { count: item.attempts })}
+            </span>
+          )}
+          {item.last_error && (
+            <span className="mt-0.5 block break-words font-mono text-2xs text-destructive">
+              {item.last_error}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
  * The work still owed, in the order a file travels: seen, read, previews, then the AI stages.
  * Only the steps with something waiting are listed; when nothing waits, one line says so.
  */
 function OpenWork({ jobs }: { jobs: Jobs }) {
   const { t } = useTranslation()
 
+  // Which line asks the server what is behind it; one at a time.
+  const [open, setOpen] = useState<string | null>(null)
+
   const steps = [
-    { key: 'check', value: jobs.waiting_files },
-    { key: 'metadata', value: jobs.pending_metadata },
-    { key: 'preview', value: jobs.pending_derivatives },
+    { key: 'check', stage: 'files', value: jobs.waiting_files },
+    { key: 'metadata', stage: 'metadata', value: jobs.pending_metadata },
+    { key: 'preview', stage: 'derive', value: jobs.pending_derivatives },
     // Only once a picture model is set up; before that there is no such step, not an empty one.
     ...(jobs.pending_image_vectors === null
       ? []
-      : [{ key: 'vector', value: jobs.pending_image_vectors }]),
+      : [{ key: 'vector', stage: 'image_vector', value: jobs.pending_image_vectors }]),
     ...(jobs.pending_transcripts === null
       ? []
-      : [{ key: 'transcript', value: jobs.pending_transcripts }]),
-    ...(jobs.pending_analyses === null ? [] : [{ key: 'analysis', value: jobs.pending_analyses }]),
+      : [{ key: 'transcript', stage: 'transcription', value: jobs.pending_transcripts }]),
+    ...(jobs.pending_analyses === null
+      ? []
+      : [{ key: 'analysis', stage: 'analysis', value: jobs.pending_analyses }]),
     ...(jobs.pending_caption_vectors === null
       ? []
-      : [{ key: 'captionVector', value: jobs.pending_caption_vectors }]),
+      : [{ key: 'captionVector', stage: 'caption_vector', value: jobs.pending_caption_vectors }]),
     ...(jobs.pending_faces === null || jobs.pending_faces === undefined
       ? []
-      : [{ key: 'faces', value: jobs.pending_faces }]),
+      : [{ key: 'faces', stage: 'faces', value: jobs.pending_faces }]),
   ]
 
   // Only what actually waits. Seven zeros in a row say nothing, and squeeze every label.
@@ -424,13 +491,31 @@ function OpenWork({ jobs }: { jobs: Jobs }) {
         ) : (
           <ul className="divide-y divide-hairline/[0.06]">
             {owed.map((step) => (
-              <li key={step.key} className="flex items-baseline gap-3 px-4 py-2.5">
-                <span className="min-w-12 text-md font-semibold text-foreground">
-                  {step.value.toLocaleString('de-DE')}
-                </span>
-                <span className="text-base text-muted-foreground">
-                  {t(`admin.jobs.open.${step.key}`)}
-                </span>
+              <li key={step.key}>
+                <button
+                  type="button"
+                  aria-expanded={open === step.stage}
+                  onClick={() => {
+                    setOpen((shown) => (shown === step.stage ? null : step.stage))
+                  }}
+                  className="flex w-full items-baseline gap-3 px-4 py-2.5 text-left transition hover:bg-secondary/40"
+                >
+                  <span className="min-w-12 text-md font-semibold text-foreground">
+                    {step.value.toLocaleString('de-DE')}
+                  </span>
+                  <span className="flex-1 text-base text-muted-foreground">
+                    {t(`admin.jobs.open.${step.key}`)}
+                  </span>
+                  <Symbol
+                    name="expand_more"
+                    size={18}
+                    className={cn(
+                      'shrink-0 text-muted-foreground transition-transform',
+                      open === step.stage && 'rotate-180',
+                    )}
+                  />
+                </button>
+                {open === step.stage && <Behind stage={step.stage} />}
               </li>
             ))}
           </ul>
