@@ -2342,6 +2342,44 @@ export interface components {
             suggested_similarity?: number | null;
         };
         /**
+         * FacetView
+         * @description One thing the found media can be narrowed to, and how many of them carry it.
+         */
+        FacetView: {
+            /** Value */
+            value: string;
+            /** Label */
+            label: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * FacetsView
+         * @description What the found media are made of - of them, not of the library, so no choice is empty.
+         */
+        FacetsView: {
+            /**
+             * Years
+             * @default []
+             */
+            years: components["schemas"]["FacetView"][];
+            /**
+             * Towns
+             * @default []
+             */
+            towns: components["schemas"]["FacetView"][];
+            /**
+             * Cameras
+             * @default []
+             */
+            cameras: components["schemas"]["FacetView"][];
+            /**
+             * Albums
+             * @default []
+             */
+            albums: components["schemas"]["FacetView"][];
+        };
+        /**
          * FavoriteTarget
          * @description A medium or an album - exactly one of them.
          */
@@ -3317,6 +3355,15 @@ export interface components {
              * @default false
              */
             degraded: boolean;
+            /**
+             * @default {
+             *       "years": [],
+             *       "towns": [],
+             *       "cameras": [],
+             *       "albums": []
+             *     }
+             */
+            facets: components["schemas"]["FacetsView"];
         };
         /**
          * SearchRequest

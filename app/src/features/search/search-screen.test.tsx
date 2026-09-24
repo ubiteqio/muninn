@@ -131,15 +131,13 @@ describe('SearchScreen', () => {
   it('narrows a search by a year the library actually has', async () => {
     const { calls } = stubApi({
       [ABILITIES]: { body: { pictures: true, meanings: true, ready: true } },
-      'GET /api/v1/overview': {
+      [SEARCH]: {
         body: {
-          years: [{ year: 2012, photos: 40, videos: 2 }],
-          towns: [],
-          cameras: [],
+          ...aPage([{ media: aMedium('strand') }]),
+          // What the found media are made of, which is what the filters offer.
+          facets: { years: [{ value: '2012', label: '2012', count: 42 }] },
         },
       },
-      'GET /api/v1/albums/tree': { body: { items: [] } },
-      [SEARCH]: { body: aPage([{ media: aMedium('strand') }]) },
     })
     await renderScreen(<SearchScreen q="Strand" year={2012} />, { path: '/search' })
 
@@ -148,7 +146,7 @@ describe('SearchScreen', () => {
       const asked = calls.filter((call) => call.path === '/api/v1/search').at(-1)
       expect(asked?.body).toMatchObject({ date_from: '2012-01-01', date_until: '2013-01-01' })
     })
-    // And the chip says which year, with a way to take it off again.
+    // The chip says which year, with a way to take it off again.
     expect(await screen.findByRole('button', { name: '2012' })).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Jahr nicht mehr einschränken' }),

@@ -50,12 +50,31 @@ class SearchHitView(BaseModel):
     moment: float | None = None
 
 
+class FacetView(BaseModel):
+    """One thing the found media can be narrowed to, and how many of them carry it."""
+
+    value: str
+    label: str
+    count: int
+
+
+class FacetsView(BaseModel):
+    """What the found media are made of - of them, not of the library, so no choice is empty."""
+
+    years: list[FacetView] = []
+    towns: list[FacetView] = []
+    cameras: list[FacetView] = []
+    albums: list[FacetView] = []
+
+
 class SearchPage(BaseModel):
     items: list[SearchHitView]
     next_cursor: str | None = None
     understood: UnderstoodView
     #: True when the AI server did not answer: only words and names were searched this time.
     degraded: bool = False
+    #: The same on every page of one search: it describes the whole find, not the page.
+    facets: FacetsView = FacetsView()
 
 
 def encode_offset(offset: int) -> str:

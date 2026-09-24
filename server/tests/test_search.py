@@ -429,6 +429,51 @@ async def test_a_chosen_place_narrows_the_search(
     assert named(tuscany) == ["IT.jpg"]
 
 
+async def test_the_filters_describe_what_was_found(
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    api_client: AsyncClient,
+) -> None:
+    """The years and cameras offered are those of the found media, not those of the library.
+
+    And the camera is named the way it is filtered: make and model together, so what the list
+    offers is what the filter understands.
+    """
+    album = await an_album(session, "Reisen")
+    early = await a_medium(
+        session, album, taken_at=datetime(2012, 7, 1, tzinfo=UTC), name="IMG_1.jpg"
+    )
+    late = await a_medium(
+        session, album, taken_at=datetime(2014, 7, 1, tzinfo=UTC), name="IMG_2.jpg"
+    )
+    other = await a_medium(
+        session, album, taken_at=datetime(2019, 7, 1, tzinfo=UTC), name="SCAN.png"
+    )
+    early.camera_make, early.camera_model = "Apple", "iPhone 12"
+    late.camera_make, late.camera_model = "Canon", "EOS 5D"
+    other.camera_make, other.camera_model = "Nikon", "D70"
+    await session.commit()
+    headers = await signed_in(api_client, session_factory)
+
+    found = (await api_client.post("/search", json={"q": "IMG"}, headers=headers)).json()
+
+    # Only the two the words found; the third year and camera are not offered at all.
+    assert [one["label"] for one in found["facets"]["years"]] == ["2014", "2012"]
+    assert sorted(one["label"] for one in found["facets"]["cameras"]) == [
+        "Apple iPhone 12",
+        "Canon EOS 5D",
+    ]
+    assert {one["count"] for one in found["facets"]["years"]} == {1}
+
+    # What the list offers, the filter understands.
+    narrowed = (
+        await api_client.post(
+            "/search", json={"q": "IMG", "camera": "Apple iPhone 12"}, headers=headers
+        )
+    ).json()
+    assert [item["media"]["origin"]["filename"] for item in narrowed["items"]] == ["IMG_1.jpg"]
+
+
 async def test_the_api_hands_out_pages(
     session: AsyncSession,
     session_factory: async_sessionmaker[AsyncSession],

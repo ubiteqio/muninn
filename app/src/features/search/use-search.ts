@@ -6,6 +6,7 @@ import type { components } from '@/api/generated/schema'
 export type SearchPage = components['schemas']['SearchPage']
 export type SearchHit = components['schemas']['SearchHitView']
 export type SearchAbilities = components['schemas']['SearchAbilities']
+export type Facets = components['schemas']['FacetsView']
 export type MediaKind = 'image' | 'video'
 export type SearchSort = 'relevance' | 'date'
 

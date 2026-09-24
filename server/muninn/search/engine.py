@@ -17,12 +17,12 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any
 
 from redis.asyncio import Redis
-from sqlalchemy import func, select, text
+from sqlalchemy import Integer, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -32,7 +32,9 @@ from muninn.ai.health import STAGE_OF
 from muninn.faces import people
 from muninn.huginn import jobs
 from muninn.models.ai import AiKind, AiProfile
+from muninn.models.album import Album
 from muninn.models.media import Media, MediaKind, MediaStatus
+from muninn.models.place import Place
 from muninn.places import service as places_service
 from muninn.search.query import ParsedQuery, parse
 from muninn.search.service import VectorKind, _literal, _sql
@@ -118,7 +120,8 @@ def _filter_sql(filters: Filters) -> tuple[str, dict[str, Any]]:
         params["album"] = filters.album_path
         params["album_below"] = f"{filters.album_path}/"
     if filters.camera is not None:
-        conditions.append("m.camera_model = :camera")
+        # The same name the facets and the overview give it: make and model together.
+        conditions.append("trim(coalesce(m.camera_make, '') || ' ' || m.camera_model) = :camera")
         params["camera"] = filters.camera
     if filters.place_keys:
         conditions.append(
@@ -398,6 +401,95 @@ async def abilities(session: AsyncSession, redis: Redis) -> Abilities:
 
 
 @dataclass(frozen=True, slots=True)
+class Facet:
+    """One thing that can be narrowed to, and how many of the found media carry it."""
+
+    value: str
+    label: str
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
+class Facets:
+    """What the media that were found are made of: their years, towns, cameras and albums.
+
+    Of the found media, not of the library: offering a year the search has nothing in would be
+    offering an empty page.
+    """
+
+    years: list[Facet] = field(default_factory=list)
+    towns: list[Facet] = field(default_factory=list)
+    cameras: list[Facet] = field(default_factory=list)
+    albums: list[Facet] = field(default_factory=list)
+
+
+#: How many of each kind are offered. Beyond this the list is longer than anybody reads.
+FACET_LIMIT = 40
+
+
+async def _facets(session: AsyncSession, media_ids: list[uuid.UUID]) -> Facets:
+    """Count the years, towns, cameras and albums of these media."""
+    if not media_ids:
+        return Facets()
+
+    year = func.cast(func.extract("year", Media.taken_at), Integer)
+    years = (
+        await session.execute(
+            select(year, func.count())
+            .where(Media.id.in_(media_ids), Media.taken_at.is_not(None))
+            .group_by(year)
+            .order_by(year.desc())
+            .limit(FACET_LIMIT)
+        )
+    ).all()
+
+    camera = func.trim(func.concat(func.coalesce(Media.camera_make, ""), " ", Media.camera_model))
+    cameras = (
+        await session.execute(
+            select(camera, func.count())
+            .where(Media.id.in_(media_ids), Media.camera_model.is_not(None))
+            .group_by(camera)
+            .order_by(func.count().desc())
+            .limit(FACET_LIMIT)
+        )
+    ).all()
+
+    towns = (
+        await session.execute(
+            select(Place.name, Place.country, func.count())
+            .join(Media, Media.place_id == Place.id)
+            .where(Media.id.in_(media_ids))
+            .group_by(Place.name, Place.country)
+            .order_by(func.count().desc())
+            .limit(FACET_LIMIT)
+        )
+    ).all()
+
+    albums = (
+        await session.execute(
+            select(Album.id, Album.relative_path, func.count())
+            .join(Media, Media.album_id == Album.id)
+            .where(Media.id.in_(media_ids))
+            .group_by(Album.id, Album.relative_path)
+            .order_by(func.count().desc())
+            .limit(FACET_LIMIT)
+        )
+    ).all()
+
+    return Facets(
+        years=[Facet(value=str(one), label=str(one), count=count) for one, count in years],
+        towns=[
+            Facet(value=name, label=f"{name}, {country}" if country else name, count=count)
+            for name, country, count in towns
+        ],
+        cameras=[Facet(value=name, label=name, count=count) for name, count in cameras],
+        albums=[
+            Facet(value=str(album_id), label=path, count=count) for album_id, path, count in albums
+        ],
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class Found:
     hits: list[Hit]
     media: dict[uuid.UUID, Media]
@@ -405,6 +497,8 @@ class Found:
     understood: ParsedQuery
     #: True when the AI server could not be asked, so only words and names were searched.
     degraded: bool
+    #: What the found media are made of, for the filters.
+    facets: Facets = field(default_factory=Facets)
 
 
 async def _probe(
@@ -476,6 +570,8 @@ async def find(
         next_offset=following,
         understood=understood,
         degraded=image_failed or caption_failed,
+        # Over everything that was found, not only the page being looked at.
+        facets=await _facets(session, [hit.media_id for hit in hits]),
     )
 
 

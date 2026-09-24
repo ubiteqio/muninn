@@ -15,14 +15,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { useAlbumTree } from '@/features/albums/use-albums'
 import { useLibraryUpdates } from '@/features/albums/use-library-updates'
 import { formatDuration } from '@/features/media/format'
 import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
-import { useOverview } from '@/features/overview/use-overview'
 import { PeopleRow } from '@/features/people/people-row'
 import {
+  type Facets,
   type MediaKind,
   type SearchSort,
   useSearch,
@@ -169,6 +168,7 @@ export function SearchScreen({
                 place={place}
                 camera={camera}
                 album={album}
+                facets={search.data?.pages[0]?.facets}
                 onChange={(next) => {
                   change({ ...next, medium: undefined }, true)
                 }}
@@ -369,8 +369,10 @@ function Picker({
   onChoose: (value: string | undefined) => void
 }) {
   const { t } = useTranslation()
-  if (choices.length === 0) return null
-  const shown = choices.find((choice) => choice.value === chosen)?.label
+  // A chosen filter keeps its chip even when nothing is left to offer - otherwise a choice that
+  // found nothing would take away the only way to undo itself.
+  if (choices.length === 0 && chosen === undefined) return null
+  const shown = choices.find((choice) => choice.value === chosen)?.label ?? chosen
 
   return (
     <span className="flex items-center">
@@ -435,39 +437,28 @@ function Filters({
   place,
   camera,
   album,
+  facets,
   onChange,
 }: {
   year: number | undefined
   place: string | undefined
   camera: string | undefined
   album: string | undefined
+  /** What the found media are made of; nothing is offered that finds nothing. */
+  facets: Facets | undefined
   onChange: (next: Changes) => void
 }) {
   const { t } = useTranslation()
-  const overview = useOverview()
-  const tree = useAlbumTree()
-  const many = (count: number) => count.toLocaleString('de-DE')
-
-  const years: Choice[] = [...(overview.data?.years ?? [])]
-    .sort((a, b) => b.year - a.year)
-    .map((one) => ({
-      value: String(one.year),
-      label: String(one.year),
-      note: many(one.photos + one.videos),
+  const offered = (list: Facets['years'] | undefined): Choice[] =>
+    (list ?? []).map((one) => ({
+      value: one.value,
+      label: one.label,
+      note: one.count.toLocaleString('de-DE'),
     }))
-  const towns: Choice[] = (overview.data?.towns ?? []).map((one) => ({
-    value: one.name,
-    label: one.country ? `${one.name}, ${one.country}` : one.name,
-    note: many(one.count),
-  }))
-  const cameras: Choice[] = (overview.data?.cameras ?? []).map((one) => ({
-    value: one.name,
-    label: one.name,
-    note: many(one.count),
-  }))
-  const albums: Choice[] = [...(tree.data?.items ?? [])]
-    .sort((a, b) => a.relative_path.localeCompare(b.relative_path, 'de'))
-    .map((one) => ({ value: one.id, label: one.relative_path }))
+  const years = offered(facets?.years)
+  const towns = offered(facets?.towns)
+  const cameras = offered(facets?.cameras)
+  const albums = offered(facets?.albums)
 
   return (
     <div className="flex flex-wrap items-center gap-2">

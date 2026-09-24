@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from muninn.albums import service as albums_service
 from muninn.api.schemas.media import MediaView
 from muninn.api.schemas.search import (
+    FacetsView,
+    FacetView,
     SearchAbilities,
     SearchHitView,
     SearchPage,
@@ -132,6 +134,20 @@ def _page(found: engine.Found, settings: Settings) -> SearchPage:
             persons=list(found.understood.persons),
         ),
         degraded=found.degraded,
+        facets=FacetsView(
+            years=[
+                FacetView.model_validate(one, from_attributes=True) for one in found.facets.years
+            ],
+            towns=[
+                FacetView.model_validate(one, from_attributes=True) for one in found.facets.towns
+            ],
+            cameras=[
+                FacetView.model_validate(one, from_attributes=True) for one in found.facets.cameras
+            ],
+            albums=[
+                FacetView.model_validate(one, from_attributes=True) for one in found.facets.albums
+            ],
+        ),
     )
 
 
