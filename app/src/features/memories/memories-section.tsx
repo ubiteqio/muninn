@@ -13,9 +13,16 @@ import { DESKTOP_QUERY, useMediaQuery } from '@/hooks/use-media-query'
 const SLIDE_MS = 4500
 
 /**
+ * How many years are offered at once. More than this and the start screen is a wall of years
+ * before one has seen a single photograph.
+ */
+const MOST = 3
+
+/**
  * Rückblicke: the photos of this day in earlier years, one card per year.
- * Mobile: a horizontal snap scroller of 250 x 316 cards that bleeds into the page margin.
- * Desktop: a three column grid of 280 px high cards.
+ *
+ * One row that is swiped through, on a phone and on a desktop alike: the years are a row one
+ * walks along, not a grid one reads. Three across where there is room for three.
  */
 export function MemoriesSection() {
   const { t } = useTranslation()
@@ -34,7 +41,7 @@ export function MemoriesSection() {
     slideshow: SLIDE_MS,
   })
 
-  const items = memories.data ?? []
+  const items = (memories.data ?? []).slice(0, MOST)
   const play = (memory: Memory) => {
     setPlaying(memory)
     setCurrent(memory.media[0]?.id)
@@ -48,26 +55,13 @@ export function MemoriesSection() {
         <MemoriesLoading desktop={isDesktop} />
       ) : memories.isSuccess && items.length === 0 ? (
         <EmptyNote className="mx-5 lg:mx-0">{t('memories.empty')}</EmptyNote>
-      ) : isDesktop ? (
-        <div className="mt-4 grid grid-cols-3 gap-4">
-          {items.map((memory) => (
-            <MemoryCard
-              key={memory.id}
-              memory={memory}
-              className="h-[280px]"
-              onOpen={() => {
-                play(memory)
-              }}
-            />
-          ))}
-        </div>
       ) : (
-        <div className="scroll-snap-x mt-3 flex scroll-px-5 gap-3 overflow-x-auto px-5">
+        <div className="scroll-snap-x no-scrollbar mt-3 flex scroll-px-5 gap-3 overflow-x-auto px-5 lg:mt-4 lg:scroll-px-0 lg:gap-4 lg:px-0">
           {items.map((memory) => (
             <MemoryCard
               key={memory.id}
               memory={memory}
-              className="h-[316px] w-[250px] shrink-0 snap-start"
+              className="h-[316px] w-[250px] shrink-0 snap-start lg:h-[280px] lg:w-[calc((100%-2rem)/3)]"
               onOpen={() => {
                 play(memory)
               }}
@@ -86,21 +80,22 @@ export function MemoriesSection() {
  * not jump once the years are there.
  */
 function MemoriesLoading({ desktop }: { desktop: boolean }) {
-  // Three fill the grid of a wide screen; a phone gets a fourth, which its edge cuts off the
-  // way the real row runs on past it.
-  const shapes = Array.from({ length: desktop ? 3 : 4 }, (_, index) => (
+  const shapes = Array.from({ length: MOST }, (_, index) => (
     <Placeholder
       key={index}
-      className={desktop ? 'h-[280px] rounded-lg' : 'h-[316px] w-[250px] shrink-0 rounded-lg'}
+      className={
+        desktop
+          ? 'h-[280px] w-[calc((100%-2rem)/3)] shrink-0 rounded-lg'
+          : 'h-[316px] w-[250px] shrink-0 rounded-lg'
+      }
     />
   ))
 
-  return desktop ? (
-    <LoadingBody boxed={false} className="mt-4 grid grid-cols-3 gap-4">
-      {shapes}
-    </LoadingBody>
-  ) : (
-    <LoadingBody boxed={false} className="mt-3 flex gap-3 overflow-hidden px-5">
+  return (
+    <LoadingBody
+      boxed={false}
+      className="mt-3 flex gap-3 overflow-hidden px-5 lg:mt-4 lg:gap-4 lg:px-0"
+    >
       {shapes}
     </LoadingBody>
   )

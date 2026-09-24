@@ -98,20 +98,22 @@ export function ViewerChrome({
   }, [busy, medium.id, rest, stir])
 
   // A finger has no way of moving without touching, so the tap that brings the chrome back is
-  // spent on that alone - the next one zooms the picture or stops the video. A mouse never gets
-  // here: it wakes the chrome by moving, long before it is clicked.
+  // spent on that alone - the next one zooms the picture or stops the video. A mouse usually
+  // never gets here, because moving wakes the chrome long before anything is clicked; where it
+  // does - a window just focused, or a browser pretending to be a phone - a click does it too.
   const shown = awake || busy
 
   useEffect(() => {
     if (shown) return
     const wake = (event: PointerEvent) => {
-      if (event.pointerType === 'mouse') return
       // A tap inside a panel, a dialog or a menu is meant for what it lands on - a name being
       // corrected, a comment being written. Only the picture's own taps wake the chrome.
       const target = event.target
       if (
         target instanceof Element &&
-        target.closest('[data-viewer-panel], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]')
+        target.closest(
+          '[data-viewer-panel], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]',
+        )
       ) {
         return
       }
@@ -163,9 +165,7 @@ export function ViewerChrome({
             shown ? 'pointer-events-auto' : 'pointer-events-none',
           )}
         >
-          <p className="truncate font-mono text-xs-plus text-white/70">
-            {medium.origin.filename}
-          </p>
+          <p className="truncate font-mono text-xs-plus text-white/70">{medium.origin.filename}</p>
           <Summary
             mediaId={medium.id}
             expanded={expanded}
@@ -364,7 +364,12 @@ function Actions({
         </div>
       )}
 
-      <Round label={t('comments.title')} icon="chat_bubble" count={state?.comments} onClick={onComments} />
+      <Round
+        label={t('comments.title')}
+        icon="chat_bubble"
+        count={state?.comments}
+        onClick={onComments}
+      />
       <Round
         label={t(state?.favorite ? 'walhall.remove' : 'walhall.keep')}
         icon="star"
@@ -381,9 +386,7 @@ function Actions({
         onClick={onEmojis}
       />
       <Round label={t('media.info.show')} icon="info" onClick={onInfo} />
-      {onSimilar && (
-        <Round label={t('media.similar')} icon="image_search" onClick={onSimilar} />
-      )}
+      {onSimilar && <Round label={t('media.similar')} icon="image_search" onClick={onSimilar} />}
       {shareable ? (
         <Round
           label={t('media.share')}
