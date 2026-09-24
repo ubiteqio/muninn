@@ -345,25 +345,6 @@ function Actions({
 
   return (
     <div className="relative flex items-center justify-between gap-1 pt-1">
-      {emojis && (
-        <div className="absolute -top-12 left-0 flex gap-1 rounded-full bg-black/70 px-2 py-1.5 backdrop-blur-sm">
-          {REACTIONS.map((reaction) => (
-            <button
-              key={reaction.key}
-              type="button"
-              aria-label={reaction.key}
-              className="flex size-9 items-center justify-center rounded-full text-[20px] transition hover:bg-white/15"
-              onClick={() => {
-                like.mutate(reaction.key)
-                onEmojis()
-              }}
-            >
-              {reaction.emoji}
-            </button>
-          ))}
-        </div>
-      )}
-
       <Round
         label={t('comments.title')}
         icon="chat_bubble"
@@ -378,13 +359,43 @@ function Actions({
           favorite.mutate(!state?.favorite)
         }}
       />
-      <Round
-        label={t('social.like')}
-        icon="favorite"
-        filled={state?.liked}
-        count={state?.likes}
-        onClick={onEmojis}
-      />
+      {/* The bar belongs to the heart, so it stands over the heart - wherever the row has put
+          it, with however many buttons beside it. */}
+      <span className="relative">
+        {emojis && (
+          <div className="absolute -top-12 left-1/2 flex -translate-x-1/2 gap-1 rounded-full bg-black/70 px-2 py-1.5 backdrop-blur-sm">
+            {REACTIONS.map((reaction) => {
+              const mine = state?.reaction === reaction.key
+              return (
+                <button
+                  key={reaction.key}
+                  type="button"
+                  aria-label={reaction.key}
+                  aria-pressed={mine}
+                  className={cn(
+                    'flex size-9 items-center justify-center rounded-full text-[20px] transition hover:bg-white/15',
+                    mine && 'bg-white/20 ring-1 ring-white/40',
+                  )}
+                  onClick={() => {
+                    // The one already given is taken back: the same tap that set it unsets it.
+                    like.mutate(mine ? false : reaction.key)
+                    onEmojis()
+                  }}
+                >
+                  {reaction.emoji}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <Round
+          label={t('social.like')}
+          icon="favorite"
+          filled={state?.liked}
+          count={state?.likes}
+          onClick={onEmojis}
+        />
+      </span>
       <Round label={t('media.info.show')} icon="info" onClick={onInfo} />
       {onSimilar && <Round label={t('media.similar')} icon="image_search" onClick={onSimilar} />}
       {shareable ? (

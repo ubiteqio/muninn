@@ -245,6 +245,18 @@
   }
 
   /**
+   * Where there is no mouse there is no cursor to promise anything. PhotoSwipe paints a
+   * magnifier over the picture and a hand while it is dragged, which under a finger is a
+   * cursor nobody asked for.
+   */
+  @media (pointer: coarse) {
+    .pswp__img,
+    .pswp__zoom-wrap {
+      cursor: default;
+    }
+  }
+
+  /**
    * A row one swipes through. No scrollbar: on a phone it is a grey line over the content, and
    * the chips running off the edge already say there is more.
    */
