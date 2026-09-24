@@ -5,9 +5,7 @@ import { Symbol } from '@/components/muninn/symbol'
 import type { Medium } from '@/features/albums/use-albums'
 import { formatDuration } from '@/features/media/format'
 import { downloadOriginal } from '@/features/media/original'
-import { useMediumDetail } from '@/features/media/use-medium'
 import { usePlayback } from '@/features/media/use-playback'
-import { useMediaFaces } from '@/features/people/use-people'
 import { REACTIONS } from '@/features/social/reactions'
 import { useSocial, useToggleFavorite, useToggleLike } from '@/features/social/use-social'
 import { cn } from '@/lib/utils'
@@ -61,7 +59,6 @@ export function ViewerChrome({
 }: ChromeProps) {
   const { t } = useTranslation()
   const [awake, setAwake] = useState(true)
-  const [expanded, setExpanded] = useState(false)
   const [emojis, setEmojis] = useState(false)
   const sleep = useRef<number | undefined>(undefined)
 
@@ -165,15 +162,6 @@ export function ViewerChrome({
             shown ? 'pointer-events-auto' : 'pointer-events-none',
           )}
         >
-          <p className="truncate font-mono text-xs-plus text-white/70">{medium.origin.filename}</p>
-          <Summary
-            mediaId={medium.id}
-            expanded={expanded}
-            onExpand={() => {
-              setExpanded(true)
-            }}
-          />
-          <Tags mediaId={medium.id} />
           <Actions
             medium={medium}
             social={social}
@@ -260,62 +248,6 @@ function Arrow({
     >
       <Symbol name={side === 'left' ? 'chevron_left' : 'chevron_right'} size={26} />
     </button>
-  )
-}
-
-/** What the AI made of the picture, in one line until somebody wants the rest. */
-function Summary({
-  mediaId,
-  expanded,
-  onExpand,
-}: {
-  mediaId: string
-  expanded: boolean
-  onExpand: () => void
-}) {
-  const { t } = useTranslation()
-  const detail = useMediumDetail(mediaId)
-  const analysis = detail.data?.analysis
-  const transcript = detail.data?.transcript
-  const spoken = transcript?.parts.map((part) => part.text).join(' ')
-  const said = [analysis?.caption, spoken].filter(Boolean).join(' · ')
-  if (!said) return null
-
-  return (
-    <div>
-      {/* Clipped rather than cut with three dots: "mehr" stands under it, where it is a line
-          of its own and cannot be swallowed by the clamp. */}
-      <p className={cn('text-base text-white/90', expanded ? '' : 'line-clamp-2')}>{said}</p>
-      {!expanded && said.length > 90 && (
-        <button
-          type="button"
-          className="mt-0.5 text-base font-medium text-white/70 underline-offset-2 hover:text-white hover:underline"
-          onClick={onExpand}
-        >
-          {t('media.more')}
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** Who is on the picture, as names one can read from across the room. */
-function Tags({ mediaId }: { mediaId: string }) {
-  const faces = useMediaFaces(mediaId)
-  const named = (faces.data ?? []).filter((item) => item.person)
-  if (named.length === 0) return null
-
-  return (
-    <ul className="flex flex-wrap gap-1.5">
-      {named.map((item) => (
-        <li
-          key={item.face.id}
-          className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs-plus text-white"
-        >
-          {item.person?.name}
-        </li>
-      ))}
-    </ul>
   )
 }
 
