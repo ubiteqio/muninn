@@ -321,7 +321,7 @@ export function SearchField({
         size="sm"
         disabled={busy || !ready}
         aria-label={t('search.submit')}
-        className="absolute right-1.5 top-1/2 h-8 -translate-y-1/2 gap-1.5 px-2.5 sm:px-3"
+        className="absolute right-1.5 top-1/2 h-8 -translate-y-1/2 gap-1.5 rounded-full px-2.5 sm:px-3.5"
       >
         <Symbol name={busy ? 'sync' : 'search'} size={18} className={cn(busy && 'animate-spin')} />
         <span className="hidden sm:inline">{t('search.submit')}</span>
@@ -376,7 +376,7 @@ function Picker({
        its height, whatever is written in it. */
     <span
       className={cn(
-        'inline-flex items-stretch overflow-hidden rounded-full text-xs-plus',
+        'inline-flex h-9 shrink-0 items-stretch overflow-hidden rounded-full text-sm',
         shown === undefined ? 'bg-secondary text-muted-foreground' : 'bg-accent/15 text-foreground',
       )}
     >
@@ -385,13 +385,13 @@ function Picker({
           <button
             type="button"
             className={cn(
-              'flex items-center gap-1 px-2.5 py-1 transition',
+              'flex items-center gap-1.5 px-3 transition',
               shown === undefined && 'hover:text-foreground',
             )}
           >
-            <Symbol name={icon} size={14} />
+            <Symbol name={icon} size={16} />
             {shown ?? label}
-            <Symbol name="expand_more" size={14} />
+            <Symbol name="expand_more" size={16} />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="max-h-72 overflow-y-auto">
@@ -412,12 +412,12 @@ function Picker({
         <button
           type="button"
           aria-label={t('search.filter.clear', { label })}
-          className="flex items-center pl-0.5 pr-2 transition hover:bg-accent/25"
+          className="flex items-center pl-1 pr-2.5 transition hover:bg-accent/25"
           onClick={() => {
             onChoose(undefined)
           }}
         >
-          <Symbol name="close" size={14} />
+          <Symbol name="close" size={16} />
         </button>
       )}
     </span>
@@ -456,7 +456,7 @@ function Filters({
     }))
 
   return (
-    <div role="group" aria-label={t('search.filter.label')} className="flex flex-wrap gap-1.5">
+    <div role="group" aria-label={t('search.filter.label')} className="flex shrink-0 gap-1.5">
       <Picker
         icon="history"
         label={t('search.filter.year')}
@@ -529,8 +529,11 @@ function Chips({
   ]
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div role="group" aria-label={t('search.kind.label')} className="flex gap-1.5">
+    /* On a phone one row that scrolls sideways, as the breadcrumb does: wrapped, the groups fell
+       into four lines and the strokes between them ended up stranded at the ends of lines. It
+       bleeds into the page's margin so the last chip does not sit against the edge. */
+    <div className="-mx-5 flex items-center gap-2 overflow-x-auto px-5 pb-1 md:mx-0 md:flex-wrap md:px-0">
+      <div role="group" aria-label={t('search.kind.label')} className="flex shrink-0 gap-1.5">
         {kinds.map((option) => (
           <Chip
             key={option.label}
@@ -543,10 +546,10 @@ function Chips({
           </Chip>
         ))}
       </div>
-      <span aria-hidden="true" className="mx-1 h-4 w-px bg-hairline/20" />
+      <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-hairline/20" />
       {filters}
-      <span aria-hidden="true" className="mx-1 h-4 w-px bg-hairline/20" />
-      <div role="group" aria-label={t('search.sort.label')} className="flex gap-1.5">
+      <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-hairline/20" />
+      <div role="group" aria-label={t('search.sort.label')} className="flex shrink-0 gap-1.5">
         {sorts.map((option) => (
           <Chip
             key={option.value}
@@ -562,8 +565,8 @@ function Chips({
       {/* The period found in the words: taken as a filter, and shown, so nobody wonders why
           the results stop at one year. */}
       {range && (
-        <span className="flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-1 text-xs-plus text-foreground">
-          <Symbol name="history" size={14} />
+        <span className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent/15 px-3 text-sm text-foreground">
+          <Symbol name="history" size={16} />
           {range}
         </span>
       )}
@@ -571,9 +574,9 @@ function Chips({
       {persons.map((person) => (
         <span
           key={person}
-          className="flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-1 text-xs-plus text-foreground"
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent/15 px-3 text-sm text-foreground"
         >
-          <Symbol name="person" size={14} />
+          <Symbol name="person" size={16} />
           {person}
         </span>
       ))}
@@ -581,9 +584,9 @@ function Chips({
       {places.map((place) => (
         <span
           key={place}
-          className="flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-1 text-xs-plus text-foreground"
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent/15 px-3 text-sm text-foreground"
         >
-          <Symbol name="map" size={14} />
+          <Symbol name="map" size={16} />
           {place}
         </span>
       ))}
@@ -606,7 +609,7 @@ function Chip({
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        'rounded-full border px-3 py-1 text-xs-plus transition',
+        'flex h-9 shrink-0 items-center rounded-full border px-3.5 text-sm transition',
         pressed
           ? 'border-accent bg-accent/15 text-foreground'
           : 'border-hairline/15 text-muted-foreground hover:text-foreground',
