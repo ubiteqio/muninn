@@ -296,13 +296,30 @@ async def read_waiting(
     )
 
 
+@router.post("/ai/retry", summary="Ask every AI machine again, now")
+async def retry_ai(admin: AdminUser, session: SessionDep, redis: RedisDep) -> AiHealthView:
+    """The machine is back and the admin says so: every pause ends and every service is asked.
+
+    One button rather than one per service. A stage is paused only if it happened to have work
+    while the machine was away, so which of them carry a pause says more about what there was
+    to do than about the machine - and none of that is what somebody who has just switched it
+    on again is thinking about.
+    """
+    await ai_health.resume_all(redis)
+    found = await ai_health.services(session, redis)
+    return _ai_health_view(found)
+
+
 @router.get("/ai", summary="Whether each AI service answers")
 async def read_ai_health(admin: AdminUser, session: SessionDep, redis: RedisDep) -> AiHealthView:
     """The same small question as "Verbindung testen", for every interface in use at once.
 
     Answers are kept for half a minute, so an open page asks each machine at most twice a minute.
     """
-    services = await ai_health.services(session, redis)
+    return _ai_health_view(await ai_health.services(session, redis))
+
+
+def _ai_health_view(services: list[ai_health.ServiceHealth]) -> AiHealthView:
     return AiHealthView(
         services=[
             AiServiceView(

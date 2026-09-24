@@ -494,6 +494,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/jobs/ai/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask every AI machine again, now
+         * @description The machine is back and the admin says so: every pause ends and every service is asked.
+         *
+         *     One button rather than one per service. A stage is paused only if it happened to have work
+         *     while the machine was away, so which of them carry a pause says more about what there was
+         *     to do than about the machine - and none of that is what somebody who has just switched it
+         *     on again is thinking about.
+         */
+        post: operations["retry_ai_api_v1_admin_jobs_ai_retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/jobs/ai": {
         parameters: {
             query?: never;
@@ -4887,6 +4912,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_ai_api_v1_admin_jobs_ai_retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiHealthView"];
                 };
             };
         };

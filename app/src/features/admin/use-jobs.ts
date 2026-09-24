@@ -43,6 +43,25 @@ export function useWaiting(stage: string | null) {
  */
 const AI_HEALTH_MS = 30_000
 
+/**
+ * The machine is back and the admin says so: every pause ends and every service is asked.
+ *
+ * One button for the row rather than one per service. A stage carries a pause only if it
+ * happened to have work while the machine was away, so which of them do says more about what
+ * there was to do than about the machine - and that is not what somebody who has just
+ * switched it on again is thinking about.
+ */
+export function useRetryAi() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => unwrap(await api.POST('/api/v1/admin/jobs/ai/retry')),
+    onSuccess: (health) => {
+      queryClient.setQueryData(['admin', 'ai-health'], health)
+      void queryClient.invalidateQueries({ queryKey: JOBS_KEY })
+    },
+  })
+}
+
 /** Ends a stage's pause: the machine is back, the admin says so. */
 export function useResumeAi() {
   const queryClient = useQueryClient()

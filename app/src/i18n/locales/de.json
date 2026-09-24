@@ -545,6 +545,9 @@
           "off": "nicht eingerichtet"
         },
         "resumeShort": "Jetzt versuchen",
+        "retry": "Jetzt versuchen",
+        "retryHint": "Beendet alle Pausen und fragt jeden Dienst sofort neu.",
+        "whenThereIsWork": "wird beim nächsten Auftrag versucht",
         "resumeHint": "Klicken, wenn der KI-Rechner wieder läuft: die Pause endet sofort."
       },
       "failedStage": {
