@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from muninn.models.attempt import GIVE_UP_AFTER, MediaAttempt
+from muninn.notify import service as notify_service
 
 __all__ = ["GIVE_UP_AFTER", "forget", "given_up", "note_failure", "of_media", "still_open"]
 
@@ -40,8 +41,15 @@ async def note_failure(
         .returning(MediaAttempt.attempts)
     )
     attempts = await session.scalar(statement)
+    count = int(attempts or 1)
+    if count >= GIVE_UP_AFTER:
+        # The clock will not hand this medium out again, so nobody would learn of it without
+        # going to look. The admins are told once, with what the machine actually said.
+        await notify_service.stage_failed(
+            session, media_id=media_id, stage=stage, detail=_short(error) or "?"
+        )
     await session.commit()
-    return int(attempts or 1)
+    return count
 
 
 async def forget(session: AsyncSession, media_id: uuid.UUID, stage: str) -> None:

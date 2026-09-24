@@ -56,6 +56,8 @@ async def list_notifications(
                 media=MediaRef.of(entry.media, secret=settings.jwt_secret) if entry.media else None,
                 album=AlbumRef.of(entry.album) if entry.album else None,
                 excerpt=entry.excerpt,
+                stage=entry.notification.stage,
+                detail=entry.notification.detail,
             )
             for entry in found
         ],

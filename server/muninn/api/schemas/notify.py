@@ -40,7 +40,7 @@ class AlbumRef(BaseModel):
 
 class NotificationView(BaseModel):
     id: UUID
-    #: reply, mention, comment_like, comment or new_media.
+    #: reply, mention, comment_like, comment, new_media or stage_failed.
     kind: str
     #: Who did it, the most recent first. Empty for new media.
     actors: list[str]
@@ -53,6 +53,10 @@ class NotificationView(BaseModel):
     album: AlbumRef | None
     #: The words of the comment it is about.
     excerpt: str | None
+    #: For stage_failed: the step of the pipeline that gave up.
+    stage: str | None = None
+    #: For stage_failed: what the machine said, so an admin can act without digging.
+    detail: str | None = None
 
 
 class UnreadCount(BaseModel):

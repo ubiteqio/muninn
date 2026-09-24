@@ -24,6 +24,39 @@ function aNotice(extra: object) {
 }
 
 describe('NotificationBell', () => {
+  it('says which stage gave up and what the machine said', async () => {
+    // An admin acts on the words themselves - ffmpeg's complaint, the model's refusal - so
+    // they stand in the entry rather than a stage further in.
+    stubApi({
+      'GET /api/v1/notifications/unread': { body: { count: 1 } },
+      'GET /api/v1/notifications': {
+        body: {
+          next_cursor: null,
+          items: [
+            aNotice({
+              kind: 'stage_failed',
+              actors: [],
+              excerpt: null,
+              stage: 'faces',
+              detail: 'ffmpeg could not read MOV00030.mp4: Invalid data found',
+            }),
+          ],
+        },
+      },
+      'POST /api/v1/notifications/read': { status: 204 },
+    })
+    await renderScreen(<NotificationBell />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /Benachrichtigungen/ }))
+
+    expect(
+      await screen.findByText('Gesichter nicht gesucht – nach drei Versuchen aufgegeben'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('ffmpeg could not read MOV00030.mp4: Invalid data found'),
+    ).toBeInTheDocument()
+  })
+
   it('counts what is new, lists it, and reads it all when opened', async () => {
     const { calls } = stubApi({
       'GET /api/v1/notifications/unread': { body: { count: 2 } },

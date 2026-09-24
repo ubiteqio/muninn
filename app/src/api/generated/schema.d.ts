@@ -2919,6 +2919,10 @@ export interface components {
             album: components["schemas"]["AlbumRef"] | null;
             /** Excerpt */
             excerpt: string | null;
+            /** Stage */
+            stage?: string | null;
+            /** Detail */
+            detail?: string | null;
         };
         /** Page[ActivityView] */
         Page_ActivityView_: {

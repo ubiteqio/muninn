@@ -753,6 +753,11 @@ class Outcome:
     stage: str | None = None
 
 
+def _last_line(error: BaseException) -> str:
+    """What to write down about an exception: its kind and its message, not a page of frames."""
+    return f"{type(error).__name__}: {error}".strip()
+
+
 @asynccontextmanager
 async def _announced(stage: str, media_id: uuid.UUID, task_id: str) -> AsyncIterator[Outcome]:
     """Say what is being worked on, and let go of the medium when it is done.
@@ -768,6 +773,14 @@ async def _announced(stage: str, media_id: uuid.UUID, task_id: str) -> AsyncIter
         await jobs.mark_active(redis, task_id, stage, media_id)
         await events.publish(redis, "jobs", kind="task_started", stage=stage, task_id=task_id)
         yield outcome
+    except Exception as error:
+        # A stage that threw wrote nothing down, so the clock handed the same medium out again
+        # a minute later - for ever, for a file that will throw every time. It is counted like
+        # any other failure, and after three the admins hear what the traceback said.
+        outcome.failed = True
+        async with session_scope() as session:
+            await attempts.note_failure(session, media_id, stage, _last_line(error))
+        raise
     except BaseException:
         outcome.failed = True
         raise

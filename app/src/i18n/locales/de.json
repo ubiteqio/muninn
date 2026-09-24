@@ -549,7 +549,11 @@
         "transcription": "Video nicht abgehört",
         "analysis": "Nicht beschrieben",
         "caption_vector": "Textvektor nicht berechnet",
-        "faces": "Gesichter nicht gesucht"
+        "faces": "Gesichter nicht gesucht",
+        "derive_video": "Video nicht umgewandelt",
+        "analysis_video": "Video nicht beschrieben",
+        "image_vector_video": "Bildvektor des Videos nicht berechnet",
+        "read": "Ordner nicht gelesen"
       }
     },
     "users": {
@@ -823,7 +827,8 @@
       "comment_one": "{{who}} hat kommentiert",
       "comment_other": "{{who}} haben kommentiert",
       "new_media_one": "1 neues Medium in {{album}}",
-      "new_media_other": "{{count, number}} neue Medien in {{album}}"
+      "new_media_other": "{{count, number}} neue Medien in {{album}}",
+      "stage_failed": "{{stage}} – nach drei Versuchen aufgegeben"
     }
   },
   "map": {

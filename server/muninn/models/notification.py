@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, time
 from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Text, Time, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Time, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,6 +22,8 @@ class NotificationKind(StrEnum):
     COMMENT = "comment"
     #: New pictures and videos in an album.
     NEW_MEDIA = "new_media"
+    #: A stage gave up on a medium. Admins only, and never for a machine that is merely away.
+    STAGE_FAILED = "stage_failed"
 
 
 class Notification(Base):
@@ -49,6 +51,10 @@ class Notification(Base):
     comment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("comments.id", ondelete="CASCADE")
     )
+    #: The step of the pipeline that gave up, for a stage_failed entry: "derive", "faces", ...
+    stage: Mapped[str | None] = mapped_column(String(24))
+    #: What went wrong, in the machine's own words, so an admin can act without digging.
+    detail: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
