@@ -233,6 +233,13 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
      */
     const settled = () => {
       measure()
+      // The slide on screen was built from its own copy of that data, so the source array alone
+      // does not reach it: the one being looked at is told directly.
+      const slide = opened.currSlide
+      if (slide && 'html' in slide.data) {
+        slide.data.width = window.innerWidth
+        slide.data.height = window.innerHeight
+      }
       opened.updateSize(true)
     }
     let again = 0
