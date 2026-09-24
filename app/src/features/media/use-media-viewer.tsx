@@ -469,15 +469,13 @@ export function videoMarkup(source: string, poster: string | null): string {
     `src="${escapeAttribute(source)}"`,
     poster ? `poster="${escapeAttribute(poster)}"` : '',
   ]
-  // The browser draws its controls along the bottom edge of the video, and our own buttons sit
-  // along the bottom of the screen. A strip the height of ours is kept clear, so the video ends
-  // above them and the two never meet. On most clips that strip is letterbox black anyway.
+  // The whole slide, edge to edge. Our own buttons stand in a column down the right-hand side
+  // now, so nothing of ours is along the bottom for the browser's controls to meet, and no
+  // strip of the screen has to be kept clear of the picture.
   //
   // Pinned to the slide rather than told to be all of it: a height given as a percentage needs
   // every parent above it to have one, and the slide's does not come from the stylesheet.
-  const box =
-    'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
-    'padding-bottom:calc(max(env(safe-area-inset-bottom),12px) + 56px)'
+  const box = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center'
   return `<div style="${box}"><video ${attributes.join(' ')}></video></div>`
 }
 

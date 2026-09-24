@@ -161,26 +161,28 @@ export function ViewerChrome({
         title={medium.origin.filename}
       />
 
-      {/* The way through the album, for a screen with a mouse. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent pb-[max(env(safe-area-inset-bottom),12px)] pt-10">
-        <div
-          className={cn(
-            'mx-auto flex w-full max-w-[720px] flex-col gap-2 px-4',
-            shown ? 'pointer-events-auto' : 'pointer-events-none',
-          )}
-        >
-          <Actions
-            medium={medium}
-            social={social}
-            emojis={emojis}
-            onEmojis={() => {
-              setEmojis((open) => !open)
-            }}
-            onComments={onComments}
-            onInfo={onInfo}
-            onSimilar={onSimilar}
-          />
-        </div>
+      {/*
+       * Down the right-hand edge, under the menu. Along the bottom they sat over the video's
+       * own controls and took a strip of every picture with them; standing in a column they
+       * cover a hand's width of one edge and the medium has the whole screen.
+       */}
+      <div
+        className={cn(
+          'absolute right-2 top-[calc(max(env(safe-area-inset-top),10px)+56px)] flex flex-col items-center gap-1',
+          shown ? 'pointer-events-auto' : 'pointer-events-none',
+        )}
+      >
+        <Actions
+          medium={medium}
+          social={social}
+          emojis={emojis}
+          onEmojis={() => {
+            setEmojis((open) => !open)
+          }}
+          onComments={onComments}
+          onInfo={onInfo}
+          onSimilar={onSimilar}
+        />
       </div>
     </div>
   )
@@ -256,18 +258,18 @@ function Actions({
 
   return (
     /*
-     * One cluster in the middle, not six buttons pushed to the far corners of the picture.
-     * Three groups, in the order one reaches for them: what one feels about a medium, what one
-     * wants to know about it, and what one does with it. The pill behind them lifts them off
-     * whatever happens to be in the picture at that spot.
+     * One column down the edge, not six buttons scattered over the picture. Three groups, in
+     * the order one reaches for them: what one feels about a medium, what one wants to know
+     * about it, and what one does with it. The pill behind them lifts them off whatever
+     * happens to be in the picture at that spot.
      */
-    <div className="flex justify-center pt-1">
-      <div className="relative flex items-center gap-0.5 rounded-full bg-black/40 px-1.5 backdrop-blur-md">
-        {/* The bar belongs to the heart, so it stands over the heart - wherever the row has put
-          it, with however many buttons beside it. */}
+    <div className="flex flex-col items-center">
+      <div className="relative flex flex-col items-center gap-0.5 rounded-full bg-black/40 py-1.5 backdrop-blur-md">
+        {/* The bar belongs to the heart, so it stands beside the heart - wherever the column
+          has put it, with however many buttons under it. */}
         <span className="relative">
           {emojis && (
-            <div className="absolute -top-12 left-1/2 flex -translate-x-1/2 gap-1 rounded-full bg-black/70 px-2 py-1.5 backdrop-blur-sm">
+            <div className="absolute right-full top-1/2 mr-2 flex -translate-y-1/2 gap-1 rounded-full bg-black/70 px-2 py-1.5 backdrop-blur-sm">
               {REACTIONS.map((reaction) => {
                 const mine = state?.reaction === reaction.key
                 return (
@@ -342,7 +344,7 @@ function Actions({
 
 /** A hairline between two groups of buttons. */
 function Line() {
-  return <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-white/20" />
+  return <span aria-hidden="true" className="my-1 h-px w-5 shrink-0 bg-white/20" />
 }
 
 function Round({
@@ -363,12 +365,16 @@ function Round({
       type="button"
       aria-label={label}
       title={label}
-      className="flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-2.5 text-white transition hover:bg-white/15"
+      className="relative flex size-11 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/15"
       onClick={onClick}
     >
       <Symbol name={icon} size={22} filled={filled} />
+      {/* In a column there is no room beside the icon, so what there is of a thing is a small
+        number on its shoulder. */}
       {count !== undefined && count > 0 && (
-        <span className="text-xs-plus tabular-nums">{count}</span>
+        <span className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-black/70 px-1 text-2xs tabular-nums leading-4">
+          {count}
+        </span>
       )}
     </button>
   )
