@@ -23,8 +23,6 @@ interface ChromeProps {
   onBack: () => void
   onComments: () => void
   onInfo: () => void
-  onPrevious: () => void
-  onNext: () => void
   /** Heart, star and the conversation only where a query client is. */
   social: boolean
   /** A panel stands open beside the picture: then nothing rests and no tap is swallowed. */
@@ -49,15 +47,12 @@ export function ViewerChrome({
   onBack,
   onComments,
   onInfo,
-  onPrevious,
-  onNext,
   social,
   busy = false,
   findVideo,
   actions,
   onSimilar,
 }: ChromeProps) {
-  const { t } = useTranslation()
   const [awake, setAwake] = useState(true)
   const [emojis, setEmojis] = useState(false)
   const sleep = useRef<number | undefined>(undefined)
@@ -152,9 +147,6 @@ export function ViewerChrome({
       />
 
       {/* The way through the album, for a screen with a mouse. */}
-      <Arrow awake={shown} side="left" label={t('media.previous')} onClick={onPrevious} />
-      <Arrow awake={shown} side="right" label={t('media.next')} onClick={onNext} />
-
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent pb-[max(env(safe-area-inset-bottom),12px)] pt-10">
         <div
           className={cn(
@@ -224,33 +216,6 @@ function Top({
   )
 }
 
-function Arrow({
-  awake,
-  side,
-  label,
-  onClick,
-}: {
-  awake: boolean
-  side: 'left' | 'right'
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      className={cn(
-        'absolute top-1/2 hidden size-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white transition hover:bg-black/60 md:flex',
-        awake ? 'pointer-events-auto' : 'pointer-events-none',
-        side === 'left' ? 'left-3' : 'right-3',
-      )}
-      onClick={onClick}
-    >
-      <Symbol name={side === 'left' ? 'chevron_left' : 'chevron_right'} size={26} />
-    </button>
-  )
-}
-
 function Actions({
   medium,
   social,
@@ -276,79 +241,94 @@ function Actions({
   const shareable = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
   return (
-    <div className="relative flex items-center justify-between gap-1 pt-1">
-      <Round
-        label={t('comments.title')}
-        icon="chat_bubble"
-        count={state?.comments}
-        onClick={onComments}
-      />
-      <Round
-        label={t(state?.favorite ? 'walhall.remove' : 'walhall.keep')}
-        icon="star"
-        filled={state?.favorite}
-        onClick={() => {
-          favorite.mutate(!state?.favorite)
-        }}
-      />
-      {/* The bar belongs to the heart, so it stands over the heart - wherever the row has put
+    /*
+     * One cluster in the middle, not six buttons pushed to the far corners of the picture.
+     * Three groups, in the order one reaches for them: what one feels about a medium, what one
+     * wants to know about it, and what one does with it. The pill behind them lifts them off
+     * whatever happens to be in the picture at that spot.
+     */
+    <div className="flex justify-center pt-1">
+      <div className="relative flex items-center gap-0.5 rounded-full bg-black/40 px-1.5 backdrop-blur-md">
+        {/* The bar belongs to the heart, so it stands over the heart - wherever the row has put
           it, with however many buttons beside it. */}
-      <span className="relative">
-        {emojis && (
-          <div className="absolute -top-12 left-1/2 flex -translate-x-1/2 gap-1 rounded-full bg-black/70 px-2 py-1.5 backdrop-blur-sm">
-            {REACTIONS.map((reaction) => {
-              const mine = state?.reaction === reaction.key
-              return (
-                <button
-                  key={reaction.key}
-                  type="button"
-                  aria-label={reaction.key}
-                  aria-pressed={mine}
-                  className={cn(
-                    'flex size-9 items-center justify-center rounded-full text-[20px] transition hover:bg-white/15',
-                    mine && 'bg-white/20 ring-1 ring-white/40',
-                  )}
-                  onClick={() => {
-                    // The one already given is taken back: the same tap that set it unsets it.
-                    like.mutate(mine ? false : reaction.key)
-                    onEmojis()
-                  }}
-                >
-                  {reaction.emoji}
-                </button>
-              )
-            })}
-          </div>
+        <span className="relative">
+          {emojis && (
+            <div className="absolute -top-12 left-1/2 flex -translate-x-1/2 gap-1 rounded-full bg-black/70 px-2 py-1.5 backdrop-blur-sm">
+              {REACTIONS.map((reaction) => {
+                const mine = state?.reaction === reaction.key
+                return (
+                  <button
+                    key={reaction.key}
+                    type="button"
+                    aria-label={reaction.key}
+                    aria-pressed={mine}
+                    className={cn(
+                      'flex size-9 items-center justify-center rounded-full text-[20px] transition hover:bg-white/15',
+                      mine && 'bg-white/20 ring-1 ring-white/40',
+                    )}
+                    onClick={() => {
+                      // The one already given is taken back: the same tap that set it unsets it.
+                      like.mutate(mine ? false : reaction.key)
+                      onEmojis()
+                    }}
+                  >
+                    {reaction.emoji}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <Round
+            label={t('social.like')}
+            icon="favorite"
+            filled={state?.liked}
+            count={state?.likes}
+            onClick={onEmojis}
+          />
+        </span>
+        <Round
+          label={t('comments.title')}
+          icon="chat_bubble"
+          count={state?.comments}
+          onClick={onComments}
+        />
+        <Round
+          label={t(state?.favorite ? 'walhall.remove' : 'walhall.keep')}
+          icon="star"
+          filled={state?.favorite}
+          onClick={() => {
+            favorite.mutate(!state?.favorite)
+          }}
+        />
+        <Line />
+        <Round label={t('media.info.show')} icon="info" onClick={onInfo} />
+        {onSimilar && <Round label={t('media.similar')} icon="image_search" onClick={onSimilar} />}
+        <Line />
+        {shareable ? (
+          <Round
+            label={t('media.share')}
+            icon="ios_share"
+            onClick={() => {
+              void navigator.share({ title: medium.origin.filename, url: window.location.href })
+            }}
+          />
+        ) : (
+          <Round
+            label={t('media.info.download')}
+            icon="download"
+            onClick={() => {
+              downloadOriginal(medium)
+            }}
+          />
         )}
-        <Round
-          label={t('social.like')}
-          icon="favorite"
-          filled={state?.liked}
-          count={state?.likes}
-          onClick={onEmojis}
-        />
-      </span>
-      <Round label={t('media.info.show')} icon="info" onClick={onInfo} />
-      {onSimilar && <Round label={t('media.similar')} icon="image_search" onClick={onSimilar} />}
-      {shareable ? (
-        <Round
-          label={t('media.share')}
-          icon="ios_share"
-          onClick={() => {
-            void navigator.share({ title: medium.origin.filename, url: window.location.href })
-          }}
-        />
-      ) : (
-        <Round
-          label={t('media.info.download')}
-          icon="download"
-          onClick={() => {
-            downloadOriginal(medium)
-          }}
-        />
-      )}
+      </div>
     </div>
   )
+}
+
+/** A hairline between two groups of buttons. */
+function Line() {
+  return <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-white/20" />
 }
 
 function Round({
@@ -369,7 +349,7 @@ function Round({
       type="button"
       aria-label={label}
       title={label}
-      className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full text-white transition hover:bg-white/15"
+      className="flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-2.5 text-white transition hover:bg-white/15"
       onClick={onClick}
     >
       <Symbol name={icon} size={22} filled={filled} />

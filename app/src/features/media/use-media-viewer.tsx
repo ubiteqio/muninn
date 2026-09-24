@@ -336,18 +336,18 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
             onInfo={() => {
               setSheet((open) => (open === 'info' ? null : 'info'))
             }}
-            onPrevious={() => {
-              gallery.current?.prev()
-            }}
-            onNext={() => {
-              gallery.current?.next()
-            }}
             actions={
               <DialogContainer.Provider value={host}>
                 <MediaStagesMenu mediaId={shown.id} />
               </DialogContainer.Provider>
             }
-            {...(onSimilar ? { onSimilar: () => { onSimilar(shown.id) } } : {})}
+            {...(onSimilar
+              ? {
+                  onSimilar: () => {
+                    onSimilar(shown.id)
+                  },
+                }
+              : {})}
           />,
           host,
         )
