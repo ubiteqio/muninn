@@ -476,3 +476,66 @@ async def test_a_long_video_goes_to_the_face_model_in_parts() -> None:
     assert len(found) == 47
     assert sum(batches) == 47
     assert max(batches) <= 32
+
+
+async def suggest(
+    session: AsyncSession, face_id: uuid.UUID, person: Person, distance: float
+) -> None:
+    face = await session.get(Face, face_id)
+    assert face is not None
+    face.suggested_person_id = person.id
+    face.suggested_distance = distance
+    await session.commit()
+
+
+async def test_one_question_per_person_on_a_video(session: AsyncSession) -> None:
+    """Seven frames that all resemble Olivia are one question asked seven times. Which frame
+    she was seen in leads nowhere - nothing shows the second - so the nearest look asks and
+    the rest go."""
+    medium, stored = await a_video_with_faces(
+        session,
+        [
+            a_sighting(a_face(0.1, pixels=120), 0.0),
+            a_sighting(a_face(0.2, pixels=200), 5.0),
+            a_sighting(a_face(0.3, pixels=90), 10.0),
+            a_sighting(a_face(0.4, pixels=110), 15.0),
+            a_sighting(a_face(0.5, pixels=140), 20.0),
+        ],
+    )
+    olivia = await a_person(session, "Olivia")
+    matteo = await a_person(session, "Matteo")
+    await suggest(session, stored[0], olivia, 0.44)
+    # The clearest look, but not the closest guess: the guess decides who asks.
+    await suggest(session, stored[1], olivia, 0.50)
+    await suggest(session, stored[2], olivia, 0.53)
+    await suggest(session, stored[3], matteo, 0.43)
+    await suggest(session, stored[4], matteo, 0.50)
+
+    removed = await people.collapse_video_duplicates(session, medium.id)
+
+    assert set(removed) == {stored[1], stored[2], stored[4]}
+    left = list(await session.scalars(select(Face).where(Face.media_id == medium.id)))
+    assert sorted((face.suggested_person_id, face.suggested_distance) for face in left) == sorted(
+        [(olivia.id, 0.44), (matteo.id, 0.43)]
+    )
+
+
+async def test_a_person_already_on_the_video_is_not_asked_about(session: AsyncSession) -> None:
+    """The answer is already there: a guess at somebody who is on the video for certain goes,
+    rather than asking about them a second time."""
+    medium, stored = await a_video_with_faces(
+        session,
+        [
+            a_sighting(a_face(0.1, pixels=200), 0.0),
+            a_sighting(a_face(0.4, pixels=150), 5.0),
+        ],
+    )
+    olivia = await a_person(session, "Olivia")
+    await name_face(session, stored[0], olivia, "user")
+    await suggest(session, stored[1], olivia, 0.44)
+
+    removed = await people.collapse_video_duplicates(session, medium.id)
+
+    assert removed == [stored[1]]
+    (left,) = list(await session.scalars(select(Face).where(Face.media_id == medium.id)))
+    assert left.person_id == olivia.id

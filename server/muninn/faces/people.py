@@ -407,14 +407,24 @@ def _clearest(face: Face) -> tuple[int, float]:
     return (0 if face.assigned_by == "user" else 1, -face.pixels * face.score)
 
 
+def _asks_best(face: Face) -> tuple[float, float]:
+    """Which face gets to ask about a person: the closest guess, and the clearest of those."""
+    return (face.suggested_distance if face.suggested_distance is not None else 1.0,
+            -face.pixels * face.score)  # fmt: skip
+
+
 async def collapse_video_duplicates(session: AsyncSession, media_id: uuid.UUID) -> list[uuid.UUID]:
     """A video's faces, each person once: the extra sightings go.
 
     A frame every few seconds shows the same people again and again, so one person ends up with
     several faces on one video. Which frame they were seen in matters to nobody looking at the
-    medium, so one face per person stays: what somebody assigned by hand, else the clearest
-    look. A face that is only guessed at goes with them once that person is on the medium for
-    certain - the question has its answer already.
+    medium - nothing shows the second or leads to it - so one face per person stays: what
+    somebody assigned by hand, else the clearest look. A face that is only guessed at goes with
+    them once that person is on the medium for certain - the question has its answer already.
+
+    And where nobody is certain yet, one face per person asks. Several frames that all resemble
+    the same person are one question asked several times, and answering it seven times is work
+    nobody should be given.
 
     Videos only. In a photo two faces are two different people, and the rule in
     ``_in_the_same_photo`` keeps them apart from the start.
@@ -438,6 +448,28 @@ async def collapse_video_duplicates(session: AsyncSession, media_id: uuid.UUID) 
     doomed.extend(
         face for face in faces if face.person_id is None and face.suggested_person_id in kept
     )
+
+    # The same goes for the questions. Seven frames that all resemble Olivia are seven ways of
+    # asking whether Olivia is in this video, and the answer to one is the answer to all of
+    # them. The nearest look asks; the rest go with the sightings.
+    asked: set[uuid.UUID] = set()
+    answered = {face.id for face in doomed}
+    for face in sorted(
+        (
+            face
+            for face in faces
+            if face.person_id is None
+            and face.suggested_person_id is not None
+            and face.id not in answered
+        ),
+        key=_asks_best,
+    ):
+        about = face.suggested_person_id
+        if about is None or about in asked:
+            doomed.append(face)
+        else:
+            asked.add(about)
+
     if not doomed:
         return []
 
