@@ -4,18 +4,23 @@ import json
 import shutil
 import subprocess
 import uuid
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 import pytest
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from muninn.ai.base import Check, DetectedFace
+from muninn.ai import service as ai_service
+from muninn.ai.base import AiError, AiUnreachableError, Check, DetectedFace
 from muninn.ai.openai_compatible import OpenAiFaceDetector
+from muninn.core.config import get_settings
 from muninn.faces import people, service
-from muninn.models.attempt import GIVE_UP_AFTER
+from muninn.huginn import jobs, tasks
+from muninn.models.ai import AiKind
+from muninn.models.attempt import GIVE_UP_AFTER, MediaAttempt
 from muninn.models.face import Face, Person
 from muninn.models.media import Media, MediaKind
 from muninn.search import service as search_service
@@ -332,3 +337,106 @@ async def test_the_client_turns_pixels_into_fractions() -> None:
             box=(0.1, 0.1, 0.3, 0.5), score=0.93, embedding=[0.5] * 4, pixels=200, aspect=2.0
         )
     ]
+
+
+class RefusingDetector:
+    """A machine that answers, and the answer is always no."""
+
+    def __init__(self, error: AiError) -> None:
+        self.error = error
+        self.asked = 0
+
+    async def detect(self, images: Sequence[str]) -> list[list[DetectedFace]]:
+        self.asked += 1
+        raise self.error
+
+
+@pytest.fixture
+def worker_database(
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: async_sessionmaker[AsyncSession],
+    fake_redis: object,
+) -> None:
+    """The worker's database and Redis are the test's."""
+
+    @asynccontextmanager
+    async def scope() -> AsyncIterator[AsyncSession]:
+        async with session_factory() as session:
+            yield session
+
+    monkeypatch.setattr(tasks, "session_scope", scope)
+    monkeypatch.setattr(jobs, "connect", lambda: fake_redis)
+
+
+async def a_face_model(session: AsyncSession) -> None:
+    await ai_service.create_profile(
+        session,
+        kind=AiKind.FACE_DETECTOR,
+        name="GPU",
+        base_url="http://gpu.invalid/v1",
+        model="buffalo_l",
+    )
+
+
+async def a_video_to_look_at(session: AsyncSession, tmp_path: Path) -> Media:
+    """A video whose frames can be read, so the detector is what decides the outcome."""
+    medium = await a_medium(
+        session, await an_album(session, "Fest"), taken_at=JULY, name="MOV00030.MPG"
+    )
+    medium.kind = MediaKind.VIDEO
+    medium.duration_seconds = 6
+    medium.video_path = "v/clip.mp4"
+    medium.thumbnail_path = "v/clip.webp"
+    await session.commit()
+    a_blue_clip(tmp_path / "v" / "clip.mp4", seconds=6)
+    return medium
+
+
+async def _attempts_of(session: AsyncSession, media_id: uuid.UUID) -> int:
+    found = await session.get(MediaAttempt, (media_id, jobs.FACES_STAGE))
+    return found.attempts if found else 0
+
+
+@has_ffmpeg
+@pytest.mark.usefixtures("worker_database")
+async def test_a_video_the_detector_refuses_is_given_up_on(
+    session: AsyncSession, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two videos the machine kept saying no to came round every few minutes for ever: the
+    stage failed, wrote nothing down, and the clock handed them out again."""
+    await a_face_model(session)
+    medium = await a_video_to_look_at(session, tmp_path)
+    detector = RefusingDetector(AiError("Unsupported image"))
+    monkeypatch.setattr(ai_service, "face_detector_for", lambda profile: detector)
+    monkeypatch.setattr(
+        tasks, "get_settings", lambda: get_settings().model_copy(update={"derived_path": tmp_path})
+    )
+
+    for _ in range(GIVE_UP_AFTER):
+        assert await service.media_without(session) == [medium.id]
+        assert await tasks._detect_faces(medium.id, "task-1") is False
+
+    # Three noes were enough. The clock leaves it be instead of asking a fourth time.
+    assert await _attempts_of(session, medium.id) == GIVE_UP_AFTER
+    assert await service.media_without(session) == []
+
+
+@has_ffmpeg
+@pytest.mark.usefixtures("worker_database")
+async def test_a_machine_that_is_away_costs_the_video_nothing(
+    session: AsyncSession, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The machine being off is not the video's fault: it keeps its three tries for when the
+    machine is back, and the stage rests instead."""
+    await a_face_model(session)
+    medium = await a_video_to_look_at(session, tmp_path)
+    detector = RefusingDetector(AiUnreachableError("gpu.invalid is nicht erreichbar"))
+    monkeypatch.setattr(ai_service, "face_detector_for", lambda profile: detector)
+    monkeypatch.setattr(
+        tasks, "get_settings", lambda: get_settings().model_copy(update={"derived_path": tmp_path})
+    )
+
+    assert await tasks._detect_faces(medium.id, "task-1") is False
+
+    assert await _attempts_of(session, medium.id) == 0
+    assert await service.media_without(session) == [medium.id]

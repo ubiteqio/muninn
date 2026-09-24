@@ -731,7 +731,14 @@ async def _detect_faces(media_id: uuid.UUID, task_id: str) -> bool:
                 derived_root=derived_root,
             )
         except AiError as error:
-            await _pause_if_unreachable(error, outcome)
+            if isinstance(error, AiUnreachableError):
+                # The machine is away. Not this medium's fault, so it keeps its three tries.
+                await _pause_if_unreachable(error, outcome)
+            else:
+                # The machine answered, and the answer was no. Asking again with the same
+                # frames gets the same no, so it is counted - otherwise a picture the detector
+                # chokes on comes round again every few minutes for ever.
+                await attempts.note_failure(session, media_id, jobs.FACES_STAGE, str(error))
             logger.warning("No faces for %s: %s", media_id, error)
             outcome.failed = True
             return False
