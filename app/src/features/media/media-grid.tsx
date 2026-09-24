@@ -55,6 +55,17 @@ export function MediaGrid({ media, columns, notes, onOpen, onEndReached }: Media
     enabled: virtualised,
   })
 
+  /*
+   * A row's place is worked out once from the size it was estimated at, and kept. Turning a
+   * phone changes both the number of columns and the size of a tile, so without this the rows
+   * were drawn at their new size and placed at their old one: they slid over each other, the
+   * grid ended in the wrong place, and the whole listing came apart. Saying that the estimate
+   * has changed makes it work the places out again.
+   */
+  useEffect(() => {
+    virtualizer.measure()
+  }, [virtualizer, tile, columns])
+
   const virtualRows = virtualizer.getVirtualItems()
   const lastVisibleRow = virtualised ? (virtualRows.at(-1)?.index ?? 0) : rows - 1
 
