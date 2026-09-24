@@ -2,12 +2,13 @@
 
 import math
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from muninn.faces import people
+from muninn.faces import listing, people
 from muninn.models.face import Face, Person
 from muninn.models.user import User
 from muninn.search.service import FaceToStore, store_faces
@@ -506,3 +507,51 @@ async def test_a_face_as_far_off_as_a_question_is_offered_too(
     offered = {one.id: similarity for one, similarity in found}
     assert distant in offered
     assert 0.4 < offered[distant] < 0.62
+
+
+async def test_muninns_own_faces_are_dealt_out_a_year_at_a_time(session: AsyncSession) -> None:
+    """A person of twenty-six years has thousands of them, and at most five middles stand for
+    them. Five middles of one afternoon are one middle - so a page must span the years."""
+    lena = Person(name="Lena")
+    session.add(lena)
+    await session.flush()
+    album = await an_album(session, "Jahre")
+    for year in (2011, 2012, 2013):
+        for index in range(4):
+            medium = await a_medium(
+                session,
+                album,
+                taken_at=datetime(year, 7, 1 + index, tzinfo=UTC),
+                name=f"{year}-{index}.jpg",
+            )
+            (face_id,) = await store_faces(
+                session,
+                medium.id,
+                model="buffalo_l",
+                faces=[
+                    FaceToStore(
+                        box=(0.1, 0.1, 0.3, 0.4),
+                        score=0.9,
+                        pixels=120,
+                        second=None,
+                        embedding=at(0.99),
+                    )
+                ],
+            )
+            face = await session.get(Face, face_id)
+            assert face is not None
+            face.person_id = lena.id
+            face.assigned_by = "auto"
+    await session.commit()
+
+    spread, _ = await listing.faces_of(
+        session, lena.id, offset=0, limit=3, only=listing.FaceFilter.AUTO
+    )
+    newest, _ = await listing.faces_of(session, lena.id, offset=0, limit=3)
+
+    def years(found: list[listing.FaceShown]) -> set[int]:
+        return {(one.media.taken_at or one.media.created_at).year for one in found}
+
+    # Three faces, three years - where sorting by date would give three of the newest.
+    assert years(spread) == {2011, 2012, 2013}
+    assert years(newest) == {2013}

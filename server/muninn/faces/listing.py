@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import Select, and_, func, select
+from sqlalchemy import Select, Text, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -209,6 +209,26 @@ def _under(query: Any, person_id: uuid.UUID, only: "FaceFilter | None") -> Any:
     return query
 
 
+def _order_for(only: "FaceFilter | None") -> tuple[Any, ...]:
+    """In what order a person's faces are worked through.
+
+    Newest photo first, except for the faces Muninn gave on its own. There a person of
+    twenty-six years has thousands of them, and confirming the first page would be confirming
+    one afternoon: what stands for a person is at most five middles, reached at forty vouching
+    faces, and five middles of one afternoon are one middle. So those are dealt out a year at a
+    time - the first of every year, then the second of every year - and a single page covers a
+    whole childhood instead of a weekend.
+
+    Which face of a year comes first is decided by its id: nothing to do with the picture, and
+    the same answer every time, which is what paging by offset needs.
+    """
+    if only is not FaceFilter.AUTO:
+        return (SORT_KEY.desc(), Media.id, Face.id)
+    year = func.extract("year", SORT_KEY)
+    turn = func.row_number().over(partition_by=year, order_by=func.md5(func.cast(Face.id, Text)))
+    return (turn, year, Face.id)
+
+
 async def count_faces(
     session: AsyncSession, person_id: uuid.UUID, *, only: "FaceFilter | None" = None
 ) -> int:
@@ -235,7 +255,7 @@ async def faces_of(
     rows = (
         (
             await session.execute(
-                query.order_by(SORT_KEY.desc(), Media.id, Face.id)
+                query.order_by(*_order_for(only))
                 .offset(offset)
                 .limit(limit + 1)
                 .options(selectinload(Media.files))
