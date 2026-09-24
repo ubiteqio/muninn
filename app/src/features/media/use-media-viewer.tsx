@@ -405,7 +405,11 @@ function videoMarkup(source: string, poster: string | null): string {
     `src="${escapeAttribute(source)}"`,
     poster ? `poster="${escapeAttribute(poster)}"` : '',
   ]
-  return `<div class="flex h-full w-full items-center justify-center"><video ${attributes.join(' ')}></video></div>`
+  // The browser draws its controls along the bottom edge of the video, and our own buttons sit
+  // along the bottom of the screen. A strip the height of ours is kept clear, so the video ends
+  // above them and the two never meet. On most clips that strip is letterbox black anyway.
+  const clear = 'padding-bottom:calc(max(env(safe-area-inset-bottom),12px) + 56px)'
+  return `<div class="flex h-full w-full items-center justify-center" style="${clear}"><video ${attributes.join(' ')}></video></div>`
 }
 
 /** The addresses come from our own API, but building markup without escaping is a bad habit. */
