@@ -233,14 +233,7 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
      */
     const settled = () => {
       measure()
-      // The slide on screen was built from its own copy of that data, so the source array alone
-      // does not reach it: the one being looked at is told directly.
-      const slide = opened.currSlide
-      if (slide && 'html' in slide.data) {
-        slide.data.width = window.innerWidth
-        slide.data.height = window.innerHeight
-      }
-      opened.updateSize(true)
+      fitToScreen(opened)
     }
     let again = 0
     const turned = () => {
@@ -432,7 +425,25 @@ function slideOf(medium: Medium, startAt?: number) {
   return { src: medium.urls.preview ?? medium.urls.original, width, height, alt: '' }
 }
 
-function videoMarkup(source: string, poster: string | null): string {
+/**
+ * Hand the video on screen the screen as it is now, and lay it out again.
+ *
+ * What a slide works its size out from is taken once, when it is built, so writing the new size
+ * into its data alone never reaches the layout - both have to be told. Exported so the test
+ * that measures a video at two orientations drives the same code the app does.
+ */
+export function fitToScreen(opened: PhotoSwipe): void {
+  const slide = opened.currSlide
+  if (slide && 'html' in slide.data) {
+    slide.data.width = window.innerWidth
+    slide.data.height = window.innerHeight
+    slide.width = window.innerWidth
+    slide.height = window.innerHeight
+  }
+  opened.updateSize(true)
+}
+
+export function videoMarkup(source: string, poster: string | null): string {
   const attributes = [
     'controls',
     'playsinline',
@@ -443,8 +454,13 @@ function videoMarkup(source: string, poster: string | null): string {
   // The browser draws its controls along the bottom edge of the video, and our own buttons sit
   // along the bottom of the screen. A strip the height of ours is kept clear, so the video ends
   // above them and the two never meet. On most clips that strip is letterbox black anyway.
-  const clear = 'padding-bottom:calc(max(env(safe-area-inset-bottom),12px) + 56px)'
-  return `<div class="flex h-full w-full items-center justify-center" style="${clear}"><video ${attributes.join(' ')}></video></div>`
+  //
+  // Pinned to the slide rather than told to be all of it: a height given as a percentage needs
+  // every parent above it to have one, and the slide's does not come from the stylesheet.
+  const box =
+    'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
+    'padding-bottom:calc(max(env(safe-area-inset-bottom),12px) + 56px)'
+  return `<div style="${box}"><video ${attributes.join(' ')}></video></div>`
 }
 
 /** The addresses come from our own API, but building markup without escaping is a bad habit. */

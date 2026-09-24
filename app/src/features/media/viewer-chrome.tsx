@@ -102,6 +102,13 @@ export function ViewerChrome({
       ) {
         return
       }
+      // A video's own controls are the browser's, inside the element itself. Swallowing the
+      // first tap there is swallowing play, pause or a drag of the scrubber - and the chrome
+      // is not worth that. It wakes, and the tap goes through to them all the same.
+      if (target instanceof Element && target.closest('video')) {
+        stir()
+        return
+      }
       event.stopPropagation()
       event.preventDefault()
       stir()
