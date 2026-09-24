@@ -24,10 +24,15 @@ shorter than the step that caused the drift. Suggestions still come from every n
 somebody answers them.
 
 Nobody is twice in one photo: a person who already has another face in the picture is not
-given to a second one. Videos are left out of this rule, their frames show the same people
-again and again. They are tidied afterwards instead: once the names are handed out,
-``collapse_video_duplicates`` leaves every person one face, the one somebody assigned or the
-clearest look, and drops a guess about somebody who is on the video for certain already.
+given to a second one. Videos are left out of that rule, their frames show the same people
+again and again.
+
+Every medium is tidied afterwards in any case. A video repeats its people frame after frame,
+and a photograph repeats them too where it is a collage, a picture of a picture or a mirror -
+and what the medium has to say is who is in it, not how often a face of them was found. So
+``collapse_duplicates`` leaves every person one face, the one somebody assigned or the
+clearest look; a guess about somebody the medium has for certain goes, and of the guesses
+left one per person keeps its question.
 
 A face somebody assigned by hand is never touched again by any of this. A person is only made
 when somebody names a group; afterwards the unnamed faces are looked at again, since the new
@@ -413,8 +418,8 @@ def _asks_best(face: Face) -> tuple[float, float]:
             -face.pixels * face.score)  # fmt: skip
 
 
-async def collapse_video_duplicates(session: AsyncSession, media_id: uuid.UUID) -> list[uuid.UUID]:
-    """A video's faces, each person once: the extra sightings go.
+async def collapse_duplicates(session: AsyncSession, media_id: uuid.UUID) -> list[uuid.UUID]:
+    """One medium's faces, each person once: the extra sightings go.
 
     A frame every few seconds shows the same people again and again, so one person ends up with
     several faces on one video. Which frame they were seen in matters to nobody looking at the
@@ -431,11 +436,7 @@ async def collapse_video_duplicates(session: AsyncSession, media_id: uuid.UUID) 
 
     Returns the faces that were removed, so their square pictures can go too.
     """
-    faces = list(
-        await session.scalars(
-            select(Face).where(Face.media_id == media_id, Face.second.is_not(None))
-        )
-    )
+    faces = list(await session.scalars(select(Face).where(Face.media_id == media_id)))
     kept: dict[uuid.UUID, Face] = {}
     doomed: list[Face] = []
     for face in sorted(faces, key=_clearest):

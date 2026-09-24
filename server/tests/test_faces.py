@@ -175,7 +175,8 @@ async def test_a_short_video_is_looked_at_every_five_seconds(
     assert face.second == 0.0
 
 
-def a_sighting(face: DetectedFace, second: float) -> search_service.FaceToStore:
+def a_sighting(face: DetectedFace, second: float | None) -> search_service.FaceToStore:
+    """One look at a face: at that second of a video, or nowhere in particular in a photo."""
     return search_service.FaceToStore(
         box=face.box,
         score=face.score,
@@ -227,7 +228,7 @@ async def test_a_video_keeps_the_clearest_face_of_a_person(session: AsyncSession
     await name_face(session, stored[0], olivia, "auto")
     await name_face(session, stored[1], olivia, "auto")
 
-    removed = await people.collapse_video_duplicates(session, medium.id)
+    removed = await people.collapse_duplicates(session, medium.id)
 
     assert removed == [stored[0]]
     left = set(await session.scalars(select(Face.id).where(Face.media_id == medium.id)))
@@ -246,7 +247,7 @@ async def test_what_somebody_assigned_beats_the_clearer_look(session: AsyncSessi
     await name_face(session, stored[0], olivia, "user")
     await name_face(session, stored[1], olivia, "auto")
 
-    removed = await people.collapse_video_duplicates(session, medium.id)
+    removed = await people.collapse_duplicates(session, medium.id)
 
     # The small one stays: somebody said who it is, and that is never thrown away.
     assert removed == [stored[1]]
@@ -268,7 +269,7 @@ async def test_a_guess_about_somebody_already_on_the_video_goes(session: AsyncSe
     guess.suggested_distance = 0.55
     await session.commit()
 
-    removed = await people.collapse_video_duplicates(session, medium.id)
+    removed = await people.collapse_duplicates(session, medium.id)
 
     assert removed == [stored[1]]
 
@@ -293,7 +294,7 @@ async def test_a_photo_is_left_alone(session: AsyncSession, tmp_path: Path) -> N
 
     # Two faces of one person in a photo are two people; the rule that keeps them apart is
     # elsewhere, and this must not undo it.
-    assert await people.collapse_video_duplicates(session, medium.id) == []
+    assert await people.collapse_duplicates(session, medium.id) == []
     assert len(list(await session.scalars(select(Face.id).where(Face.media_id == medium.id)))) == 2
 
 
@@ -511,13 +512,41 @@ async def test_one_question_per_person_on_a_video(session: AsyncSession) -> None
     await suggest(session, stored[3], matteo, 0.43)
     await suggest(session, stored[4], matteo, 0.50)
 
-    removed = await people.collapse_video_duplicates(session, medium.id)
+    removed = await people.collapse_duplicates(session, medium.id)
 
     assert set(removed) == {stored[1], stored[2], stored[4]}
     left = list(await session.scalars(select(Face).where(Face.media_id == medium.id)))
     assert sorted((face.suggested_person_id, face.suggested_distance) for face in left) == sorted(
         [(olivia.id, 0.44), (matteo.id, 0.43)]
     )
+
+
+async def test_one_face_each_on_a_photograph_too(session: AsyncSession) -> None:
+    """A collage, a picture of a picture, a mirror: a photograph can show the same child five
+    times. The medium says who is in it, not how often a face of them was found."""
+    album = await an_album(session, "Fest")
+    photo = await a_medium(session, album, taken_at=JULY, name="NOMZ3797.png")
+    stored = await search_service.store_faces(
+        session,
+        photo.id,
+        model="buffalo_l",
+        faces=[
+            a_sighting(a_face(0.1, pixels=200), None),
+            a_sighting(a_face(0.3, pixels=150), None),
+            a_sighting(a_face(0.5, pixels=90), None),
+        ],
+    )
+    await session.commit()
+    matteo = await a_person(session, "Matteo")
+    await name_face(session, stored[0], matteo, "user")
+    await name_face(session, stored[1], matteo, "user")
+    await suggest(session, stored[2], matteo, 0.44)
+
+    removed = await people.collapse_duplicates(session, photo.id)
+
+    assert set(removed) == {stored[1], stored[2]}
+    (left,) = list(await session.scalars(select(Face).where(Face.media_id == photo.id)))
+    assert left.id == stored[0]
 
 
 async def test_a_person_already_on_the_video_is_not_asked_about(session: AsyncSession) -> None:
@@ -534,7 +563,7 @@ async def test_a_person_already_on_the_video_is_not_asked_about(session: AsyncSe
     await name_face(session, stored[0], olivia, "user")
     await suggest(session, stored[1], olivia, 0.44)
 
-    removed = await people.collapse_video_duplicates(session, medium.id)
+    removed = await people.collapse_duplicates(session, medium.id)
 
     assert removed == [stored[1]]
     (left,) = list(await session.scalars(select(Face).where(Face.media_id == medium.id)))

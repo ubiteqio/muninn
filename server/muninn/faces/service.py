@@ -202,18 +202,17 @@ async def apply_faces(
     await session.commit()
     # Who they are, right away: a person if one is close enough, else a group.
     await people.sort_faces(session, stored)
-    # A video shows the same people frame after frame; once they have names, one face each is
-    # enough.
-    if media.kind is MediaKind.VIDEO:
-        await collapse_video_faces(session, media_id, derived_root)
+    # A video shows the same people frame after frame, and a collage or a picture of a picture
+    # shows them more than once too. One face per person is enough either way.
+    await collapse_media_faces(session, media_id, derived_root)
     return True
 
 
-async def collapse_video_faces(
+async def collapse_media_faces(
     session: AsyncSession, media_id: uuid.UUID, derived_root: Path
 ) -> int:
-    """One video's repeated sightings, and the square pictures that belonged to them."""
-    removed = await people.collapse_video_duplicates(session, media_id)
+    """One medium's repeated sightings, and the square pictures that belonged to them."""
+    removed = await people.collapse_duplicates(session, media_id)
     if not removed:
         return 0
 
@@ -228,12 +227,12 @@ async def collapse_video_faces(
 async def collapse_all_videos(session: AsyncSession, derived_root: Path) -> int:
     """Every video that shows one person more than once. Returns how many faces went.
 
-    For after a reassessment: a name given today can put a person on a video they were already
+    For after a reassessment: a name given today can put a person on a medium they were already
     on, which is a duplicate the moment it happens.
     """
     twice = (
         select(Face.media_id)
-        .where(Face.second.is_not(None), Face.person_id.is_not(None))
+        .where(Face.person_id.is_not(None))
         .group_by(Face.media_id, Face.person_id)
         .having(func.count() > 1)
     )
@@ -244,11 +243,11 @@ async def collapse_all_videos(session: AsyncSession, derived_root: Path) -> int:
             answered,
             (answered.media_id == Face.media_id) & (answered.person_id == Face.suggested_person_id),
         )
-        .where(Face.second.is_not(None), Face.person_id.is_(None))
+        .where(Face.person_id.is_(None))
     )
     media_ids = set(await session.scalars(twice)) | set(await session.scalars(guessed))
     return sum(
-        [await collapse_video_faces(session, media_id, derived_root) for media_id in media_ids]
+        [await collapse_media_faces(session, media_id, derived_root) for media_id in media_ids]
     )
 
 
