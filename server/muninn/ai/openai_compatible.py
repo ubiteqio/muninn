@@ -265,6 +265,14 @@ class OpenAiTranscriber:
         return Check(ok=True, detail=f"{self._model} hört zu.", milliseconds=_since(started))
 
 
+#: How many pictures go to the face model in one request.
+#:
+#: The machine names its own limit and refuses more with a 413. Ours defaults to 64 and is set
+#: to less in places, so this stays under any of them: a minute of video is a dozen frames, and
+#: a request per dozen costs nothing next to what the model itself takes.
+FACES_AT_ONCE = 16
+
+
 class OpenAiFaceDetector:
     """Faces from Muninn's embedding service at /v1/faces - shaped like the OpenAI endpoints,
     though OpenAI has no such thing."""
@@ -285,8 +293,20 @@ class OpenAiFaceDetector:
         self._client = client
 
     async def detect(self, images: Sequence[str]) -> list[list[DetectedFace]]:
+        """The faces in these pictures, one list each, in the order they were given.
+
+        A long video is a lot of frames at once, and the machine says how many it will take in
+        one request - the answer was a 413 and a whole video without faces. They go in parts
+        small enough for any setting of it, and the parts are put back together here.
+        """
         if not images:
             return []
+        if len(images) > FACES_AT_ONCE:
+            parts = [
+                await self.detect(images[start : start + FACES_AT_ONCE])
+                for start in range(0, len(images), FACES_AT_ONCE)
+            ]
+            return [faces for part in parts for faces in part]
         payload = await post_json(
             f"{self._base_url}/faces",
             {"model": self._model, "input": list(images)},

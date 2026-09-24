@@ -440,3 +440,39 @@ async def test_a_machine_that_is_away_costs_the_video_nothing(
 
     assert await _attempts_of(session, medium.id) == 0
     assert await service.media_without(session) == [medium.id]
+
+
+async def test_a_long_video_goes_to_the_face_model_in_parts() -> None:
+    """The machine says how many pictures it takes at once and refuses more with a 413. A long
+    video used to be sent whole, so it came back without faces however good the video was."""
+    batches: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        inputs = json.loads(request.content)["input"]
+        batches.append(len(inputs))
+        if len(inputs) > 32:
+            return httpx.Response(
+                413, json={"detail": f"At most 32 inputs at a time, not {len(inputs)}."}
+            )
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"index": index, "width": 100.0, "height": 50.0, "faces": []}
+                    for index in range(len(inputs))
+                ]
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        detector = OpenAiFaceDetector(
+            base_url="http://gpu:8100/v1", model="buffalo_l", client=client
+        )
+        found = await detector.detect(
+            [f"data:image/jpeg;base64,{index:04d}" for index in range(47)]
+        )
+
+    # Every frame is answered for, and no part was bigger than the machine allows.
+    assert len(found) == 47
+    assert sum(batches) == 47
+    assert max(batches) <= 32

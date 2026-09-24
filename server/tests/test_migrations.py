@@ -97,7 +97,7 @@ def test_upgrade_creates_extensions_and_tables(
 
     assert extensions >= REQUIRED_EXTENSIONS
     assert tables >= EXPECTED_TABLES
-    assert version == "0037"
+    assert version == "0038"
 
 
 def test_username_is_case_insensitive_and_unique(
