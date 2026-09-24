@@ -1,6 +1,6 @@
 import { useIsFetching } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AppShell } from '@/components/layout/app-shell'
@@ -162,34 +162,31 @@ export function SearchScreen({
           </div>
         ) : (
           asked && (
-            <>
-              <Filters
-                year={year}
-                place={place}
-                camera={camera}
-                album={album}
-                facets={search.data?.pages[0]?.facets}
-                onChange={(next) => {
-                  change({ ...next, medium: undefined }, true)
-                }}
-              />
-              <Chips
-                kind={kind}
-                sort={sort}
-                period={understood ? period(understood.date_from, understood.date_until, t) : null}
-                places={understood?.places ?? []}
-                persons={understood?.persons ?? []}
-                onKind={(value) => {
-                  change({ kind: value, medium: undefined }, true)
-                }}
-                onSort={(value) => {
-                  change(
-                    { sort: value === 'relevance' ? undefined : value, medium: undefined },
-                    true,
-                  )
-                }}
-              />
-            </>
+            <Chips
+              kind={kind}
+              sort={sort}
+              filters={
+                <Filters
+                  year={year}
+                  place={place}
+                  camera={camera}
+                  album={album}
+                  facets={search.data?.pages[0]?.facets}
+                  onChange={(next) => {
+                    change({ ...next, medium: undefined }, true)
+                  }}
+                />
+              }
+              period={understood ? period(understood.date_from, understood.date_until, t) : null}
+              places={understood?.places ?? []}
+              persons={understood?.persons ?? []}
+              onKind={(value) => {
+                change({ kind: value, medium: undefined }, true)
+              }}
+              onSort={(value) => {
+                change({ sort: value === 'relevance' ? undefined : value, medium: undefined }, true)
+              }}
+            />
           )
         )}
 
@@ -375,17 +372,21 @@ function Picker({
   const shown = choices.find((choice) => choice.value === chosen)?.label ?? chosen
 
   return (
-    <span className="flex items-center">
+    /* One pill: the part that opens the list and the part that takes the filter off again share
+       its height, whatever is written in it. */
+    <span
+      className={cn(
+        'inline-flex items-stretch overflow-hidden rounded-full text-xs-plus',
+        shown === undefined ? 'bg-secondary text-muted-foreground' : 'bg-accent/15 text-foreground',
+      )}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
             className={cn(
-              'flex items-center gap-1 rounded-full px-2.5 py-1 text-xs-plus transition',
-              shown === undefined
-                ? 'bg-secondary text-muted-foreground hover:text-foreground'
-                : 'bg-accent/15 text-foreground',
-              shown === undefined ? 'rounded-full' : 'rounded-l-full rounded-r-none pr-1.5',
+              'flex items-center gap-1 px-2.5 py-1 transition',
+              shown === undefined && 'hover:text-foreground',
             )}
           >
             <Symbol name={icon} size={14} />
@@ -402,9 +403,7 @@ function Picker({
               }}
             >
               <span className="flex-1">{choice.label}</span>
-              {choice.note !== undefined && (
-                <span className="ml-3 tabular-nums text-muted-foreground">{choice.note}</span>
-              )}
+              <span className="ml-3 tabular-nums text-muted-foreground">{choice.note}</span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -413,7 +412,7 @@ function Picker({
         <button
           type="button"
           aria-label={t('search.filter.clear', { label })}
-          className="rounded-r-full bg-accent/15 py-1 pl-0.5 pr-2 text-foreground transition hover:bg-accent/25"
+          className="flex items-center pl-0.5 pr-2 transition hover:bg-accent/25"
           onClick={() => {
             onChoose(undefined)
           }}
@@ -428,9 +427,9 @@ function Picker({
 /**
  * The filters one chooses, beside the ones the words already carry.
  *
- * Everything offered comes from the library itself, with how much is behind it, so no choice
- * leads to an empty page. Each stands in the address, so a narrowed search can be sent to
- * somebody and the back button undoes one choice at a time.
+ * Everything offered comes from the media the search found, with how many carry it, so no
+ * choice leads to an empty page. A filter with nothing to offer is not shown at all - unless it
+ * is the one that is set, which keeps its chip so it can be taken off again.
  */
 function Filters({
   year,
@@ -455,18 +454,14 @@ function Filters({
       label: one.label,
       note: one.count.toLocaleString('de-DE'),
     }))
-  const years = offered(facets?.years)
-  const towns = offered(facets?.towns)
-  const cameras = offered(facets?.cameras)
-  const albums = offered(facets?.albums)
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div role="group" aria-label={t('search.filter.label')} className="flex flex-wrap gap-1.5">
       <Picker
         icon="history"
         label={t('search.filter.year')}
         chosen={year === undefined ? undefined : String(year)}
-        choices={years}
+        choices={offered(facets?.years)}
         onChoose={(value) => {
           onChange({ year: value === undefined ? undefined : Number(value) })
         }}
@@ -475,7 +470,7 @@ function Filters({
         icon="map"
         label={t('search.filter.place')}
         chosen={place}
-        choices={towns}
+        choices={offered(facets?.towns)}
         onChoose={(value) => {
           onChange({ place: value })
         }}
@@ -484,7 +479,7 @@ function Filters({
         icon="photo_camera"
         label={t('search.filter.camera')}
         chosen={camera}
-        choices={cameras}
+        choices={offered(facets?.cameras)}
         onChoose={(value) => {
           onChange({ camera: value })
         }}
@@ -493,7 +488,7 @@ function Filters({
         icon="folder"
         label={t('search.filter.album')}
         chosen={album}
-        choices={albums}
+        choices={offered(facets?.albums)}
         onChoose={(value) => {
           onChange({ album: value })
         }}
@@ -508,6 +503,7 @@ function Chips({
   period: range,
   places,
   persons,
+  filters,
   onKind,
   onSort,
 }: {
@@ -516,6 +512,8 @@ function Chips({
   period: string | null
   places: readonly string[]
   persons: readonly string[]
+  /** The chosen filters, between the two groups of chips. */
+  filters: ReactNode
   onKind: (kind: MediaKind | undefined) => void
   onSort: (sort: SearchSort) => void
 }) {
@@ -545,6 +543,8 @@ function Chips({
           </Chip>
         ))}
       </div>
+      <span aria-hidden="true" className="mx-1 h-4 w-px bg-hairline/20" />
+      {filters}
       <span aria-hidden="true" className="mx-1 h-4 w-px bg-hairline/20" />
       <div role="group" aria-label={t('search.sort.label')} className="flex gap-1.5">
         {sorts.map((option) => (

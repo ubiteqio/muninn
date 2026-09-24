@@ -33,6 +33,7 @@
     "placeholderAi": "Beschreibe, was du suchst – z. B. „Oma am Strand 2012“",
     "submit": "Suchen",
     "filter": {
+      "label": "Einschränken",
       "year": "Jahr",
       "place": "Ort",
       "camera": "Kamera",
