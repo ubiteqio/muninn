@@ -3,18 +3,13 @@ import { useTranslation } from 'react-i18next'
 
 import { Symbol } from '@/components/muninn/symbol'
 import type { Medium } from '@/features/albums/use-albums'
-import { formatDuration } from '@/features/media/format'
 import { downloadOriginal } from '@/features/media/original'
-import { usePlayback } from '@/features/media/use-playback'
 import { REACTIONS } from '@/features/social/reactions'
 import { useSocial, useToggleFavorite, useToggleLike } from '@/features/social/use-social'
 import { cn } from '@/lib/utils'
 
 /** How long the chrome stays after the last sign of life. */
 const REST_MS = 5000
-/** What one step on the speed dial is, and where it starts over. */
-const SPEED_STEP = 0.25
-const SPEED_MAX = 2
 
 interface ChromeProps {
   medium: Medium
@@ -27,7 +22,6 @@ interface ChromeProps {
   social: boolean
   /** A panel stands open beside the picture: then nothing rests and no tap is swallowed. */
   busy?: boolean | undefined
-  findVideo: () => HTMLVideoElement | null
   /** The menu of what the pipeline can do to this medium; admins only. */
   actions?: React.ReactNode
   /** Offered where a search brought one here: more pictures like this one. */
@@ -49,7 +43,6 @@ export function ViewerChrome({
   onInfo,
   social,
   busy = false,
-  findVideo,
   actions,
   onSimilar,
 }: ChromeProps) {
@@ -147,7 +140,16 @@ export function ViewerChrome({
       />
 
       {/* The way through the album, for a screen with a mouse. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent pb-[max(env(safe-area-inset-bottom),12px)] pt-10">
+      {/* A video draws its own controls along its bottom edge. Ours keep out of their way
+          rather than sitting on top of them. */}
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent pt-10',
+          medium.kind === 'video'
+            ? 'pb-[calc(max(env(safe-area-inset-bottom),12px)+56px)]'
+            : 'pb-[max(env(safe-area-inset-bottom),12px)]',
+        )}
+      >
         <div
           className={cn(
             'mx-auto flex w-full max-w-[720px] flex-col gap-2 px-4',
@@ -165,7 +167,6 @@ export function ViewerChrome({
             onInfo={onInfo}
             onSimilar={onSimilar}
           />
-          <VideoBar medium={medium} findVideo={findVideo} />
         </div>
       </div>
     </div>
@@ -357,70 +358,5 @@ function Round({
         <span className="text-xs-plus tabular-nums">{count}</span>
       )}
     </button>
-  )
-}
-
-/** Under the buttons for a video: where it stands, how fast it runs, whether it is heard. */
-function VideoBar({
-  medium,
-  findVideo,
-}: {
-  medium: Medium
-  findVideo: () => HTMLVideoElement | null
-}) {
-  const { t } = useTranslation()
-  const playback = usePlayback(medium.kind === 'video' ? findVideo : undefined)
-  if (medium.kind !== 'video' || !playback.attached) return null
-
-  const total = medium.duration_seconds ?? 0
-  const left = Math.max(0, Math.round(total - playback.time))
-
-  return (
-    <div className="flex items-center gap-3 border-t border-white/10 pt-2 text-white">
-      <button
-        type="button"
-        aria-label={t(playback.playing ? 'media.pause' : 'media.play')}
-        className="flex size-10 items-center justify-center rounded-full transition hover:bg-white/15"
-        onClick={() => {
-          const video = findVideo()
-          if (!video) return
-          if (video.paused) void video.play().catch(() => undefined)
-          else video.pause()
-        }}
-      >
-        <Symbol name={playback.playing ? 'pause' : 'play_arrow'} size={24} filled />
-      </button>
-
-      <span className="text-xs-plus tabular-nums text-white/80">-{formatDuration(left)}</span>
-
-      <button
-        type="button"
-        aria-label={t('media.speed')}
-        className="ml-auto rounded-full px-2.5 py-1 text-xs-plus tabular-nums transition hover:bg-white/15"
-        onClick={() => {
-          const video = findVideo()
-          const next =
-            playback.rate >= SPEED_MAX
-              ? SPEED_STEP
-              : Math.round((playback.rate + SPEED_STEP) * 100) / 100
-          if (video) video.playbackRate = next
-        }}
-      >
-        {playback.rate}&times;
-      </button>
-
-      <button
-        type="button"
-        aria-label={t(playback.muted ? 'media.unmute' : 'media.mute')}
-        className="flex size-10 items-center justify-center rounded-full transition hover:bg-white/15"
-        onClick={() => {
-          const video = findVideo()
-          if (!video) return
-          video.muted = !video.muted
-        }}
-      >
-        <Symbol name={playback.muted ? 'volume_off' : 'volume_up'} size={22} />
-      </button>
-    </div>
   )
 }

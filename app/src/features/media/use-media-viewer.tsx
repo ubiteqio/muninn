@@ -326,7 +326,6 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
             position={{ index, total: media.length }}
             social={social}
             busy={sheet !== null}
-            findVideo={findVideo}
             onBack={() => {
               onCurrentChange(undefined)
             }}
