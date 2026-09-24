@@ -59,6 +59,7 @@ ICONS = [
     "person",
     "person_add",
     "person_search",
+    "photo_camera",
     "photo_library",
     "play_arrow",
     "question_mark",

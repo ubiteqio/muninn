@@ -8,11 +8,19 @@ import { Knotwork } from '@/components/muninn/knotwork'
 import { LoadingBody } from '@/components/muninn/placeholder'
 import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { useAlbumTree } from '@/features/albums/use-albums'
 import { useLibraryUpdates } from '@/features/albums/use-library-updates'
 import { formatDuration } from '@/features/media/format'
 import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
+import { useOverview } from '@/features/overview/use-overview'
 import { PeopleRow } from '@/features/people/people-row'
 import {
   type MediaKind,
@@ -31,12 +39,22 @@ import type { SearchParams } from '@/routes'
  * Everything that makes up a search stands in the address - the words, the chips, an open
  * medium - so a search can be sent to somebody, and the back button undoes the last step.
  */
-export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchParams) {
+export function SearchScreen({
+  q = '',
+  kind,
+  sort,
+  year,
+  place,
+  camera,
+  album,
+  similar,
+  medium,
+}: SearchParams) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const isDesktop = useMediaQuery(DESKTOP_QUERY)
   const isWide = useMediaQuery(WIDE_QUERY)
-  const search = useSearch({ q, kind, sort, similar })
+  const search = useSearch({ q, kind, sort, year, place, camera, album, similar })
   const abilitiesQuery = useSearchAbilities()
   const abilities = abilitiesQuery.data
   // Only once it is known: a page that is still asking says nothing about missing models.
@@ -145,19 +163,33 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
           </div>
         ) : (
           asked && (
-            <Chips
-              kind={kind}
-              sort={sort}
-              period={understood ? period(understood.date_from, understood.date_until, t) : null}
-              places={understood?.places ?? []}
-              persons={understood?.persons ?? []}
-              onKind={(value) => {
-                change({ kind: value, medium: undefined }, true)
-              }}
-              onSort={(value) => {
-                change({ sort: value === 'relevance' ? undefined : value, medium: undefined }, true)
-              }}
-            />
+            <>
+              <Filters
+                year={year}
+                place={place}
+                camera={camera}
+                album={album}
+                onChange={(next) => {
+                  change({ ...next, medium: undefined }, true)
+                }}
+              />
+              <Chips
+                kind={kind}
+                sort={sort}
+                period={understood ? period(understood.date_from, understood.date_until, t) : null}
+                places={understood?.places ?? []}
+                persons={understood?.persons ?? []}
+                onKind={(value) => {
+                  change({ kind: value, medium: undefined }, true)
+                }}
+                onSort={(value) => {
+                  change(
+                    { sort: value === 'relevance' ? undefined : value, medium: undefined },
+                    true,
+                  )
+                }}
+              />
+            </>
           )
         )}
 
@@ -306,6 +338,176 @@ export function SearchField({
         </span>
       )}
     </form>
+  )
+}
+
+interface Choice {
+  value: string
+  label: string
+  /** How many media are behind it, where that is known. */
+  note?: string
+}
+
+/**
+ * One filter as a chip that opens its list: the year, the town, the camera, the album.
+ *
+ * What can be chosen comes from the library itself - the overview counts the years, towns and
+ * cameras it really has, the tree knows the albums - so nothing is offered that finds nothing.
+ * A filter with nothing to offer is not shown at all.
+ */
+function Picker({
+  icon,
+  label,
+  chosen,
+  choices,
+  onChoose,
+}: {
+  icon: string
+  label: string
+  chosen: string | undefined
+  choices: Choice[]
+  onChoose: (value: string | undefined) => void
+}) {
+  const { t } = useTranslation()
+  if (choices.length === 0) return null
+  const shown = choices.find((choice) => choice.value === chosen)?.label
+
+  return (
+    <span className="flex items-center">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              'flex items-center gap-1 rounded-full px-2.5 py-1 text-xs-plus transition',
+              shown === undefined
+                ? 'bg-secondary text-muted-foreground hover:text-foreground'
+                : 'bg-accent/15 text-foreground',
+              shown === undefined ? 'rounded-full' : 'rounded-l-full rounded-r-none pr-1.5',
+            )}
+          >
+            <Symbol name={icon} size={14} />
+            {shown ?? label}
+            <Symbol name="expand_more" size={14} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="max-h-72 overflow-y-auto">
+          {choices.map((choice) => (
+            <DropdownMenuItem
+              key={choice.value}
+              onSelect={() => {
+                onChoose(choice.value)
+              }}
+            >
+              <span className="flex-1">{choice.label}</span>
+              {choice.note !== undefined && (
+                <span className="ml-3 tabular-nums text-muted-foreground">{choice.note}</span>
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {shown !== undefined && (
+        <button
+          type="button"
+          aria-label={t('search.filter.clear', { label })}
+          className="rounded-r-full bg-accent/15 py-1 pl-0.5 pr-2 text-foreground transition hover:bg-accent/25"
+          onClick={() => {
+            onChoose(undefined)
+          }}
+        >
+          <Symbol name="close" size={14} />
+        </button>
+      )}
+    </span>
+  )
+}
+
+/**
+ * The filters one chooses, beside the ones the words already carry.
+ *
+ * Everything offered comes from the library itself, with how much is behind it, so no choice
+ * leads to an empty page. Each stands in the address, so a narrowed search can be sent to
+ * somebody and the back button undoes one choice at a time.
+ */
+function Filters({
+  year,
+  place,
+  camera,
+  album,
+  onChange,
+}: {
+  year: number | undefined
+  place: string | undefined
+  camera: string | undefined
+  album: string | undefined
+  onChange: (next: Changes) => void
+}) {
+  const { t } = useTranslation()
+  const overview = useOverview()
+  const tree = useAlbumTree()
+  const many = (count: number) => count.toLocaleString('de-DE')
+
+  const years: Choice[] = [...(overview.data?.years ?? [])]
+    .sort((a, b) => b.year - a.year)
+    .map((one) => ({
+      value: String(one.year),
+      label: String(one.year),
+      note: many(one.photos + one.videos),
+    }))
+  const towns: Choice[] = (overview.data?.towns ?? []).map((one) => ({
+    value: one.name,
+    label: one.country ? `${one.name}, ${one.country}` : one.name,
+    note: many(one.count),
+  }))
+  const cameras: Choice[] = (overview.data?.cameras ?? []).map((one) => ({
+    value: one.name,
+    label: one.name,
+    note: many(one.count),
+  }))
+  const albums: Choice[] = [...(tree.data?.items ?? [])]
+    .sort((a, b) => a.relative_path.localeCompare(b.relative_path, 'de'))
+    .map((one) => ({ value: one.id, label: one.relative_path }))
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Picker
+        icon="history"
+        label={t('search.filter.year')}
+        chosen={year === undefined ? undefined : String(year)}
+        choices={years}
+        onChoose={(value) => {
+          onChange({ year: value === undefined ? undefined : Number(value) })
+        }}
+      />
+      <Picker
+        icon="map"
+        label={t('search.filter.place')}
+        chosen={place}
+        choices={towns}
+        onChoose={(value) => {
+          onChange({ place: value })
+        }}
+      />
+      <Picker
+        icon="photo_camera"
+        label={t('search.filter.camera')}
+        chosen={camera}
+        choices={cameras}
+        onChoose={(value) => {
+          onChange({ camera: value })
+        }}
+      />
+      <Picker
+        icon="folder"
+        label={t('search.filter.album')}
+        chosen={album}
+        choices={albums}
+        onChoose={(value) => {
+          onChange({ album: value })
+        }}
+      />
+    </div>
   )
 }
 

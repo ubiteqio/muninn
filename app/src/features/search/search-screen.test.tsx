@@ -128,6 +128,33 @@ describe('SearchScreen', () => {
     expect(screen.getByRole('button', { name: 'Suchen' })).toBeDisabled()
   })
 
+  it('narrows a search by a year the library actually has', async () => {
+    const { calls } = stubApi({
+      [ABILITIES]: { body: { pictures: true, meanings: true, ready: true } },
+      'GET /api/v1/overview': {
+        body: {
+          years: [{ year: 2012, photos: 40, videos: 2 }],
+          towns: [],
+          cameras: [],
+        },
+      },
+      'GET /api/v1/albums/tree': { body: { items: [] } },
+      [SEARCH]: { body: aPage([{ media: aMedium('strand') }]) },
+    })
+    await renderScreen(<SearchScreen q="Strand" year={2012} />, { path: '/search' })
+
+    // One year is asked for as the period it is: its first day until the first of the next.
+    await waitFor(() => {
+      const asked = calls.filter((call) => call.path === '/api/v1/search').at(-1)
+      expect(asked?.body).toMatchObject({ date_from: '2012-01-01', date_until: '2013-01-01' })
+    })
+    // And the chip says which year, with a way to take it off again.
+    expect(await screen.findByRole('button', { name: '2012' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Jahr nicht mehr einschränken' }),
+    ).toBeInTheDocument()
+  })
+
   it('says up front what a search without a picture model can find, and after a search too', async () => {
     stubApi({
       [ABILITIES]: { body: { pictures: false, meanings: false, ready: false } },

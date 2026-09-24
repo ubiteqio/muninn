@@ -13,6 +13,13 @@ export interface SearchInput {
   q: string
   kind?: MediaKind | undefined
   sort?: SearchSort | undefined
+  /** One year, as the overview counts them. */
+  year?: number | undefined
+  /** A town, as the overview names it. */
+  place?: string | undefined
+  camera?: string | undefined
+  /** An album and everything below it. */
+  album?: string | undefined
   /** Pictures like this medium instead of words. */
   similar?: string | undefined
 }
@@ -23,11 +30,12 @@ const PAGE_SIZE = 60
  * One search, page after page. Nothing is asked while there is nothing to ask: an empty field
  * shows a hint, not the whole library.
  */
-export function useSearch({ q, kind, sort, similar }: SearchInput) {
+export function useSearch({ q, kind, sort, year, place, camera, album, similar }: SearchInput) {
   const words = q.trim()
+  const narrowed = [kind ?? null, sort ?? 'relevance', year ?? null, place ?? null, camera ?? null, album ?? null]
 
   return useInfiniteQuery({
-    queryKey: ['media', 'search', similar ?? null, words, kind ?? null, sort ?? 'relevance'],
+    queryKey: ['media', 'search', similar ?? null, words, ...narrowed],
     enabled: words.length > 0 || similar !== undefined,
     // A different filter on the same words keeps the pictures on screen while the new page is
     // on its way: a grid that empties and fills again reads as a page that jumped. New words
@@ -54,6 +62,13 @@ export function useSearch({ q, kind, sort, similar }: SearchInput) {
             sort: sort ?? 'relevance',
             limit: PAGE_SIZE,
             ...(kind ? { kind } : {}),
+            // One year, as a period: the first day of it until the first day of the next.
+            ...(year
+              ? { date_from: `${String(year)}-01-01`, date_until: `${String(year + 1)}-01-01` }
+              : {}),
+            ...(place ? { place } : {}),
+            ...(camera ? { camera } : {}),
+            ...(album ? { album_id: album } : {}),
             ...(pageParam ? { cursor: pageParam } : {}),
           },
         }),

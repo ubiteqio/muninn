@@ -32,6 +32,13 @@
     "placeholder": "Suchen – z. B. „Oma am Strand 2012“",
     "placeholderAi": "Beschreibe, was du suchst – z. B. „Oma am Strand 2012“",
     "submit": "Suchen",
+    "filter": {
+      "year": "Jahr",
+      "place": "Ort",
+      "camera": "Kamera",
+      "album": "Album",
+      "clear": "{{label}} nicht mehr einschränken"
+    },
     "hintResting": "Der KI-Server antwortet gerade nicht. Gesucht wird in Alben- und Dateinamen, Orten, Zeiträumen, Beschreibungen und Gesprochenem – nicht in den Bildern selbst. Sobald er wieder da ist, sucht Muninn auch nach dem, was zu sehen ist.",
     "hint": "Beschreibe, was du suchst: „Hund am Strand“, „Geburtstag 2012“, „Schnee im Winter 2010“. Muninn sucht in den Bildern selbst, in ihren Beschreibungen, in dem, was in Videos gesagt wird, und in Alben- und Dateinamen.",
     "searching": "Wird gesucht …",

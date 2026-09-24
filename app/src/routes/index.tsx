@@ -204,6 +204,13 @@ export interface SearchParams {
   q?: string
   kind?: 'image' | 'video'
   sort?: 'relevance' | 'date'
+  /** One year, as the overview counts them. */
+  year?: number
+  /** A town, as the overview names it. */
+  place?: string
+  camera?: string
+  /** An album and everything below it. */
+  album?: string
   /** Pictures like this medium, instead of words. */
   similar?: string
   medium?: string
@@ -218,10 +225,19 @@ export const searchRoute = createRoute({
     const q = asText(search.q)
     const similar = asText(search.similar)
     const medium = asText(search.medium)
+    const place = asText(search.place)
+    const camera = asText(search.camera)
+    const album = asText(search.album)
+    const year = Number(search.year)
     return {
       ...(q === undefined ? {} : { q }),
       ...(search.kind === 'image' || search.kind === 'video' ? { kind: search.kind } : {}),
       ...(search.sort === 'date' ? { sort: 'date' as const } : {}),
+      // A year out of any thinkable range is somebody's broken link, not a filter.
+      ...(Number.isInteger(year) && year > 1800 && year < 2200 ? { year } : {}),
+      ...(place === undefined ? {} : { place }),
+      ...(camera === undefined ? {} : { camera }),
+      ...(album === undefined ? {} : { album }),
       ...(similar === undefined ? {} : { similar }),
       ...(medium === undefined ? {} : { medium }),
     }
