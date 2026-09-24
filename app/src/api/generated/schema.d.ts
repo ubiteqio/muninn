@@ -3153,6 +3153,16 @@ export interface components {
             /** Media */
             media: number;
             cover: components["schemas"]["FaceView"] | null;
+            /**
+             * Faces Auto
+             * @default 0
+             */
+            faces_auto: number;
+            /**
+             * Faces Twice
+             * @default 0
+             */
+            faces_twice: number;
         };
         /** PersonShare */
         PersonShare: {

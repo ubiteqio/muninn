@@ -92,6 +92,10 @@ class PersonCard(BaseModel):
     faces: int
     media: int
     cover: FaceView | None
+    #: How many of those faces Muninn gave on its own, and how many stand twice in one photo.
+    #: Only on the person's own page, where the filters that hold them are.
+    faces_auto: int = 0
+    faces_twice: int = 0
 
 
 class GroupView(BaseModel):

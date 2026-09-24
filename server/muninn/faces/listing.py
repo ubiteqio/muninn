@@ -5,6 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import Select, and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -189,21 +190,13 @@ class FaceFilter(StrEnum):
     TWICE = "twice"
 
 
-async def faces_of(
-    session: AsyncSession,
-    person_id: uuid.UUID,
-    *,
-    offset: int,
-    limit: int,
-    only: FaceFilter | None = None,
-) -> tuple[list[FaceShown], bool]:
-    """A person's faces, newest photo first: to look through, and to take wrong ones out."""
-    query = _visible_faces().where(Face.person_id == person_id)
+def _under(query: Any, person_id: uuid.UUID, only: "FaceFilter | None") -> Any:
+    """The condition a filter stands for, so a count and a listing can never disagree."""
     if only is FaceFilter.AUTO:
-        query = query.where(Face.assigned_by == "auto")
-    elif only is FaceFilter.TWICE:
+        return query.where(Face.assigned_by == "auto")
+    if only is FaceFilter.TWICE:
         other = aliased(Face)
-        query = query.where(
+        return query.where(
             Face.second.is_(None),
             select(other.id)
             .where(
@@ -213,6 +206,32 @@ async def faces_of(
             )
             .exists(),
         )
+    return query
+
+
+async def count_faces(
+    session: AsyncSession, person_id: uuid.UUID, *, only: "FaceFilter | None" = None
+) -> int:
+    """How many faces a filter holds, so the chip can say so before anybody scrolls."""
+    query = _under(
+        select(func.count()).select_from(Face).where(Face.person_id == person_id),
+        person_id,
+        only,
+    )
+    found = await session.scalar(query)
+    return int(found or 0)
+
+
+async def faces_of(
+    session: AsyncSession,
+    person_id: uuid.UUID,
+    *,
+    offset: int,
+    limit: int,
+    only: FaceFilter | None = None,
+) -> tuple[list[FaceShown], bool]:
+    """A person's faces, newest photo first: to look through, and to take wrong ones out."""
+    query = _under(_visible_faces().where(Face.person_id == person_id), person_id, only)
     rows = (
         (
             await session.execute(

@@ -184,7 +184,19 @@ async def read_person(
         ),
         listing.PersonSummary(person=person, faces=0, media=0, cover=None),
     )
-    return _person_view(summary, settings.jwt_secret)
+    view = _person_view(summary, settings.jwt_secret)
+    # Only here, where the filters that hold them are: the row of people asks for nothing it
+    # does not show, and these are two counts per person.
+    return view.model_copy(
+        update={
+            "faces_auto": await listing.count_faces(
+                session, person.id, only=listing.FaceFilter.AUTO
+            ),
+            "faces_twice": await listing.count_faces(
+                session, person.id, only=listing.FaceFilter.TWICE
+            ),
+        }
+    )
 
 
 @router.patch("/people/{person_id}", summary="Rename a person, or hide or show them")

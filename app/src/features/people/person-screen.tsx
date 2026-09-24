@@ -169,7 +169,17 @@ export function PersonScreen({ personId }: { personId: string }) {
             }}
           />
         ) : (
-          data && <FacesTab personId={personId} name={data.name} />
+          data && (
+            <FacesTab
+              personId={personId}
+              name={data.name}
+              counts={{
+                all: data.faces,
+                auto: data.faces_auto,
+                twice: data.faces_twice,
+              }}
+            />
+          )
         )}
       </div>
 
@@ -218,7 +228,16 @@ const FILTERS: (FaceFilter | undefined)[] = [undefined, 'auto', 'twice']
  * Muninn gave on its own, or those where the person is twice in one photo, can be shown alone;
  * a tap on a face shows the whole photo with it marked.
  */
-function FacesTab({ personId, name }: { personId: string; name: string }) {
+function FacesTab({
+  personId,
+  name,
+  counts,
+}: {
+  personId: string
+  name: string
+  /** How many faces each filter holds, so a chip can say so before anybody scrolls. */
+  counts: { all: number; auto: number; twice: number }
+}) {
   const { t } = useTranslation()
   const [only, setOnly] = useState<FaceFilter | undefined>(undefined)
   const [checking, setChecking] = useState<FaceView | null>(null)
@@ -244,7 +263,12 @@ function FacesTab({ personId, name }: { personId: string; name: string }) {
               setOnly(filter)
             }}
           >
-            {t(`people.only.${filter ?? 'all'}`)}
+            {t(`people.only.${filter ?? 'all'}`)}{' '}
+            {/* A space, not only a margin: the name a screen reader says runs the two
+              together otherwise. */}
+            <span className="tabular-nums opacity-70">
+              {counts[filter ?? 'all'].toLocaleString('de-DE')}
+            </span>
           </Button>
         ))}
       </div>

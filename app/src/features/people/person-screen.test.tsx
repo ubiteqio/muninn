@@ -27,7 +27,18 @@ function aFace(id: string, assignedBy: 'auto' | 'user') {
 
 function stub(faces: object[], extra: object = {}) {
   return stubApi({
-    [PERSON]: { body: { id: 'p1', name: 'Olivia', hidden: false, faces: 3, media: 3, cover: null } },
+    [PERSON]: {
+      body: {
+        id: 'p1',
+        name: 'Olivia',
+        hidden: false,
+        faces: 5346,
+        media: 3,
+        cover: null,
+        faces_auto: 4210,
+        faces_twice: 12,
+      },
+    },
     [FACES]: { body: { items: faces, next_cursor: null } },
     [PEOPLE]: { body: { persons: [] } },
     [MEDIA]: { body: { items: [], next_cursor: null } },
@@ -37,6 +48,20 @@ function stub(faces: object[], extra: object = {}) {
 }
 
 describe('a person and their faces', () => {
+  it('says how large each filter is before anybody scrolls', async () => {
+    // "Von Muninn zugeordnet" without a number says nothing about how much work is in it.
+    stub([aFace('f1', 'auto')])
+    await renderScreen(<PersonScreen personId="p1" />)
+
+    await userEvent.click(await screen.findByRole('tab', { name: 'Gesichter' }))
+
+    expect(screen.getByRole('button', { name: /^Alle 5\.346$/ })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /^Von Muninn zugeordnet 4\.210$/ }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Doppelt im selben Foto 12$/ })).toBeInTheDocument()
+  })
+
   it('stands by the faces Muninn gave, and only those on the screen', async () => {
     // What Muninn decided by itself vouches for nobody. Standing by a page of it is worth more
     // than answering a hundred questions - but only what somebody has actually looked at.
