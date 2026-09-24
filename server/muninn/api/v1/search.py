@@ -4,6 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from muninn.albums import service as albums_service
@@ -18,7 +19,7 @@ from muninn.api.schemas.search import (
     encode_offset,
 )
 from muninn.core.config import Settings
-from muninn.core.deps import ActiveUser, get_session, get_settings_from_state
+from muninn.core.deps import ActiveUser, get_redis, get_session, get_settings_from_state
 from muninn.core.problem import ProblemError, problem_type
 from muninn.media import service as media_service
 from muninn.search import engine
@@ -27,19 +28,28 @@ router = APIRouter(tags=["search"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings_from_state)]
+RedisDep = Annotated[Redis, Depends(get_redis)]
 
 
 @router.get("/search/abilities", summary="What the search can look into")
-async def read_abilities(user: ActiveUser, session: SessionDep) -> SearchAbilities:
+async def read_abilities(user: ActiveUser, session: SessionDep, redis: RedisDep) -> SearchAbilities:
     """Without a picture or word model the search still finds names, places and periods; the app
-    says so, and offers no "Ähnliche Bilder" where there is nothing to compare."""
-    found = await engine.abilities(session)
-    return SearchAbilities(pictures=found.pictures, meanings=found.meanings)
+    says so, and offers no "Ähnliche Bilder" where there is nothing to compare.
+
+    ``ready`` is the other half: the models are set up, but is the machine answering? The app
+    asks again now and then, so the field changes by itself when the machine comes back.
+    """
+    found = await engine.abilities(session, redis)
+    return SearchAbilities(pictures=found.pictures, meanings=found.meanings, ready=found.ready)
 
 
 @router.post("/search", summary="Search the library")
 async def search(
-    request: SearchRequest, user: ActiveUser, session: SessionDep, settings: SettingsDep
+    request: SearchRequest,
+    user: ActiveUser,
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
 ) -> SearchPage:
     """Words, periods and filters in, the best matches out - one page at a time.
 
@@ -56,6 +66,7 @@ async def search(
 
     found = await engine.find(
         session,
+        redis,
         request.q,
         filters=engine.Filters(
             date_from=request.date_from,

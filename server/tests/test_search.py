@@ -14,6 +14,7 @@ from muninn.ai.analysis import Analysis
 from muninn.ai.base import AiError, Check, SpokenPart, Transcript
 from muninn.analysis import service as analysis_service
 from muninn.analysis import transcripts
+from muninn.huginn import jobs
 from muninn.models.ai import AiKind
 from muninn.models.album import Album
 from muninn.models.analysis import VideoFrame
@@ -345,6 +346,40 @@ async def test_the_api_searches_and_says_what_it_understood(
     assert limits == [engine.PROBE_TIMEOUT_SECONDS, engine.PROBE_TIMEOUT_SECONDS]
 
 
+async def test_a_machine_that_did_not_answer_is_not_asked_again(
+    monkeypatch: pytest.MonkeyPatch,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    api_client: AsyncClient,
+    fake_redis: Any,
+) -> None:
+    """Every search used to wait out the timeout to learn what the one before it knew already.
+
+    A machine that did not answer is left to rest, the same rest the worker gives it, and the
+    next search goes straight to the words.
+    """
+    await machines(session)
+    await a_described(session, "A", "IMG_1.jpg", caption="Ein Strand.", picture=BEACH)
+    asked: list[object] = []
+
+    def embedder_for(_profile: object, **options: object) -> WordModel:
+        asked.append(options)
+        return WordModel(away=True)
+
+    monkeypatch.setattr(ai_service, "embedder_for", embedder_for)
+    headers = await signed_in(api_client, session_factory)
+
+    first = await api_client.post("/search", json={"q": "Strand"}, headers=headers)
+    second = await api_client.post("/search", json={"q": "Strand"}, headers=headers)
+
+    # The words find it both times, and both answers say the pictures were not asked.
+    assert [first.json()["degraded"], second.json()["degraded"]] == [True, True]
+    # Twice for the first search - the picture model and the word model - and never again.
+    assert len(asked) == 2
+    assert await fake_redis.exists(jobs.pause_key(jobs.IMAGE_VECTOR_STAGE))
+    assert await fake_redis.exists(jobs.pause_key(jobs.CAPTION_VECTOR_STAGE))
+
+
 async def test_the_api_hands_out_pages(
     session: AsyncSession,
     session_factory: async_sessionmaker[AsyncSession],
@@ -391,6 +426,7 @@ async def test_the_app_learns_what_the_search_can_look_into(
     api_client: AsyncClient,
     session: AsyncSession,
     session_factory: async_sessionmaker[AsyncSession],
+    fake_redis: Any,
 ) -> None:
     """Without models only names, places and periods are searched; the app says so up front."""
     headers = await signed_in(api_client, session_factory)
@@ -405,6 +441,12 @@ async def test_the_app_learns_what_the_search_can_look_into(
     )
     pictures = (await api_client.get("/search/abilities", headers=headers)).json()
 
-    assert none == {"pictures": False, "meanings": False}
-    assert pictures == {"pictures": True, "meanings": False}
+    assert none == {"pictures": False, "meanings": False, "ready": False}
+    assert pictures == {"pictures": True, "meanings": False, "ready": True}
     assert (await api_client.get("/search/abilities")).status_code == 401
+
+    # The model is set up but its machine did not answer a moment ago, so it is being left
+    # alone. The app is told, and offers the plain search rather than waiting out the timeout.
+    await fake_redis.set(jobs.pause_key(jobs.IMAGE_VECTOR_STAGE), "1", ex=60)
+    resting = (await api_client.get("/search/abilities", headers=headers)).json()
+    assert resting == {"pictures": True, "meanings": False, "ready": False}

@@ -834,6 +834,9 @@ export interface paths {
          * What the search can look into
          * @description Without a picture or word model the search still finds names, places and periods; the app
          *     says so, and offers no "Ähnliche Bilder" where there is nothing to compare.
+         *
+         *     ``ready`` is the other half: the models are set up, but is the machine answering? The app
+         *     asks again now and then, so the field changes by itself when the machine comes back.
          */
         get: operations["read_abilities_api_v1_search_abilities_get"];
         put?: never;
@@ -3290,6 +3293,11 @@ export interface components {
             pictures: boolean;
             /** Meanings */
             meanings: boolean;
+            /**
+             * Ready
+             * @default false
+             */
+            ready: boolean;
         };
         /** SearchHitView */
         SearchHitView: {

@@ -21,13 +21,16 @@ from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
+from redis.asyncio import Redis
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from muninn.ai import service as ai_service
 from muninn.ai.base import AiError
+from muninn.ai.health import STAGE_OF
 from muninn.faces import people
+from muninn.huginn import jobs
 from muninn.models.ai import AiKind, AiProfile
 from muninn.models.media import Media, MediaKind, MediaStatus
 from muninn.places import service as places_service
@@ -370,12 +373,28 @@ class Abilities:
     pictures: bool
     #: A word model: descriptions are found by what they mean, not only by their words.
     meanings: bool
+    #: Whether the machine behind them answers at this moment. False while it rests after not
+    #: answering, so the app can offer the plain search rather than promise more than it can do.
+    ready: bool
 
 
-async def abilities(session: AsyncSession) -> Abilities:
+async def _resting(redis: Redis, kind: AiKind) -> bool:
+    """Whether this model is being left alone because its machine did not answer.
+
+    The same pause the worker sets and the engine room shows, so a search, the pipeline and the
+    admin area all agree about a machine that is away.
+    """
+    found: Any = await redis.exists(jobs.pause_key(STAGE_OF[kind]))
+    return int(found) == 1
+
+
+async def abilities(session: AsyncSession, redis: Redis) -> Abilities:
     pictures = await ai_service.active_profile(session, AiKind.IMAGE_EMBEDDER)
     meanings = await ai_service.active_profile(session, AiKind.TEXT_EMBEDDER)
-    return Abilities(pictures=pictures is not None, meanings=meanings is not None)
+    ready = (pictures is not None and not await _resting(redis, AiKind.IMAGE_EMBEDDER)) or (
+        meanings is not None and not await _resting(redis, AiKind.TEXT_EMBEDDER)
+    )
+    return Abilities(pictures=pictures is not None, meanings=meanings is not None, ready=ready)
 
 
 @dataclass(frozen=True, slots=True)
@@ -388,22 +407,33 @@ class Found:
     degraded: bool
 
 
-async def _probe(profile: AiProfile | None, words: str) -> tuple[Probe | None, bool]:
-    """The words as a vector of this profile's model; nothing when there is no profile, and a
-    failed request is reported instead of raised - the search goes on without it."""
+async def _probe(
+    redis: Redis, kind: AiKind, profile: AiProfile | None, words: str
+) -> tuple[Probe | None, bool]:
+    """The words as a vector of this profile's model; nothing when there is no profile.
+
+    A machine that did not answer a moment ago is not asked again: it is resting, and every
+    search would otherwise wait out the timeout to learn what the last one already knew. A
+    failed request is reported rather than raised - the search goes on without it - and puts the
+    machine to rest, so the workers stop asking too.
+    """
     if profile is None or not words:
         return None, False
+    if await _resting(redis, kind):
+        return None, True
     try:
         embedder = ai_service.embedder_for(profile, timeout_seconds=PROBE_TIMEOUT_SECONDS)
         (vector,) = await embedder.embed([words])
     except AiError as error:
         logger.warning("Search without %s: %s", profile.model, error)
+        await redis.set(jobs.pause_key(STAGE_OF[kind]), "1", ex=jobs.AI_PAUSE_SECONDS)
         return None, True
     return Probe(vector=vector, model=profile.model), False
 
 
 async def find(
     session: AsyncSession,
+    redis: Redis,
     query: str,
     *,
     filters: Filters,
@@ -428,7 +458,8 @@ async def find(
     pictures = await ai_service.active_profile(session, AiKind.IMAGE_EMBEDDER)
     meanings = await ai_service.active_profile(session, AiKind.TEXT_EMBEDDER)
     (image, image_failed), (caption, caption_failed) = await asyncio.gather(
-        _probe(pictures, understood.text), _probe(meanings, understood.text)
+        _probe(redis, AiKind.IMAGE_EMBEDDER, pictures, understood.text),
+        _probe(redis, AiKind.TEXT_EMBEDDER, meanings, understood.text),
     )
 
     hits = await search(

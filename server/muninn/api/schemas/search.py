@@ -78,3 +78,6 @@ class SearchAbilities(BaseModel):
     pictures: bool
     #: Descriptions are found by what they mean, not only by their words.
     meanings: bool
+    #: Whether the machine behind them answers at this moment. False while it rests after not
+    #: answering: the app then offers the plain search instead of promising more.
+    ready: bool = False
