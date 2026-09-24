@@ -140,16 +140,7 @@ export function ViewerChrome({
       />
 
       {/* The way through the album, for a screen with a mouse. */}
-      {/* A video draws its own controls along its bottom edge. Ours keep out of their way
-          rather than sitting on top of them. */}
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent pt-10',
-          medium.kind === 'video'
-            ? 'pb-[calc(max(env(safe-area-inset-bottom),12px)+56px)]'
-            : 'pb-[max(env(safe-area-inset-bottom),12px)]',
-        )}
-      >
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent pb-[max(env(safe-area-inset-bottom),12px)] pt-10">
         <div
           className={cn(
             'mx-auto flex w-full max-w-[720px] flex-col gap-2 px-4',
