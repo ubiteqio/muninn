@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Medium } from '@/features/albums/use-albums'
@@ -92,7 +92,7 @@ describe('SearchScreen', () => {
   })
 
   it('says what can be asked before anything is typed, and searches nothing', async () => {
-    const { calls } = stubApi({ [ABILITIES]: { body: { pictures: true, meanings: true } } })
+    const { calls } = stubApi({ [ABILITIES]: { body: { pictures: true, meanings: true, ready: true } } })
 
     await renderScreen(<SearchScreen />)
 
@@ -100,9 +100,37 @@ describe('SearchScreen', () => {
     expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([ABILITIES])
   })
 
+  it('offers the plain search while the machine behind the models is away', async () => {
+    // Set up but not answering: promising to search the pictures themselves would be a lie.
+    stubApi({ [ABILITIES]: { body: { pictures: true, meanings: true, ready: false } } })
+
+    await renderScreen(<SearchScreen />)
+
+    expect(await screen.findByText(/Der KI-Server antwortet gerade nicht/)).toBeInTheDocument()
+    expect(screen.queryByText(/Beschreibe, was du suchst/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Bibliothek durchsuchen')).toHaveAttribute(
+      'placeholder',
+      'Suchen – z. B. „Oma am Strand 2012“',
+    )
+  })
+
+  it('asks to be described to while the models answer', async () => {
+    stubApi({ [ABILITIES]: { body: { pictures: true, meanings: true, ready: true } } })
+
+    await renderScreen(<SearchScreen />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Bibliothek durchsuchen')).toHaveAttribute(
+        'placeholder',
+        'Beschreibe, was du suchst – z. B. „Oma am Strand 2012“',
+      )
+    })
+    expect(screen.getByRole('button', { name: 'Suchen' })).toBeDisabled()
+  })
+
   it('says up front what a search without a picture model can find, and after a search too', async () => {
     stubApi({
-      [ABILITIES]: { body: { pictures: false, meanings: false } },
+      [ABILITIES]: { body: { pictures: false, meanings: false, ready: false } },
       [SEARCH]: { body: aPage([{ media: aMedium('italien') }]) },
     })
 
@@ -120,7 +148,7 @@ describe('SearchScreen', () => {
     [false, 0],
   ])('offers pictures like this one only with a picture model (%s)', async (pictures, buttons) => {
     stubApi({
-      [ABILITIES]: { body: { pictures, meanings: true } },
+      [ABILITIES]: { body: { pictures, meanings: true, ready: true } },
       [SEARCH]: { body: aPage([{ media: aMedium('strand') }]) },
     })
 

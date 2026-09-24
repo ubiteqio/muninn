@@ -1,3 +1,4 @@
+import { useIsFetching } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +7,7 @@ import { AppShell } from '@/components/layout/app-shell'
 import { Knotwork } from '@/components/muninn/knotwork'
 import { LoadingBody } from '@/components/muninn/placeholder'
 import { Symbol } from '@/components/muninn/symbol'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLibraryUpdates } from '@/features/albums/use-library-updates'
 import { formatDuration } from '@/features/media/format'
@@ -39,6 +41,11 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
   const abilities = abilitiesQuery.data
   // Only once it is known: a page that is still asking says nothing about missing models.
   const withoutPictures = abilities !== undefined && !abilities.pictures
+  // Set up and answering. Asked again every half minute, so the field follows the machine.
+  const aiReady = abilities?.ready === true
+  // Any search on its way, wherever it was started - the field on this page or the one in the
+  // header, which is the only one on a desktop.
+  const looking = useIsFetching({ queryKey: ['media', 'search'] }) > 0
   useLibraryUpdates()
 
   const change = useCallback(
@@ -116,6 +123,8 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
           key={q}
           initial={q}
           className="md:hidden"
+          ai={aiReady}
+          busy={looking}
           onSearch={(words) => {
             change({ q: words, similar: undefined, medium: undefined })
           }}
@@ -173,7 +182,7 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
             }}
           />
         )}
-        {!asked && <Hint withoutPictures={withoutPictures} />}
+        {!asked && <Hint mode={withoutPictures ? 'words' : aiReady ? 'ai' : 'resting'} />}
         {asked && search.isPending && <ResultsLoading columns={columns} />}
         {search.isError && (
           <p className="text-base text-destructive">{t('auth.error.unreachable')}</p>
@@ -226,43 +235,76 @@ type Changes = { [Key in keyof SearchParams]?: SearchParams[Key] | undefined }
 /**
  * The field itself: the header's on the desktop, the page's own on the phone. It starts from
  * what the address says; whoever shows it gives it a key, so a new search starts it afresh.
+ *
+ * It shows what it can do. With the models answering it is the accent colour and asks to be
+ * described to; without them it is the plain field it has always been, because then it really
+ * is a search for words. Promising more than the machine can deliver would be worse than the
+ * plain field.
  */
 export function SearchField({
   initial,
   onSearch,
   className,
+  ai = false,
+  busy = false,
 }: {
   initial: string
   onSearch: (words: string) => void
   className?: string
+  /** The picture and word models are set up and their machine answers. */
+  ai?: boolean
+  /** A search is on its way; the button rests and the bar runs until it is back. */
+  busy?: boolean
 }) {
   const { t } = useTranslation()
   const [words, setWords] = useState(initial)
+  const ready = words.trim().length > 0
 
   return (
     <form
       role="search"
       onSubmit={(event) => {
         event.preventDefault()
-        if (words.trim()) onSearch(words.trim())
+        if (ready) onSearch(words.trim())
       }}
       className={cn('relative min-w-0', className)}
     >
       <Symbol
-        name="search"
+        name={ai ? 'auto_awesome' : 'search'}
         size={20}
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        className={cn(
+          'pointer-events-none absolute left-3 top-1/2 -translate-y-1/2',
+          ai ? 'text-accent' : 'text-muted-foreground',
+        )}
       />
       <Input
         type="search"
-        className="pl-10"
+        className={cn('pl-10 pr-14 sm:pr-28', ai && 'border-accent/40')}
         value={words}
         onChange={(event) => {
           setWords(event.target.value)
         }}
-        placeholder={t('search.placeholder')}
+        placeholder={t(ai ? 'search.placeholderAi' : 'search.placeholder')}
         aria-label={t('search.label')}
       />
+      <Button
+        type="submit"
+        size="sm"
+        disabled={busy || !ready}
+        aria-label={t('search.submit')}
+        className="absolute right-1.5 top-1/2 h-8 -translate-y-1/2 gap-1.5 px-2.5 sm:px-3"
+      >
+        <Symbol name={busy ? 'sync' : 'search'} size={18} className={cn(busy && 'animate-spin')} />
+        <span className="hidden sm:inline">{t('search.submit')}</span>
+      </Button>
+      {busy && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-3 -bottom-1 h-0.5 overflow-hidden rounded-full bg-accent/15"
+        >
+          <span className="block h-full w-1/4 animate-sweep rounded-full bg-accent" />
+        </span>
+      )}
     </form>
   )
 }
@@ -383,14 +425,24 @@ function Chip({
 }
 
 /** Before anything is typed: what can be asked, rather than an empty page. */
-function Hint({ withoutPictures }: { withoutPictures: boolean }) {
+/**
+ * What to type, in the words of the search one actually has.
+ *
+ * "words" when no models are set up, "resting" when they are but their machine is away - saying
+ * "describe what you are looking for" to somebody who will only get a word search is worse than
+ * saying nothing.
+ */
+function Hint({ mode }: { mode: 'words' | 'resting' | 'ai' }) {
   const { t } = useTranslation()
+  const said = {
+    words: 'search.hintWithoutPictures',
+    resting: 'search.hintResting',
+    ai: 'search.hint',
+  }[mode]
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 text-center">
       <Knotwork className="w-24" />
-      <p className="max-w-[360px] text-md text-muted-foreground">
-        {t(withoutPictures ? 'search.hintWithoutPictures' : 'search.hint')}
-      </p>
+      <p className="max-w-[360px] text-md text-muted-foreground">{t(said)}</p>
     </div>
   )
 }

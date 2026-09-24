@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import { api, unwrap } from '@/api/client'
 import type { components } from '@/api/generated/schema'
@@ -29,7 +29,11 @@ export function useSearch({ q, kind, sort, similar }: SearchInput) {
   return useInfiniteQuery({
     queryKey: ['media', 'search', similar ?? null, words, kind ?? null, sort ?? 'relevance'],
     enabled: words.length > 0 || similar !== undefined,
-    placeholderData: keepPreviousData,
+    // A different filter on the same words keeps the pictures on screen while the new page is
+    // on its way: a grid that empties and fills again reads as a page that jumped. New words
+    // are a new question, though, and then the old answer standing there is a lie - it goes,
+    // and the field says that Muninn is looking.
+    placeholderData: (previous, of) => (of?.queryKey[3] === words ? previous : undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last: SearchPage) => last.next_cursor ?? undefined,
     queryFn: async ({ pageParam }): Promise<SearchPage> => {
@@ -70,6 +74,11 @@ export function useSearchAbilities() {
   return useQuery({
     queryKey: ABILITIES_KEY,
     queryFn: async () => unwrap(await api.GET('/api/v1/search/abilities')),
-    staleTime: 5 * 60_000,
+    // Which models are set up changes rarely; whether their machine answers changes by itself.
+    // Asked again now and then, and whenever the window is looked at, so the field follows the
+    // machine instead of waiting for a reload.
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   })
 }

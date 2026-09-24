@@ -112,10 +112,16 @@ export default {
           from: { opacity: '1' },
           to: { opacity: '0' },
         },
+        /** A bar that says Muninn is looking, without pretending to know how far along it is. */
+        sweep: {
+          '0%': { transform: 'translateX(-120%)' },
+          '100%': { transform: 'translateX(420%)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 150ms ease-out',
         'fade-out': 'fade-out 120ms ease-in',
+        sweep: 'sweep 1.1s ease-in-out infinite',
       },
     },
   },

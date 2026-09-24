@@ -1,9 +1,11 @@
+import { useIsFetching } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Symbol } from '@/components/muninn/symbol'
 import { NotificationBell } from '@/features/notify/notification-bell'
 import { SearchField } from '@/features/search/search-screen'
+import { useSearchAbilities } from '@/features/search/use-search'
 
 /**
  * 76 px header: the search field on the left, notifications on the right. Muninn reads the
@@ -15,6 +17,8 @@ import { SearchField } from '@/features/search/search-screen'
 /** The search field of every page: it starts a search, and on the search page it shows it. */
 function HeaderSearch() {
   const navigate = useNavigate()
+  const abilities = useSearchAbilities()
+  const looking = useIsFetching({ queryKey: ['media', 'search'] })
   const current = useRouterState({
     select: (state) => {
       if (state.location.pathname !== '/search') return ''
@@ -29,6 +33,8 @@ function HeaderSearch() {
       key={current}
       initial={current}
       className="max-w-[520px] flex-1"
+      ai={abilities.data?.ready === true}
+      busy={looking > 0}
       onSearch={(words) => {
         void navigate({ to: '/search', search: { q: words } })
       }}
