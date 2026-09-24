@@ -19,6 +19,7 @@ from muninn.models.ai import AiKind
 from muninn.models.album import Album
 from muninn.models.analysis import VideoFrame
 from muninn.models.media import Media, MediaKind, MediaStatus
+from muninn.models.place import Place
 from muninn.models.user import UserRole
 from muninn.search import engine
 from muninn.search.service import VectorKind, store
@@ -378,6 +379,54 @@ async def test_a_machine_that_did_not_answer_is_not_asked_again(
     assert len(asked) == 2
     assert await fake_redis.exists(jobs.pause_key(jobs.IMAGE_VECTOR_STAGE))
     assert await fake_redis.exists(jobs.pause_key(jobs.CAPTION_VECTOR_STAGE))
+
+
+async def test_a_chosen_place_narrows_the_search(
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    api_client: AsyncClient,
+) -> None:
+    """A town picked beside the words narrows the same way a town in the words does."""
+    session.add_all(
+        [
+            Place(
+                id=3176959,
+                name="Florenz",
+                country_code="IT",
+                latitude=43.77925,
+                longitude=11.24626,
+                keys=["florenz", "toskana", "italien"],
+            ),
+            Place(
+                id=2911298,
+                name="Hamburg",
+                country_code="DE",
+                latitude=53.55073,
+                longitude=9.99302,
+                keys=["hamburg", "deutschland"],
+            ),
+        ]
+    )
+    await session.commit()
+    album = await an_album(session, "Reisen")
+    south = await a_medium(session, album, taken_at=datetime(2012, 7, 1, tzinfo=UTC), name="IT.jpg")
+    north = await a_medium(session, album, taken_at=datetime(2012, 7, 2, tzinfo=UTC), name="DE.jpg")
+    south.place_id = 3176959
+    north.place_id = 2911298
+    await session.commit()
+    headers = await signed_in(api_client, session_factory)
+
+    everywhere = await api_client.post("/search", json={"q": "jpg"}, headers=headers)
+    tuscany = await api_client.post(
+        "/search", json={"q": "jpg", "place": "Florenz"}, headers=headers
+    )
+
+    def named(response: object) -> list[str]:
+        body = response.json()  # type: ignore[attr-defined]
+        return sorted(item["media"]["origin"]["filename"] for item in body["items"])
+
+    assert named(everywhere) == ["DE.jpg", "IT.jpg"]
+    assert named(tuscany) == ["IT.jpg"]
 
 
 async def test_the_api_hands_out_pages(

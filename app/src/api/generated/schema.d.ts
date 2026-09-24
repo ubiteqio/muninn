@@ -3337,6 +3337,8 @@ export interface components {
             album_id?: string | null;
             /** Camera */
             camera?: string | null;
+            /** Place */
+            place?: string | null;
             /**
              * Sort
              * @default relevance

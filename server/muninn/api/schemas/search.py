@@ -23,6 +23,9 @@ class SearchRequest(BaseModel):
     #: An album and everything below it.
     album_id: UUID | None = None
     camera: str | None = Field(default=None, max_length=120)
+    #: A town, as the overview names it. Looked up the same way a town in the words would be,
+    #: so only places the library actually has photos from count.
+    place: str | None = Field(default=None, max_length=120)
     sort: Literal["relevance", "date"] = "relevance"
     cursor: str | None = None
     limit: int = Field(default=60, ge=1, le=200)

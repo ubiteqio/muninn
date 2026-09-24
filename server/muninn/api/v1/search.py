@@ -22,6 +22,7 @@ from muninn.core.config import Settings
 from muninn.core.deps import ActiveUser, get_redis, get_session, get_settings_from_state
 from muninn.core.problem import ProblemError, problem_type
 from muninn.media import service as media_service
+from muninn.places import service as places_service
 from muninn.search import engine
 
 router = APIRouter(tags=["search"])
@@ -64,6 +65,11 @@ async def search(
             raise _not_found("album-not-found", "Album not found") from error
         album_path = album.album.relative_path
 
+    chosen = (
+        (await places_service.places_in(session, request.place)).keys
+        if request.place is not None
+        else ()
+    )
     found = await engine.find(
         session,
         redis,
@@ -74,6 +80,7 @@ async def search(
             kind=request.kind,
             album_path=album_path,
             camera=request.camera,
+            place_keys=chosen,
         ),
         by_date=request.sort == "date",
         offset=_offset(request.cursor),

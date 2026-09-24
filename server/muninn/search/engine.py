@@ -451,7 +451,8 @@ async def find(
         kind=filters.kind or understood.kind,
         album_path=filters.album_path,
         camera=filters.camera,
-        place_keys=places.keys,
+        # What the words named, and what was chosen beside them: both narrow.
+        place_keys=tuple(dict.fromkeys((*filters.place_keys, *places.keys))),
         person_ids=persons.person_ids,
     )
 
