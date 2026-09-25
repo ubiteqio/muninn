@@ -27,16 +27,21 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings_from_state)]
 
 
-@router.get("", summary="Groups of copies, newest first")
+@router.get("", summary="Groups of copies, newest or heaviest first")
 async def list_duplicates(
     admin: AdminUser,
     session: SessionDep,
     settings: SettingsDep,
     state: Literal["open", "all"] = "open",
+    sort: Literal["newest", "size"] = "newest",
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
 ) -> DuplicatePage:
-    """ "open" leaves out the groups of which only one medium is still shown."""
+    """ "open" leaves out the groups of which only one medium is still shown.
+
+    ``sort=size`` puts the groups that hold the most disk first: somebody working through
+    copies to win back room wants the two 4K videos before forty photographs of a birthday.
+    """
     try:
         offset = decode_offset(cursor) if cursor else 0
     except ValueError as error:
@@ -46,7 +51,11 @@ async def list_duplicates(
             title="Invalid cursor",
         ) from error
     groups, more = await service.list_groups(
-        session, open_only=state == "open", offset=offset, limit=limit
+        session,
+        open_only=state == "open",
+        offset=offset,
+        limit=limit,
+        by_size=sort == "size",
     )
     return DuplicatePage(
         items=[

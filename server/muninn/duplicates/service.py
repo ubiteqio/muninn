@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import ColumnElement, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,7 +29,7 @@ from muninn.ai import service as ai_service
 from muninn.duplicates import fingerprint as fingerprints
 from muninn.models.ai import AiKind
 from muninn.models.duplicate import DuplicateGroup, DuplicateMember
-from muninn.models.media import IMPRECISE_DATE_SOURCES, Media, MediaStatus
+from muninn.models.media import IMPRECISE_DATE_SOURCES, Media, MediaFile, MediaFileRole, MediaStatus
 from muninn.search import service as search_service
 
 #: Raised when the fingerprint is computed differently; every medium is then read again.
@@ -249,14 +249,43 @@ class Group:
     media: list[Media]
 
 
-async def list_groups(
-    session: AsyncSession, *, open_only: bool, offset: int, limit: int
-) -> tuple[list[Group], bool]:
-    """Newest first. "Open" groups are those nobody has decided on yet: none of their media is
-    hidden. Keeping two shots of a burst is a decision as much as keeping one."""
-    query = select(DuplicateGroup).order_by(
-        DuplicateGroup.newest.desc().nulls_last(), DuplicateGroup.id
+#: How much disk a group holds altogether, for sorting the heaviest to the top.
+def _bytes_of_group() -> ColumnElement[int]:
+    """The size of a group's primary files added up.
+
+    ``DuplicateGroup.size`` is how many media are in it, not how much room they take. Somebody
+    working through copies to win back disk wants the heavy ones first, and two 4K videos are
+    worth more than forty photographs of a birthday.
+    """
+    return (
+        select(func.coalesce(func.sum(MediaFile.byte_size), 0))
+        .select_from(DuplicateMember)
+        .join(MediaFile, MediaFile.media_id == DuplicateMember.media_id)
+        .where(
+            DuplicateMember.group_id == DuplicateGroup.id,
+            MediaFile.role == MediaFileRole.PRIMARY,
+        )
+        .scalar_subquery()
     )
+
+
+async def list_groups(
+    session: AsyncSession,
+    *,
+    open_only: bool,
+    offset: int,
+    limit: int,
+    by_size: bool = False,
+) -> tuple[list[Group], bool]:
+    """Newest first, or heaviest first. "Open" groups are those nobody has decided on yet: none
+    of their media is hidden. Keeping two shots of a burst is a decision as much as keeping
+    one."""
+    order = (
+        (_bytes_of_group().desc(), DuplicateGroup.id)
+        if by_size
+        else (DuplicateGroup.newest.desc().nulls_last(), DuplicateGroup.id)
+    )
+    query = select(DuplicateGroup).order_by(*order)
     if open_only:
         decided = (
             select(DuplicateMember.group_id)

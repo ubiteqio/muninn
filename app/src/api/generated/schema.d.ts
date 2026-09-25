@@ -633,8 +633,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Groups of copies, newest first
+         * Groups of copies, newest or heaviest first
          * @description "open" leaves out the groups of which only one medium is still shown.
+         *
+         *     ``sort=size`` puts the groups that hold the most disk first: somebody working through
+         *     copies to win back room wants the two 4K videos before forty photographs of a birthday.
          */
         get: operations["list_duplicates_api_v1_admin_duplicates_get"];
         put?: never;
@@ -5147,6 +5150,7 @@ export interface operations {
         parameters: {
             query?: {
                 state?: "open" | "all";
+                sort?: "newest" | "size";
                 cursor?: string | null;
                 limit?: number;
             };

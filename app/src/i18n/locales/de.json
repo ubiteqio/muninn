@@ -682,6 +682,10 @@
       "open_one": "Offen · 1 Gruppe",
       "open_other": "Offen · {{count}} Gruppen",
       "all": "Alle",
+      "sort": {
+        "newest": "Neueste zuerst",
+        "size": "Größte zuerst"
+      },
       "loading": "Wird geladen …",
       "more": "Weitere laden",
       "none": "Keine Doppelgänger gefunden.",

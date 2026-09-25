@@ -38,6 +38,23 @@ function aMedium(id: string, filename: string, width: number) {
 }
 
 describe('AdminDuplicatesPage', () => {
+  it('asks for the heaviest groups first when told to', async () => {
+    // A group of two 4K videos is worth forty photographs of a birthday, and working through
+    // copies is usually about winning back room.
+    useAuthStore.setState({ user: { role: 'admin' } as never })
+    const { calls } = stubApi({
+      'GET /api/v1/admin/duplicates': { body: { items: [], next_cursor: null } },
+    })
+    await renderScreen(<AdminDuplicatesPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Größte zuerst' }))
+
+    await waitFor(() => {
+      const asked = calls.filter((call) => call.path === '/api/v1/admin/duplicates').at(-1)
+      expect(new URL(asked?.url ?? '', 'http://test').searchParams.get('sort')).toBe('size')
+    })
+  })
+
   it('keeps the suggested copy and hides the other', async () => {
     useAuthStore.setState({ user: { role: 'admin' } as never })
     const { calls } = stubApi({
