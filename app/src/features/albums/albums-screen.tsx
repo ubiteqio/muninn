@@ -11,6 +11,7 @@ import { Symbol } from '@/components/muninn/symbol'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AlbumPlace } from '@/features/albums/album-place'
+import { CollectionFrame } from '@/features/albums/collection-frame'
 import { EmptyAlbum, EmptyLibrary } from '@/features/albums/empty-library'
 import {
   type Album,
@@ -607,20 +608,21 @@ export function AlbumCard({ album }: { album: Album }) {
       aria-label={t('albums.open', { title: album.title })}
       className="group block text-left"
     >
-      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-secondary/60 transition group-hover:ring-1 group-hover:ring-primary/35">
+      <CollectionFrame
+        title={album.title}
+        note={
+          album.child_count > 0
+            ? t('albums.subalbumCount', { count: album.child_count })
+            : t('albums.count', { count: album.media_count })
+        }
+      >
         <AlbumCover album={album} />
         {album.media_count > 0 && (
           <Badge variant="count" className="absolute bottom-1.5 right-1.5">
             {album.media_count}
           </Badge>
         )}
-      </div>
-      <p className="mt-2 truncate text-base font-semibold text-foreground">{album.title}</p>
-      <p className="truncate text-xs-plus text-muted-foreground">
-        {album.child_count > 0
-          ? t('albums.subalbumCount', { count: album.child_count })
-          : t('albums.count', { count: album.media_count })}
-      </p>
+      </CollectionFrame>
     </Link>
   )
 }

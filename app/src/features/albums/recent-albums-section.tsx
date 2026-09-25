@@ -6,6 +6,7 @@ import { LoadingBody, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Badge } from '@/components/ui/badge'
+import { CollectionFrame } from '@/features/albums/collection-frame'
 import { type Album, pathTo, useAlbumTree } from '@/features/albums/use-albums'
 import { cn } from '@/lib/utils'
 
@@ -22,7 +23,7 @@ function AlbumCard({ album, path, className }: { album: Album; path: string; cla
       aria-label={t('albums.open', { title: album.title })}
       className={cn('group block text-left', className)}
     >
-      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-secondary/60 transition group-hover:ring-1 group-hover:ring-primary/35">
+      <CollectionFrame title={album.title} note={path}>
         {album.cover_urls[0] ? (
           <img
             src={album.cover_urls[0]}
@@ -39,9 +40,7 @@ function AlbumCard({ album, path, className }: { album: Album; path: string; cla
         <Badge variant="count" className="absolute bottom-1.5 right-1.5">
           {album.media_count}
         </Badge>
-      </div>
-      <p className="mt-2 truncate text-base font-semibold text-foreground">{album.title}</p>
-      <p className="truncate text-xs-plus text-muted-foreground">{path}</p>
+      </CollectionFrame>
     </Link>
   )
 }

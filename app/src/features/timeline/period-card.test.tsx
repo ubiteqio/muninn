@@ -18,7 +18,8 @@ function aPeriod(howMany: number): Period {
 
 function mosaicOf(covers: number): HTMLElement {
   render(<PeriodCard period={aPeriod(covers)} label="Dezember 2017" onOpen={() => undefined} />)
-  const square = screen.getByRole('button').firstElementChild
+  // The mosaic sits inside the frame that says this is something holding pictures.
+  const square = screen.getByRole('button').querySelector('.grid')
   expect(square).toBeInstanceOf(HTMLElement)
   return square as HTMLElement
 }
@@ -31,7 +32,8 @@ describe('the mosaic of a period', () => {
 
     expect(square.className).toContain('grid-cols-2')
     expect(square.className).toContain('grid-rows-2')
-    expect(square.className).toContain('aspect-square')
+    // The square is the frame's now; the mosaic fills it.
+    expect(square.className).toContain('h-full')
   })
 
   it('gives the first of three the whole left half', () => {

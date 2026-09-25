@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Symbol } from '@/components/muninn/symbol'
+import { CollectionFrame } from '@/features/albums/collection-frame'
 import type { Period } from '@/features/timeline/use-timeline'
 import { cn } from '@/lib/utils'
 
@@ -32,41 +33,39 @@ export function PeriodCard({
       aria-label={t('timeline.openPeriod', { period: label, count: period.count })}
       className={cn('group block w-full text-left', className)}
     >
-      <div
-        className={cn(
-          'grid aspect-square w-full gap-0.5 overflow-hidden rounded-lg bg-secondary/60 transition group-hover:ring-1 group-hover:ring-primary/35',
-          covers.length > 1 && 'grid-cols-2',
-          // Named, not left to the pictures. Without this the square is divided by what landed
-          // in it - each row as tall as its photograph - and the mosaic comes out lopsided.
-          covers.length > 2 && 'grid-rows-2',
-        )}
-      >
-        {covers.length === 0 ? (
-          <span className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <Symbol name="history" size={22} />
-          </span>
-        ) : (
-          covers.map((cover, index) => (
-            <img
-              key={cover.id}
-              src={cover.thumb}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className={cn(
-                'h-full min-h-0 w-full min-w-0 object-cover',
-                // Three pictures: the first one takes the whole left half.
-                covers.length === 3 && index === 0 && 'row-span-2',
-              )}
-            />
-          ))
-        )}
-      </div>
-
-      <p className="mt-2 truncate text-base font-semibold text-foreground">{label}</p>
-      <p className="truncate text-xs-plus text-muted-foreground">
-        {t('timeline.periodCount', { count: period.count })}
-      </p>
+      <CollectionFrame title={label} note={t('timeline.periodCount', { count: period.count })}>
+        <div
+          className={cn(
+            'grid h-full w-full gap-0.5',
+            covers.length > 1 && 'grid-cols-2',
+            // Named, not left to the pictures. Without this the square is divided by what
+            // landed in it - each row as tall as its photograph - and the mosaic comes out
+            // lopsided.
+            covers.length > 2 && 'grid-rows-2',
+          )}
+        >
+          {covers.length === 0 ? (
+            <span className="flex h-full w-full items-center justify-center text-muted-foreground">
+              <Symbol name="history" size={22} />
+            </span>
+          ) : (
+            covers.map((cover, index) => (
+              <img
+                key={cover.id}
+                src={cover.thumb}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className={cn(
+                  'h-full min-h-0 w-full min-w-0 object-cover',
+                  // Three pictures: the first one takes the whole left half.
+                  covers.length === 3 && index === 0 && 'row-span-2',
+                )}
+              />
+            ))
+          )}
+        </div>
+      </CollectionFrame>
     </button>
   )
 }
