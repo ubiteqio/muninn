@@ -30,6 +30,7 @@ from muninn.library.grouping import MediaGroup, group_files
 from muninn.library.hashing import hash_file, quick_hash_file
 from muninn.library.metadata import METADATA_VERSION, read_metadata
 from muninn.library.scanner import ScannedFile, ScannedFolder, is_ignored, walk
+from muninn.media import service as media_service
 from muninn.models.album import Album
 from muninn.models.change_log import RETENTION_DAYS, ChangeKind, ChangeLogEntry, SyncTrigger
 from muninn.models.media import Media, MediaFile, MediaFileRole, MediaStatus
@@ -547,6 +548,7 @@ async def sync_publication(
 
     files = await _load_files(session, base)
     pending = await _load_pending(session, base)
+    withdrawn = await media_service.withdrawn_paths(session, base)
     by_quick: dict[tuple[int, str], MediaFile] = {
         (file.byte_size, file.quick_hash): file
         for file in files.values()
@@ -611,6 +613,12 @@ async def sync_publication(
         seen |= waiting
 
         for group in group_files(ready):
+            if group.primary.relative_path in withdrawn:
+                # Taken down by an admin. The file is still on the NAS - originals are never
+                # written to - so it counts as seen and nothing treats it as gone; it simply
+                # never becomes a medium again.
+                seen |= {file.relative_path for _, file in group.files}
+                continue
             try:
                 await _sync_group(
                     session,
@@ -624,6 +632,9 @@ async def sync_publication(
                     now=now,
                     report=report,
                 )
+            except WithdrawnError:
+                seen |= {file.relative_path for _, file in group.files}
+                continue
             except OSError as error:
                 # One file nobody may read must not take the whole library's reading down with
                 # it. A permission that came with a copy did exactly that: every pass died on
@@ -1090,6 +1101,10 @@ async def _compare_file(
     _log(session, now, ChangeKind.MEDIA_CHANGED, trigger, media=media, path=row.relative_path)
 
 
+class WithdrawnError(Exception):
+    """This picture was taken down. It does not become a medium again, whatever it is called."""
+
+
 async def _resolve_media(
     session: AsyncSession,
     *,
@@ -1134,11 +1149,17 @@ async def _resolve_media(
             known[candidate.relative_path] = candidate
             return candidate.media
 
+    content_hash = await _hash(library_base, group.primary)
+    if await media_service.is_withdrawn(session, content_hash=content_hash):
+        # The same picture an admin took down, under another name or in another folder. A
+        # medium is what its content is, so it stays down.
+        raise WithdrawnError
+
     media = Media(
         album_id=album.id,
         kind=group.kind,
         status=MediaStatus.ACTIVE,
-        content_hash=await _hash(library_base, group.primary),
+        content_hash=content_hash,
         quick_hash=quick,
         metadata_version=0,
         derive_version=0,

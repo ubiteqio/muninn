@@ -28,6 +28,7 @@ from muninn.models.refresh_token import RefreshToken
 from muninn.models.settings import AppSettings
 from muninn.models.social import Comment, CommentMention, Favorite, Like
 from muninn.models.user import User, UserRole, UserStatus
+from muninn.models.withdrawn import WithdrawnMedium
 
 __all__ = [
     "GIVE_UP_AFTER",
@@ -69,4 +70,5 @@ __all__ = [
     "UserRole",
     "UserStatus",
     "VideoFrame",
+    "WithdrawnMedium",
 ]

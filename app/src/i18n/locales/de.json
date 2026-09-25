@@ -751,6 +751,12 @@
     "unmute": "Ton an",
     "previous": "Vorheriges Medium",
     "next": "Nächstes Medium",
+    "withdraw": {
+      "action": "Medium entfernen",
+      "title": "Medium wirklich entfernen?",
+      "text": "Das Medium verschwindet sofort aus allen Alben, der Suche und der Karte. Vorschauen, Vektoren, Gesichter, Beschreibung, Reaktionen und Kommentare werden gelöscht. Die Originaldatei auf dem NAS bleibt unberührt, wird aber nicht wieder aufgenommen. Das lässt sich nicht rückgängig machen.",
+      "confirm": "Endgültig entfernen"
+    },
     "stages": {
       "title": "KI-Werkzeuge",
       "metadata": "Metadaten lesen",

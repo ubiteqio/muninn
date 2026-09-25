@@ -1738,7 +1738,18 @@ export interface paths {
         get: operations["read_media_api_v1_media__media_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Take a medium down, now and for good
+         * @description A picture nobody should see, gone from every album and every search at once.
+         *
+         *     Not a job and not a wait: the row goes here, and with it every face, vector, description,
+         *     transcript, reaction, comment and favourite that hung on it, and the previews on the disk.
+         *
+         *     The original on the NAS is not touched - it never is - so what is remembered instead is
+         *     that this picture was taken down, by its content hash. The next reading turns it away,
+         *     under that name or any other. There is no way back from here.
+         */
+        delete: operations["withdraw_medium_api_v1_media__media_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7190,6 +7201,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MediaView"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_medium_api_v1_media__media_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                media_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

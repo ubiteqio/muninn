@@ -309,6 +309,54 @@ describe('useMediaViewer', () => {
     expect(await screen.findByText('Gesichter suchen')).toBeInTheDocument()
     expect(screen.getByText('Aufgegeben nach 3 Versuchen')).toBeInTheDocument()
     expect(screen.getByText('no frame could be read')).toBeInTheDocument()
+    // Taking a picture down is what somebody reaches for in a hurry: it stands first, not
+    // under seven steps of a pipeline.
+    expect(screen.getByText('Medium entfernen')).toBeInTheDocument()
+  })
+
+  it('takes a picture down only after asking, and names the file', async () => {
+    const { calls } = stubApi({
+      'GET /api/v1/media/media-2': { body: { ...MEDIA[1], analysis: null, transcript: null } },
+      'GET /api/v1/media/media-2/faces': { body: [] },
+      'GET /api/v1/media/media-2/stages': { body: { media_id: 'media-2', stages: [] } },
+      'DELETE /api/v1/media/media-2': { status: 204 },
+    })
+    useAuthStore.setState({
+      status: 'signed-in',
+      needsPasswordChange: false,
+      user: {
+        id: '00000000-0000-0000-0000-000000000001',
+        username: 'odin',
+        email: 'odin@muninn.local',
+        display_name: 'Odin',
+        role: 'admin',
+        status: 'active',
+        must_change_password: false,
+        created_at: '2026-09-01T10:00:00Z',
+        last_login_at: '2026-09-23T10:00:00Z',
+      },
+    })
+    await renderScreen(<Album current="media-2" />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    // The buttons rest after a few seconds, and the tap that brings them back is spent on
+    // that alone - so the menu takes a second one, exactly as it does on a phone.
+    const menu = screen.getAllByRole('button', { name: 'KI-Werkzeuge' }).at(-1) as HTMLElement
+    await userEvent.click(menu)
+    if (menu.getAttribute('data-state') === 'closed') await userEvent.click(menu)
+    await userEvent.click(await screen.findByText('Medium entfernen'))
+
+    // Asked first, with the file named, and nothing sent until it is answered.
+    expect(await screen.findByText('Medium wirklich entfernen?')).toBeInTheDocument()
+    expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Endgültig entfernen' }))
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.method === 'DELETE')).toBe(true)
+    })
   })
 
   it('stops the video of the picture one leaves behind', async () => {

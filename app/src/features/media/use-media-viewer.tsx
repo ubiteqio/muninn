@@ -396,7 +396,14 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
             }}
             actions={
               <DialogContainer.Provider value={host}>
-                <MediaStagesMenu mediaId={shown.id} />
+                <MediaStagesMenu
+                  mediaId={shown.id}
+                  filename={shown.origin.filename}
+                  onWithdrawn={() => {
+                    // Nothing left to look at: the viewer closes on the album behind it.
+                    onCurrentChange(undefined)
+                  }}
+                />
               </DialogContainer.Provider>
             }
             {...(onSimilar

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from muninn.library import service
 from muninn.library.safety import MARKER_NAME, device_of
+from muninn.media import service as media_service
 from muninn.models.album import Album
 from muninn.models.change_log import ChangeKind, ChangeLogEntry, SyncTrigger
 from muninn.models.media import Media, MediaFile, MediaFileRole, MediaKind, MediaStatus
@@ -897,3 +898,45 @@ async def test_a_folder_that_cannot_be_listed_forgets_nothing(
         (library / "Autos").chmod(0o755)
 
     assert set(await session.scalars(select(PendingFile.relative_path))) == {"Autos/warten.jpg"}
+
+
+async def test_a_medium_taken_down_does_not_come_back(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """The original stays on the NAS, so the next reading would find it and show it again."""
+    write(library, "Autos/heikel.jpg")
+    write(library, "Autos/harmlos.jpg")
+    publication = await publish(session, library, "Autos")
+    await sync(session, publication, library, settings)
+    await sync(session, publication, library, settings, now=LATER)
+    taken_down = await session.scalar(
+        select(Media).join(MediaFile).where(MediaFile.relative_path == "Autos/heikel.jpg")
+    )
+    assert taken_down is not None
+
+    await media_service.withdraw(session, taken_down.id, derived_root=library / "derived", by=None)
+
+    await sync(session, publication, library, settings, now=EVEN_LATER)
+
+    left = set(await session.scalars(select(MediaFile.relative_path)))
+    assert left == {"Autos/harmlos.jpg"}
+
+
+async def test_a_medium_taken_down_stays_down_under_another_name(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """A medium is what its content is: renamed or moved, it is the same picture."""
+    write(library, "Autos/heikel.jpg", content=b"dieses bild nicht")
+    publication = await publish(session, library, "Autos")
+    await sync(session, publication, library, settings)
+    await sync(session, publication, library, settings, now=LATER)
+    taken_down = await session.scalar(select(Media))
+    assert taken_down is not None
+    await media_service.withdraw(session, taken_down.id, derived_root=library / "derived", by=None)
+
+    # The same bytes, somewhere else entirely.
+    write(library, "Autos/anders/kopie.jpg", content=b"dieses bild nicht")
+    await sync(session, publication, library, settings, now=EVEN_LATER)
+    await sync(session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=1))
+
+    assert list(await session.scalars(select(MediaFile.relative_path))) == []
