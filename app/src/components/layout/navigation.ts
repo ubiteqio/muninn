@@ -29,6 +29,12 @@ export const MOBILE_NAVIGATION = [
 /** What "Mehr" opens on the phone, in this order. */
 export const MOBILE_MORE = [OVERVIEW_DESTINATION, NAVIGATION[4]] as const
 
+/** What the rail puts under "Mehr" where it is too short for everything: the rest, in order. */
+export function moreOf(all: readonly NavigationItem[]): readonly NavigationItem[] {
+  const shown = new Set<string>(MOBILE_NAVIGATION.map((item) => item.id))
+  return all.filter((item) => !shown.has(item.id))
+}
+
 /** Hliðskjálf, the sixth destination. Only admins have it, and only they may open it. */
 export const ADMIN_DESTINATION = { id: 'admin', icon: 'shield_person', to: '/admin' } as const
 
