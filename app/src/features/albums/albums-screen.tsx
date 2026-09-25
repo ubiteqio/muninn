@@ -23,6 +23,7 @@ import {
 import { useLibraryUpdates } from '@/features/albums/use-library-updates'
 import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
+import { useMediumAlone } from '@/features/media/use-medium'
 import { AlbumSocial } from '@/features/social/album-social'
 import { useSocialUpdates } from '@/features/social/use-social'
 import { DESKTOP_QUERY, useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
@@ -93,7 +94,17 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
     },
     [albumId, medium, navigate],
   )
-  const viewer = useMediaViewer(media, { current: medium, onCurrentChange, social: true })
+  // A link from elsewhere may name a picture that is on no page loaded here - the engine room
+  // pointing at the file it has just finished, deep in an album of thousands. Then that one
+  // picture is fetched and shown by itself, rather than the click doing nothing at all.
+  // Only once the album's own page is in: while it is on its way every picture looks as if it
+  // were somewhere else, and the one asked for would be fetched a second time for nothing.
+  const elsewhere =
+    medium !== undefined && !mediaIsLoading && !media.some((one) => one.id === medium)
+  const alone = useMediumAlone(elsewhere ? medium : undefined)
+  const shown = elsewhere && alone.data ? [alone.data] : media
+
+  const viewer = useMediaViewer(shown, { current: medium, onCurrentChange, social: true })
   useSocialUpdates()
 
   const openAlbum = useCallback(

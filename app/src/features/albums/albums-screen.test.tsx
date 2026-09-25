@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -200,6 +200,37 @@ describe('the album tree', () => {
     await renderScreen(<AlbumsScreen albumId="album-italien" />)
 
     expect(await screen.findByText('Dieses Album ist noch leer')).toBeInTheDocument()
+  })
+
+  it('fetches a picture the loaded page does not hold, so the viewer has one to show', async () => {
+    // A link from elsewhere - the engine room naming the file it has just finished - can point
+    // deep into an album of thousands. The viewer is built from the page that is loaded, so
+    // there was nothing to open and the click did nothing at all.
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: { body: { items: [aMedium({})], next_cursor: 'seite-2' } },
+      'GET /api/v1/media/media-weit-hinten': {
+        body: aMedium({ id: 'media-weit-hinten', taken_at: '2009-07-20T10:00:00Z' }),
+      },
+    })
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" medium="media-weit-hinten" />)
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.path === '/api/v1/media/media-weit-hinten')).toBe(true)
+    })
+  })
+
+  it('asks for nothing extra when the picture is already on the page', async () => {
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: { body: { items: [aMedium({})], next_cursor: null } },
+    })
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" medium="media-1" />)
+
+    await screen.findByRole('link', { name: 'Fotos' })
+    expect(calls.some((call) => call.path === '/api/v1/media/media-1')).toBe(false)
   })
 
   it('opens an album with its path, its pictures and its own title', async () => {
