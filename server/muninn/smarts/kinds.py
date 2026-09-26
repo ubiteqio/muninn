@@ -30,6 +30,7 @@ from muninn.models.smart import (
     KIND_PERSON,
     KIND_PLACE,
     KIND_RITUAL,
+    KIND_THEME,
     KIND_TRIP,
 )
 from muninn.search import service as search_service
@@ -65,6 +66,37 @@ PAIR_MIN_MEDIA = 30
 MOTIF_NEIGHBOURS = 1500
 #: A motif of fewer than this is a coincidence, not a thing the library is full of.
 MOTIF_MIN_MEDIA = 8
+
+#: The themes: things a family archive is full of, each with the words that give it away.
+#:
+#: Written out rather than found by a machine, because a name somebody wrote - "Am Wasser",
+#: "Ins Grüne" - says more than any three tags a clustering would agree on, and because these
+#: are the things one goes looking for. What the library has none of simply does not appear.
+#: Measured on 8000 media here: none of these is empty, and the smallest holds two dozen.
+THEMES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("water", ("wasser", "pool", "meer", "strand", "see", "welle", "fluss", "schwimmen")),
+    ("green", ("wald", "bäume", "gras", "wiese", "berg", "pflanze", "natur")),
+    ("sport", ("fußball", "trikot", "sport", "stadion", "basketball", "zuschauer", "tor")),
+    ("city", ("stadt", "architektur", "gebäude", "fassade", "plaza", "straße")),
+    ("animals", ("katze", "hund", "tier", "pferd", "kuh", "vogel", "haustier")),
+    ("table", ("essen", "teller", "restaurant", "grill", "kuchen", "torte", "gericht")),
+    ("wheels", ("fahrrad", "auto", "motorrad", "zug", "bus", "roller", "helm")),
+    ("flowers", ("blume", "blüte", "blumen", "garten")),
+    ("snow", ("schnee", "ski", "schlitten", "eis", "winter")),
+    ("beach", ("strand", "sand", "muschel", "düne")),
+    ("stage", ("bühne", "konzert", "gitarre", "mikrofon", "instrument", "theater")),
+    ("paper", ("dokument", "whiteboard", "bildschirm", "laptop", "handschrift", "diagramm")),
+    ("sundown", ("sonnenuntergang", "dämmerung", "abendrot", "sonnenaufgang")),
+    ("playground", ("spielplatz", "rutsche", "schaukel", "sandkasten")),
+    ("fireworks", ("feuerwerk", "rakete", "wunderkerze")),
+)
+
+#: A theme with fewer pictures than this is not something the library is full of.
+THEME_MIN_MEDIA = 20
+
+#: How many pictures of one year a theme takes before it moves on to the next. Without it "Am
+#: Wasser" would be one summer, and the point of a theme is that it runs through the archive.
+THEME_PER_YEAR = 12
 
 #: The feasts that repeat on the calendar, as (key, month, first day, last day).
 FEASTS = (
@@ -381,6 +413,61 @@ async def _pairs(session: AsyncSession) -> list[Candidate]:
             )
         )
     return found
+
+
+async def themes(session: AsyncSession) -> list[Candidate]:
+    """The things a family archive is full of, each under a name somebody wrote.
+
+    Their pictures are taken a few per year rather than the newest first: a theme that shows
+    only last summer says nothing about twenty-six years, and the years next to each other are
+    half the pleasure - the same lake, the children a head taller each time.
+    """
+    found: list[Candidate] = []
+    for key, tags in THEMES:
+        rows = (
+            await session.execute(
+                select(
+                    Media.id,
+                    func.cast(
+                        func.extract("year", func.coalesce(Media.taken_at, Media.created_at)),
+                        Integer,
+                    ).label("year"),
+                )
+                .join(MediaAnalysis, MediaAnalysis.media_id == Media.id)
+                .where(
+                    Media.status == MediaStatus.ACTIVE,
+                    Media.duplicate_of.is_(None),
+                    MediaAnalysis.tags.overlap(list(tags)),
+                )
+                .order_by("year", func.coalesce(Media.taken_at, Media.created_at))
+            )
+        ).all()
+        if len(rows) < THEME_MIN_MEDIA:
+            continue
+
+        by_year: dict[int, list[uuid.UUID]] = {}
+        for media_id, year in rows:
+            by_year.setdefault(int(year), []).append(media_id)
+        found.append(
+            Candidate(
+                kind=KIND_THEME,
+                title_key=key,
+                title_args={"years": len(by_year)},
+                media=_a_few_per_year(by_year),
+            )
+        )
+    return found
+
+
+def _a_few_per_year(by_year: dict[int, list[uuid.UUID]]) -> list[uuid.UUID]:
+    """A handful from every year, newest year first, then round again for the rest."""
+    taken: list[uuid.UUID] = []
+    years = sorted(by_year, reverse=True)
+    for start in (0, THEME_PER_YEAR):
+        for year in years:
+            pictures = by_year[year]
+            taken.extend(pictures[start : start + THEME_PER_YEAR])
+    return taken
 
 
 async def motifs(

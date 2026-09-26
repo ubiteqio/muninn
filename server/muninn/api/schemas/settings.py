@@ -5,7 +5,7 @@ from typing import Annotated, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
-from muninn.models.settings import DEFAULT_SMART_MAX_MEDIA
+from muninn.models.settings import DEFAULT_SMART_MAX_CHAPTERS, DEFAULT_SMART_MAX_MEDIA
 
 #: Bounds, not opinions: below these the derivative is useless, above them it costs space without
 #: anybody seeing the difference on a screen.
@@ -29,6 +29,9 @@ DeletionCount = Annotated[int, Field(ge=0, le=100_000)]
 #: How many media one smart album holds at most. Below a hundred a chapter is a handful of
 #: pictures; beyond a few thousand it is a second library nobody reaches the end of.
 SmartMaxMedia = Annotated[int, Field(ge=50, le=5000)]
+
+#: How many smart albums there are at most.
+SmartMaxChapters = Annotated[int, Field(ge=6, le=500)]
 
 
 def _check_name(value: str) -> str:
@@ -62,6 +65,7 @@ class SettingsView(BaseModel):
     deletion_count: int
     nas_agent_enabled: bool
     faces_enabled: bool
+    smart_max_chapters: int
     smart_max_media: int
 
     updated_at: datetime
@@ -84,6 +88,7 @@ class SettingsUpdate(BaseModel):
     deletion_count: DeletionCount
     nas_agent_enabled: bool = False
     faces_enabled: bool = True
+    smart_max_chapters: SmartMaxChapters = DEFAULT_SMART_MAX_CHAPTERS
     smart_max_media: SmartMaxMedia = DEFAULT_SMART_MAX_MEDIA
 
     @model_validator(mode="after")

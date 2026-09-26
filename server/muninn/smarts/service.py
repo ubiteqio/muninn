@@ -31,6 +31,7 @@ from muninn.models.smart import (
     KIND_PERSON,
     KIND_PLACE,
     KIND_RITUAL,
+    KIND_THEME,
     KIND_TRIP,
     KINDS,
     SMART_VERSION,
@@ -45,18 +46,15 @@ from muninn.smarts import kinds as rules
 #: single. Between them the groups are what a person would also have put together.
 LOOK_DISTANCE = 0.24
 
-#: How many chapters by motif a run looks for. The other rules - journeys, days, faces, places,
-#: feasts - always run to the end: a library holds as many journeys as it holds, and leaving
-#: one out because a number was reached would be arbitrary. The motifs are the open end: there
-#: is always one more thing the pictures have in common, so somebody has to say how many.
-MOTIFS_WANTED = 21
+#: How many smart albums there are, when no setting says otherwise.
+CHAPTERS_WANTED = 60
 
 #: How many leaders a run may try before it gives up looking for more motifs. Most pictures
 #: belong to a group that is already taken, and each try costs a question to the index.
 MOTIF_ATTEMPTS = 400
 
-#: The order the kinds take turns in on the screen: a journey first, then a day, then a motif.
-ROTATION = (KIND_TRIP, KIND_DAY, KIND_MOTIF, KIND_PERSON, KIND_PLACE, KIND_RITUAL)
+#: The order the kinds take turns in on the screen: a journey, a day, a theme, a face.
+ROTATION = (KIND_TRIP, KIND_DAY, KIND_THEME, KIND_PERSON, KIND_PLACE, KIND_RITUAL, KIND_MOTIF)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,29 +74,28 @@ class State:
     media: int
     built_at: datetime | None
     by_kind: dict[str, int]
+    #: The two numbers an admin sets: how many there are, and how much each one holds.
+    max_chapters: int
     max_media: int
-    wanted: int = MOTIFS_WANTED
 
 
 async def rebuild(
     session: AsyncSession,
     *,
-    wanted: int = MOTIFS_WANTED,
+    wanted: int | None = None,
     max_media: int | None = None,
     distance: float = LOOK_DISTANCE,
 ) -> Rebuild:
     """Find every chapter anew, across the whole library.
 
-    The rules that read time, place and faces run to the end - they are cheap, and a library
-    holds as many journeys as it holds. ``wanted`` says how many chapters by motif are looked
-    for on top of them, because that is the open end: there is always one more thing the
-    pictures have in common.
+    Every rule runs first and hands back everything it found; the kinds then take turns, and
+    the list is cut to the number that was asked for. Cutting after the turns rather than
+    before is what keeps the mixture: thirty chapters are five of each kind, not the thirty
+    largest, which would all be motifs.
     """
-    cap = (
-        max_media
-        if max_media is not None
-        else (await settings_service.get_settings(session)).smart_max_media
-    )
+    settings = await settings_service.get_settings(session)
+    cap = max_media if max_media is not None else settings.smart_max_media
+    most = wanted if wanted is not None else settings.smart_max_chapters
 
     home = await rules.home_place(session)
     journeys = await rules.trips(session, home=home)
@@ -106,6 +103,7 @@ async def rebuild(
     candidates = [
         *journeys,
         *await rules.days(session, taken=spoken_for),
+        *await rules.themes(session),
         *await rules.persons(session),
         *await rules.places(session),
         *await rules.rituals(session),
@@ -118,12 +116,13 @@ async def rebuild(
                 session,
                 model=profile.model,
                 distance=distance,
-                wanted=wanted,
+                # Enough to fill the wall with motifs if the other rules found little.
+                wanted=most,
                 attempts=MOTIF_ATTEMPTS,
             )
         )
 
-    return await _write(session, candidates, cap=cap)
+    return await _write(session, candidates, cap=cap, most=most)
 
 
 def _days_of(journeys: Sequence[rules.Candidate]) -> list[date]:
@@ -139,14 +138,14 @@ def _days_of(journeys: Sequence[rules.Candidate]) -> list[date]:
 
 
 async def _write(
-    session: AsyncSession, candidates: Sequence[rules.Candidate], *, cap: int
+    session: AsyncSession, candidates: Sequence[rules.Candidate], *, cap: int, most: int
 ) -> Rebuild:
     """Everything that was found, in the order the screen shows it. The old chapters go."""
     await session.execute(delete(SmartChapter))
 
     by_kind: dict[str, int] = {}
     media = 0
-    for position, candidate in enumerate(_interleaved(candidates)):
+    for position, candidate in enumerate(_interleaved(candidates)[:most]):
         kept = list(candidate.media[:cap])
         if not kept:
             continue
@@ -232,6 +231,7 @@ async def state(session: AsyncSession) -> State:
         media=sum(int(row[2]) for row in rows),
         built_at=built,
         by_kind={str(row[0]): int(row[1]) for row in rows},
+        max_chapters=settings.smart_max_chapters or CHAPTERS_WANTED,
         max_media=settings.smart_max_media or DEFAULT_SMART_MAX_MEDIA,
     )
 

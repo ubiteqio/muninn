@@ -39,6 +39,10 @@ DEFAULT_DELETION_COUNT = 0
 #: chapters it also belongs to.
 DEFAULT_SMART_MAX_MEDIA = 500
 
+#: How many smart albums there are at most. The kinds take turns, so cutting the list short
+#: still leaves a mixture of journeys, days, faces and motifs rather than only the largest kind.
+DEFAULT_SMART_MAX_CHAPTERS = 60
+
 
 class AppSettings(TimestampMixin, Base):
     """Single-row table. Use muninn.settings.service to read it, never construct it elsewhere."""
@@ -83,4 +87,8 @@ class AppSettings(TimestampMixin, Base):
     #: How many media one smart album holds at most.
     smart_max_media: Mapped[int] = mapped_column(
         Integer, nullable=False, default=DEFAULT_SMART_MAX_MEDIA
+    )
+    #: How many smart albums there are at most.
+    smart_max_chapters: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=DEFAULT_SMART_MAX_CHAPTERS
     )

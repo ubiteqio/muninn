@@ -17,7 +17,10 @@ import type { ReactNode } from 'react'
  * The screen sits at the path it is opened on, so a screen that writes into its own address -
  * the search opening a picture - stays where it is instead of landing on "Not Found".
  */
-export async function renderScreen(ui: ReactNode, { path = '/' }: { path?: string } = {}) {
+export async function renderScreen(
+  ui: ReactNode,
+  { path = '/', client }: { path?: string; client?: QueryClient } = {},
+) {
   const rootRoute = createRootRoute({ component: () => <Outlet /> })
   const screenRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -32,9 +35,12 @@ export async function renderScreen(ui: ReactNode, { path = '/' }: { path?: strin
     scrollRestoration: false,
   })
 
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  })
+  // A test that watches the cache hands its own client in; everybody else gets a fresh one.
+  const queryClient =
+    client ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
 
   // The router resolves its first match before anything renders.
   await router.load()

@@ -23,6 +23,7 @@ const settings = {
   deletion_share_percent: 5,
   deletion_count: 500,
   nas_agent_enabled: false,
+  smart_max_chapters: 60,
   smart_max_media: 500,
   updated_at: '2026-09-20T08:00:00Z',
 }
@@ -51,13 +52,14 @@ afterEach(() => {
 })
 
 describe('the Smarts in the settings', () => {
-  it('stands among the things an admin sets, not in the engine room', async () => {
+  it('offers both numbers and the button, among the things an admin sets', async () => {
     stubApi({ [READ]: { body: settings } })
 
     await renderScreen(<AdminSettingsPage />)
 
     expect(await screen.findByRole('heading', { name: 'Smart-Alben' })).toBeInTheDocument()
-    // The cap an admin sets, and the button that builds them, in one card.
+    // Both numbers an admin sets, and the button that builds with them, in one card.
+    expect(screen.getByLabelText(/Anzahl Smart-Alben/)).toHaveValue(60)
     expect(screen.getByLabelText(/Medien je Smart-Album/)).toHaveValue(500)
     expect(screen.getByRole('button', { name: 'Neu erstellen' })).toBeInTheDocument()
   })

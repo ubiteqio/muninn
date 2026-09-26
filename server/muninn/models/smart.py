@@ -30,16 +30,17 @@ from sqlalchemy.orm import Mapped, mapped_column
 from muninn.models.base import Base
 
 #: Raise it when the grouping itself changes; everything is then found anew.
-SMART_VERSION = 2
+SMART_VERSION = 3
 
 #: What a chapter was made of. Every kind has its own rule and its own name.
 KIND_MOTIF = "motif"
+KIND_THEME = "theme"
 KIND_TRIP = "trip"
 KIND_DAY = "day"
 KIND_PLACE = "place"
 KIND_RITUAL = "ritual"
 KIND_PERSON = "person"
-KINDS = (KIND_TRIP, KIND_DAY, KIND_MOTIF, KIND_PLACE, KIND_PERSON, KIND_RITUAL)
+KINDS = (KIND_TRIP, KIND_DAY, KIND_THEME, KIND_PLACE, KIND_PERSON, KIND_RITUAL, KIND_MOTIF)
 
 
 class SmartChapter(Base):

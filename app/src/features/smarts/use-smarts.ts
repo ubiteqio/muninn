@@ -91,6 +91,8 @@ export function titleOf(chapter: Chapter, t: TFunction): string {
     return typeof found === 'string' || typeof found === 'number' ? String(found) : ''
   }
 
+  if (chapter.kind === 'theme') return t(`smarts.theme.${chapter.title_key}`)
+
   switch (chapter.title_key) {
     case 'trip':
       return t('smarts.name.trip', { count: Number(args.days ?? 0), place: value('place') })

@@ -75,12 +75,14 @@ class ShelfMediaList(BaseModel):
 
 
 class BuildRequest(BaseModel):
-    """Find the chapters anew, across the whole library."""
+    """Find the smart albums anew, across the whole library.
 
-    #: How many chapters the run should aim for. The rules that read time, place and faces
-    #: always run to the end; this says how far the motifs fill up behind them.
-    chapters: int = Field(default=21, ge=1, le=500)
-    #: How many media one chapter holds at most. Left out, the setting decides.
+    Both numbers are settings; a run may override them for a try without saving anything.
+    """
+
+    #: How many smart albums there are at most. Left out, the setting decides.
+    chapters: int | None = Field(default=None, ge=1, le=500)
+    #: How many media one of them holds at most. Left out, the setting decides.
     max_media: int | None = Field(default=None, ge=10, le=5000)
     distance: float | None = Field(default=None, gt=0.0, lt=1.0)
 
@@ -101,7 +103,6 @@ class SmartsState(BaseModel):
     media: int
     built_at: datetime | None
     by_kind: dict[str, int]
-    #: The cap an admin set: how many media one chapter holds at most.
+    #: What an admin set: how many there are, and how many media each one holds.
+    max_chapters: int
     max_media: int
-    #: What the field beside the button starts with.
-    wanted: int

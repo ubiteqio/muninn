@@ -234,6 +234,37 @@ class TestPersons:
         assert [one.title_args for one in found] == [{"name": "Matteo", "year": 2019}]
 
 
+class TestThemes:
+    async def test_a_theme_gathers_its_words_from_every_year(self, session: AsyncSession) -> None:
+        """ "Am Wasser" is the same lake over twenty years, not one summer's worth of it."""
+        album = await an_album(session, "Fotos")
+        for year in range(2016, 2021):
+            for index in range(20):
+                await a_picture(
+                    session,
+                    album,
+                    f"see-{year}-{index}.jpg",
+                    taken_at=datetime(year, 7, 1, 12, tzinfo=UTC),
+                    tag="wasser",
+                )
+        await session.commit()
+
+        found = await rules.themes(session)
+
+        assert [one.title_key for one in found] == ["water"]
+        assert found[0].title_args == {"years": 5}
+        # Twelve of each year first, so the first screen of it runs through the archive.
+        assert len(found[0].media) == 100
+
+    async def test_a_word_the_library_hardly_has_is_no_theme(self, session: AsyncSession) -> None:
+        album = await an_album(session, "Fotos")
+        for index in range(5):
+            await a_picture(session, album, f"eis-{index}.jpg", taken_at=HOME, tag="feuerwerk")
+        await session.commit()
+
+        assert await rules.themes(session) == []
+
+
 class TestMotifs:
     async def test_what_looks_alike_across_the_whole_library(self, session: AsyncSession) -> None:
         await a_profile(session)
@@ -312,6 +343,36 @@ class TestRebuilding:
         assert done.by_kind[KIND_DAY] == 1
         chapters = await service.chapters_of(session)
         assert [one.kind for one in chapters[:2]] == [KIND_TRIP, KIND_DAY]
+
+    async def test_there_are_no_more_smart_albums_than_asked_for(
+        self, session: AsyncSession
+    ) -> None:
+        """And the ones that are left are still a mixture: the kinds took turns before the cut."""
+        album = await an_album(session, "Fotos")
+        away = await a_place(session, 2, "Chessy")
+        for day in range(3):
+            for index in range(20):
+                await a_picture(
+                    session,
+                    album,
+                    f"trip-{day}-{index}.jpg",
+                    taken_at=datetime(2016, 10, 30, 10, tzinfo=UTC) + timedelta(days=day),
+                    place=away,
+                )
+        for year in range(2017, 2021):
+            for index in range(45):
+                await a_picture(
+                    session,
+                    album,
+                    f"fest-{year}-{index}.jpg",
+                    taken_at=datetime(year, 5, 3, 14, tzinfo=UTC),
+                )
+        await session.commit()
+
+        done = await service.rebuild(session, wanted=2)
+
+        assert done.chapters == 2
+        assert sorted(done.by_kind) == [KIND_DAY, KIND_TRIP]
 
     async def test_a_chapter_holds_no_more_than_the_cap(self, session: AsyncSession) -> None:
         album = await an_album(session, "Fotos")
@@ -426,7 +487,8 @@ async def test_the_button_builds_and_says_what_came_of_it(
     state = (await api_client.get("/smarts/state", headers=headers)).json()
     assert state["chapters"] == 1
     assert state["media"] == 30
-    assert state["wanted"] == 21
+    # The two numbers an admin sets, as they stand in the settings.
+    assert state["max_chapters"] == 60
     assert state["max_media"] == 500
 
 

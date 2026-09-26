@@ -79,6 +79,13 @@ const body = {
     }),
     aChapter(),
     aChapter({
+      id: 'chapter-theme',
+      kind: 'theme',
+      title_key: 'water',
+      title_args: { years: 16 },
+      size: 199,
+    }),
+    aChapter({
       id: 'chapter-person',
       kind: 'person',
       title_key: 'pair',
@@ -130,10 +137,13 @@ describe('the Smarts', () => {
     expect(await screen.findByText('4 Tage Chessy')).toBeInTheDocument()
     expect(screen.getByText('Katze · Tier · Innenraum')).toBeInTheDocument()
     expect(screen.getByText('Olivia & Matteo')).toBeInTheDocument()
+    // A theme is named by hand and says how far through the archive it runs.
+    expect(screen.getByText('Am Wasser')).toBeInTheDocument()
+    expect(screen.getByText('über 16 Jahre')).toBeInTheDocument()
     // The size sits on the card, over the pictures.
     expect(screen.getAllByText('61').length).toBeGreaterThan(0)
     // What kind it is, how many folders it draws from, and when it was.
-    expect(screen.getAllByText(/Motiv · aus 23 Alben/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/aus 23 Alben/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/09\.2017/).length).toBeGreaterThan(0)
   })
 

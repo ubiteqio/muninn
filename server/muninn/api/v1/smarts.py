@@ -231,8 +231,8 @@ async def read_state(
         media=found.media,
         built_at=found.built_at,
         by_kind=found.by_kind,
+        max_chapters=found.max_chapters,
         max_media=found.max_media,
-        wanted=found.wanted,
     )
 
 
@@ -242,11 +242,12 @@ async def build(
     admin: AdminUser,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> BuildResult:
-    """Find every chapter anew, across the whole library.
+    """Find every smart album anew, across the whole library.
 
-    Synchronous on purpose: an admin who presses it wants to see the result, and the whole
-    library takes seconds. What was there is replaced - the chapters are derived, and a library
-    that has grown falls into other groups than it did yesterday.
+    How many there are and how much each one holds come from the settings unless this asks for
+    something else. Synchronous on purpose: an admin who presses it wants to see the result,
+    and the whole library takes seconds. What was there is replaced - they are derived, and a
+    library that has grown falls into other groups than it did yesterday.
     """
     done = await service.rebuild(
         session,

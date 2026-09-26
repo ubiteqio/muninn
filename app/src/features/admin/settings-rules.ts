@@ -16,7 +16,8 @@ export const LIMITS = {
   deletion_share_percent: { min: 0, max: 50 },
   deletion_count: { min: 0, max: 100000 },
 
-  // How many media one smart album holds at most.
+  // How many smart albums there are, and how many media each one holds.
+  smart_max_chapters: { min: 6, max: 500 },
   smart_max_media: { min: 50, max: 5000 },
 } as const
 
@@ -39,7 +40,10 @@ export const SYNC_SETTINGS = [
   'deletion_count',
 ] as const satisfies readonly NumericSetting[]
 
-export const SMART_SETTINGS = ['smart_max_media'] as const satisfies readonly NumericSetting[]
+export const SMART_SETTINGS = [
+  'smart_max_chapters',
+  'smart_max_media',
+] as const satisfies readonly NumericSetting[]
 
 export interface SettingsProblem {
   /** The setting that is out of bounds; the page looks up its message and label. */

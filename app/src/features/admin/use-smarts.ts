@@ -17,21 +17,22 @@ export function useSmartsState() {
 }
 
 /**
- * Build chapters now, until this many have come out of it.
+ * Find the smart albums now, with the numbers as they are saved.
  *
- * It runs while the request is open - an album of a few thousand takes seconds - so the answer
- * says what was built rather than that something was queued somewhere.
+ * It runs while the request is open - the whole library takes seconds - so the answer says what
+ * was built rather than that something was queued somewhere.
  */
 export function useRebuildSmarts() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (chapters: number) =>
-      unwrap(await api.POST('/api/v1/smarts/build', { body: { chapters } })),
+    mutationFn: async () => unwrap(await api.POST('/api/v1/smarts/build', { body: {} })),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: STATE_KEY })
-      // The Smarts screen shows what was just built the next time somebody opens it.
-      void queryClient.invalidateQueries({ queryKey: ['smarts'] })
+      // Thrown away rather than marked stale: a run writes new chapters with new ids, so what
+      // is in hand is not an older version of the same thing - it is gone. A page kept from
+      // before would ask for a chapter that no longer exists.
+      void queryClient.resetQueries({ queryKey: ['smarts'] })
     },
   })
 }

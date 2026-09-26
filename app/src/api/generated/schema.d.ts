@@ -1141,11 +1141,12 @@ export interface paths {
         put?: never;
         /**
          * Find the chapters anew
-         * @description Find every chapter anew, across the whole library.
+         * @description Find every smart album anew, across the whole library.
          *
-         *     Synchronous on purpose: an admin who presses it wants to see the result, and the whole
-         *     library takes seconds. What was there is replaced - the chapters are derived, and a library
-         *     that has grown falls into other groups than it did yesterday.
+         *     How many there are and how much each one holds come from the settings unless this asks for
+         *     something else. Synchronous on purpose: an admin who presses it wants to see the result,
+         *     and the whole library takes seconds. What was there is replaced - they are derived, and a
+         *     library that has grown falls into other groups than it did yesterday.
          */
         post: operations["build_api_v1_smarts_build_post"];
         delete?: never;
@@ -2320,14 +2321,13 @@ export interface components {
         };
         /**
          * BuildRequest
-         * @description Find the chapters anew, across the whole library.
+         * @description Find the smart albums anew, across the whole library.
+         *
+         *     Both numbers are settings; a run may override them for a try without saving anything.
          */
         BuildRequest: {
-            /**
-             * Chapters
-             * @default 21
-             */
-            chapters: number;
+            /** Chapters */
+            chapters?: number | null;
             /** Max Media */
             max_media?: number | null;
             /** Distance */
@@ -3781,6 +3781,11 @@ export interface components {
              */
             faces_enabled: boolean;
             /**
+             * Smart Max Chapters
+             * @default 60
+             */
+            smart_max_chapters: number;
+            /**
              * Smart Max Media
              * @default 500
              */
@@ -3817,6 +3822,8 @@ export interface components {
             nas_agent_enabled: boolean;
             /** Faces Enabled */
             faces_enabled: boolean;
+            /** Smart Max Chapters */
+            smart_max_chapters: number;
             /** Smart Max Media */
             smart_max_media: number;
             /**
@@ -3866,10 +3873,10 @@ export interface components {
             by_kind: {
                 [key: string]: number;
             };
+            /** Max Chapters */
+            max_chapters: number;
             /** Max Media */
             max_media: number;
-            /** Wanted */
-            wanted: number;
         };
         /**
          * SmartsView

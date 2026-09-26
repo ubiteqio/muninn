@@ -1,3 +1,4 @@
+import { QueryClient } from '@tanstack/react-query'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,12 +12,12 @@ const STATE = 'GET /api/v1/smarts/state'
 const BUILD = 'POST /api/v1/smarts/build'
 
 const state = {
-  chapters: 125,
-  media: 13100,
+  chapters: 92,
+  media: 4241,
   built_at: '2026-09-26T03:30:00Z',
-  by_kind: { day: 35, motif: 40, person: 29, trip: 11, place: 8, ritual: 2 },
-  max_media: 500,
-  wanted: 21,
+  by_kind: { day: 35, motif: 7, person: 29, trip: 11, place: 8, ritual: 2 },
+  max_chapters: 60,
+  max_media: 50,
 }
 
 beforeEach(() => {
@@ -37,56 +38,49 @@ describe('building the Smarts by hand', () => {
 
     await renderScreen(<SmartAlbums />)
 
-    expect(
-      await screen.findByText(/125 Kapitel mit 13.100 Medien, höchstens 500 je Kapitel/),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/40 Motiv, 35 Tag, 29 Person, 11 Reise/)).toBeInTheDocument()
+    expect(await screen.findByText(/Zurzeit 92 Smart-Alben mit 4.241 Medien/)).toBeInTheDocument()
+    expect(screen.getByText(/35 Tag, 29 Person, 11 Reise, 8 Ort, 7 Motiv/)).toBeInTheDocument()
   })
 
-  it('asks for 21 motifs unless another number is typed', async () => {
+  it('builds with the numbers that are saved, asking for nothing itself', async () => {
     const { calls } = stubApi({
       [STATE]: { body: state },
-      [BUILD]: { body: { chapters: 125, media: 13100, by_kind: { motif: 21 } } },
+      [BUILD]: { body: { chapters: 60, media: 3000, by_kind: { motif: 10 } } },
     })
 
     await renderScreen(<SmartAlbums />)
-    expect(await screen.findByLabelText('Motive')).toHaveValue(21)
-
-    await userEvent.click(screen.getByRole('button', { name: 'Neu erstellen' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Neu erstellen' }))
 
     await waitFor(() => {
       expect(calls.some((call) => call.method === 'POST')).toBe(true)
     })
-    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({ chapters: 21 })
+    // The settings decide; the button carries no number of its own.
+    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({})
     expect(await screen.findByRole('status')).toHaveTextContent(
-      '125 Kapitel mit 13.100 Medien neu erstellt.',
+      '60 Smart-Alben mit 3.000 Medien neu erstellt.',
     )
   })
 
-  it('sends the number that was typed', async () => {
+  it('throws away the chapters it had in hand: a run writes new ones', async () => {
     const { calls } = stubApi({
       [STATE]: { body: state },
       [BUILD]: { body: { chapters: 5, media: 100, by_kind: { motif: 5 } } },
+      'GET /api/v1/smarts': {
+        body: { media: 8000, chapters: [], shelves: [], faces: [], next_offset: null },
+      },
     })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    // What somebody looked at before pressing the button.
+    client.setQueryData(['smarts'], { chapters: ['von vorher'] })
 
-    await renderScreen(<SmartAlbums />)
-    const field = await screen.findByLabelText('Motive')
-    await userEvent.clear(field)
-    await userEvent.type(field, '5')
-    await userEvent.click(screen.getByRole('button', { name: 'Neu erstellen' }))
+    await renderScreen(<SmartAlbums />, { client })
+    await userEvent.click(await screen.findByRole('button', { name: 'Neu erstellen' }))
 
     await waitFor(() => {
-      expect(calls.find((call) => call.method === 'POST')?.body).toEqual({ chapters: 5 })
+      expect(calls.some((call) => call.method === 'POST')).toBe(true)
     })
-  })
-
-  it('does not send a number nobody could mean', async () => {
-    stubApi({ [STATE]: { body: state } })
-
-    await renderScreen(<SmartAlbums />)
-    const field = await screen.findByLabelText('Motive')
-    await userEvent.clear(field)
-
-    expect(screen.getByRole('button', { name: 'Neu erstellen' })).toBeDisabled()
+    await waitFor(() => {
+      expect(client.getQueryData(['smarts'])).toBeUndefined()
+    })
   })
 })

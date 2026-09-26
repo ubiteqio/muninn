@@ -187,7 +187,8 @@
       "motif": "Motiv",
       "person": "Person",
       "place": "Ort",
-      "ritual": "Fest"
+      "ritual": "Fest",
+      "theme": "Thema"
     },
     "name": {
       "trip_one": "Ein Tag {{place}}",
@@ -201,7 +202,28 @@
       "newyear_other": "Silvester · {{count}} Jahre"
     },
     "fromAlbums_one": "aus 1 Album",
-    "fromAlbums_other": "aus {{count, number}} Alben"
+    "fromAlbums_other": "aus {{count, number}} Alben",
+    "days_one": "1 Tag",
+    "days_other": "{{count}} Tage",
+    "theme": {
+      "water": "Am Wasser",
+      "green": "Ins Grüne",
+      "sport": "Auf dem Platz",
+      "city": "In der Stadt",
+      "animals": "Tierisch",
+      "table": "Zu Tisch",
+      "wheels": "Auf Rädern",
+      "flowers": "Blüten",
+      "snow": "Im Schnee",
+      "beach": "Am Strand",
+      "stage": "Bühne & Musik",
+      "paper": "Papier & Bildschirme",
+      "sundown": "Abendrot",
+      "playground": "Auf dem Spielplatz",
+      "fireworks": "Feuerwerk"
+    },
+    "overYears_one": "aus einem Jahr",
+    "overYears_other": "über {{count}} Jahre"
   },
   "timeline": {
     "title": "Zeitleiste",
@@ -377,6 +399,10 @@
         },
         "smart_max_media": {
           "label": "Medien je Smart-Album",
+          "hint": "{{min}} bis {{max}}"
+        },
+        "smart_max_chapters": {
+          "label": "Anzahl Smart-Alben",
           "hint": "{{min}} bis {{max}}"
         }
       },
@@ -632,16 +658,14 @@
     },
     "smarts": {
       "title": "Smart-Alben",
-      "description": "Reisen, Tage, Personen, Orte, Feste und Motive — quer durch die ganze Mediathek. Sie entstehen jede Nacht um 3:30 Uhr neu; hier auf Zuruf.",
-      "holds": "{{chapters, number}} Kapitel mit {{media, number}} Medien, höchstens {{max, number}} je Kapitel",
-      "wanted": "Motive",
+      "description": "Jetzt neu suchen, mit den Zahlen von oben. Sonst geschieht es jede Nacht um 3:30 Uhr.",
+      "holds": "Zurzeit {{chapters, number}} Smart-Alben mit {{media, number}} Medien",
       "build": "Neu erstellen",
       "building": "Wird erstellt …",
-      "built": "{{chapters, number}} Kapitel mit {{media, number}} Medien neu erstellt.",
-      "wantedHint": "Reisen, Tage, Personen, Orte und Feste entstehen immer alle.",
+      "built": "{{chapters, number}} Smart-Alben mit {{media, number}} Medien neu erstellt.",
       "section": {
         "title": "Smart-Alben",
-        "description": "Wie viele Medien ein Smart-Album höchstens hält. Ein Kapitel ist etwas zum Durchsehen, keine zweite Mediathek."
+        "description": "Reisen, Tage, Themen, Personen, Orte und Feste — quer durch die ganze Mediathek. Themen wie „Am Wasser“ oder „Ins Grüne“ ziehen sich durch alle Jahre; „Motive“ sind Bilder, die einander ähneln und für die es keinen Namen gibt."
       }
     },
     "users": {
