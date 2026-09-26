@@ -40,15 +40,19 @@ export function stubApi(routes: Record<string, StubbedResponse>) {
 
   const fetchStub = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init)
-    const path = new URL(request.url, 'http://test').pathname
+    const address = new URL(request.url, 'http://test')
+    const path = address.pathname
     const key = `${request.method} ${path}`
+    // A route may name the query as well, for the pages of one list: the plain path still
+    // answers everything that does not.
+    const exact = `${key}${address.search}`
 
-    const background = !(key in routes) && key in BACKGROUND
+    const background = !(key in routes) && !(exact in routes) && key in BACKGROUND
     if (!background) {
       calls.push({ method: request.method, path, url: request.url, body: await readBody(request) })
     }
 
-    const route = routes[key] ?? BACKGROUND[key]
+    const route = routes[exact] ?? routes[key] ?? BACKGROUND[key]
     if (!route) throw new Error(`Unexpected request: ${key}`)
 
     const status = route.status ?? (route.problem ? route.problem.status : 200)

@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AlbumsScreen } from '@/features/albums/albums-screen'
@@ -443,5 +444,54 @@ describe('the album tree', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Jetzt abgleichen' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent(said)
+  })
+})
+
+describe('walking past the page in the viewer', () => {
+  it('keeps the page in hand when the address names a picture of the next one', async () => {
+    // Crossing from 100 to 101 collapsed the viewer's list to that one picture: it is on no
+    // page the grid shows, which from here looks exactly like a link from somewhere else.
+    // Everything after the crossing then had one picture to move through.
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: {
+        body: { items: [aMedium({ id: 'media-100' })], next_cursor: 'seite-2', prev_cursor: null },
+      },
+      'GET /api/v1/albums/album-italien/media?cursor=seite-2': {
+        body: { items: [aMedium({ id: 'media-101' })], next_cursor: null, prev_cursor: null },
+      },
+    })
+
+    /** The address, as the viewer moves it: first the last picture of the page, then the next. */
+    function Walking() {
+      const [medium, setMedium] = useState('media-100')
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setMedium('media-101')
+            }}
+          >
+            Weiter
+          </button>
+          <AlbumsScreen albumId="album-italien" medium={medium} />
+        </div>
+      )
+    }
+
+    await renderScreen(<Walking />, { path: '/albums/album-italien' })
+    // The viewer opens on the last picture, so the next page is fetched.
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('cursor=seite-2'))).toBe(true)
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+
+    // It is in hand already: asking the server for that one picture is the collapse happening.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Weiter' })).toBeInTheDocument()
+    })
+    expect(calls.some((call) => call.path === '/api/v1/media/media-101')).toBe(false)
   })
 })

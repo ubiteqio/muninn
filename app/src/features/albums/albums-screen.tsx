@@ -100,15 +100,19 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
   // picture is fetched and shown by itself, rather than the click doing nothing at all.
   // Only once the album's own page is in: while it is on its way every picture looks as if it
   // were somewhere else, and the one asked for would be fetched a second time for nothing.
-  const elsewhere =
-    medium !== undefined && !mediaIsLoading && !media.some((one) => one.id === medium)
-  const alone = useMediumAlone(elsewhere ? medium : undefined)
-  const page = elsewhere && alone.data ? [alone.data] : media
-
   // The pages after this one, gathered for the viewer while it is open. The grid keeps its page;
   // somebody looking at the hundredth picture of it wants the hundred-and-first, not the first.
   const following = useAlbumTail(albumId, mediaQuery.data?.next_cursor ?? null)
-  const shown = useMemo(() => [...page, ...following.tail], [page, following.tail])
+  const loaded = useMemo(() => [...media, ...following.tail], [media, following.tail])
+
+  const elsewhere =
+    medium !== undefined && !mediaIsLoading && !loaded.some((one) => one.id === medium)
+  const alone = useMediumAlone(elsewhere ? medium : undefined)
+  // Everything in hand, or - for a link that names a picture from no page loaded here - that
+  // one picture. What is in hand includes the pages gathered behind this one: once the viewer
+  // has walked into them, the picture on screen is not "somewhere else", and treating it so
+  // left the viewer with a list of one and nowhere to go.
+  const shown = elsewhere && alone.data ? [alone.data] : loaded
 
   const viewer = useMediaViewer(shown, {
     current: medium,
