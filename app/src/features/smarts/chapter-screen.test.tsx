@@ -1,4 +1,5 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/features/auth/auth-store'
@@ -110,6 +111,35 @@ describe('one chapter', () => {
 
     expect(await screen.findByRole('button', { name: 'Details anzeigen' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ähnliche Bilder' })).toBeInTheDocument()
+  })
+
+  it('starts a slideshow, and says so in the address', async () => {
+    stubApi({ [CHAPTER]: { body }, [ABILITIES]: { body: abilities } })
+
+    const { router } = await renderScreen(<ChapterScreen chapterId="chapter-1" />, {
+      path: '/smarts/chapter-1',
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Diashow' }))
+
+    // Not just the first picture: the slideshow is what the address says, and it can be sent.
+    await waitFor(() => {
+      expect(router.state.location.search).toEqual({ medium: 'media-1', play: true })
+    })
+  })
+
+  it('stays a slideshow while it moves from picture to picture', async () => {
+    stubApi({ [CHAPTER]: { body }, [ABILITIES]: { body: abilities } })
+
+    const { router } = await renderScreen(
+      <ChapterScreen chapterId="chapter-1" medium="media-1" play />,
+      { path: '/smarts/chapter-1' },
+    )
+    // What the viewer does at every step: it names the picture it moved to.
+    await screen.findByRole('button', { name: 'Details anzeigen' })
+
+    await waitFor(() => {
+      expect(router.state.location.search).toEqual({ medium: 'media-1', play: true })
+    })
   })
 
   it('offers nothing to compare when there is no picture model', async () => {

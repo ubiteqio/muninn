@@ -50,12 +50,26 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
       void navigate({
         to: '/smarts/$chapterId',
         params: { chapterId },
-        search: mediaId ? { medium: mediaId } : {},
+        // A slideshow that is running stays one while it moves from picture to picture: the
+        // address said "play", and every step used to drop that word, so the show was over
+        // after the first picture and a reload showed a still.
+        search: mediaId ? { medium: mediaId, ...(play === true ? { play: true } : {}) } : {},
         replace: true,
       })
     },
-    [chapterId, navigate],
+    [chapterId, navigate, play],
   )
+
+  /** Watch it: from the first picture, and the address says so, so it can be sent to somebody. */
+  const watch = useCallback(() => {
+    const first = media[0]
+    if (first)
+      void navigate({
+        to: '/smarts/$chapterId',
+        params: { chapterId },
+        search: { medium: first.id, play: true },
+      })
+  }, [chapterId, media, navigate])
 
   const onSimilar = useCallback(
     (mediaId: string) => {
@@ -121,12 +135,10 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
                 </Link>
               </Button>
             )}
-            <Button
-              disabled={media.length === 0}
-              onClick={() => {
-                viewer.open(0)
-              }}
-            >
+            {/* Not viewer.open: that only puts the picture in the address, and the slideshow
+                is what the address says, not what the viewer was asked for. The button opened
+                the first picture and stood there. */}
+            <Button disabled={media.length === 0} onClick={watch}>
               <Symbol name="play_arrow" size={18} filled />
               {t('smarts.play')}
             </Button>
