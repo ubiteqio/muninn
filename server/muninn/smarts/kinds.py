@@ -418,9 +418,10 @@ async def _pairs(session: AsyncSession) -> list[Candidate]:
 async def themes(session: AsyncSession) -> list[Candidate]:
     """The things a family archive is full of, each under a name somebody wrote.
 
-    Their pictures are taken a few per year rather than the newest first: a theme that shows
+    Their pictures are gathered a few per year rather than the newest first: a theme that shows
     only last summer says nothing about twenty-six years, and the years next to each other are
-    half the pleasure - the same lake, the children a head taller each time.
+    half the pleasure - the same lake, the children a head taller each time. Which of them are
+    kept is the service's business, and it picks differently every run.
     """
     found: list[Candidate] = []
     for key, tags in THEMES:
@@ -460,13 +461,12 @@ async def themes(session: AsyncSession) -> list[Candidate]:
 
 
 def _a_few_per_year(by_year: dict[int, list[uuid.UUID]]) -> list[uuid.UUID]:
-    """A handful from every year, newest year first, then round again for the rest."""
+    """Every year in turn, a handful at a time, so the years stand next to each other."""
     taken: list[uuid.UUID] = []
     years = sorted(by_year, reverse=True)
-    for start in (0, THEME_PER_YEAR):
+    for start in range(0, max((len(one) for one in by_year.values()), default=0), THEME_PER_YEAR):
         for year in years:
-            pictures = by_year[year]
-            taken.extend(pictures[start : start + THEME_PER_YEAR])
+            taken.extend(by_year[year][start : start + THEME_PER_YEAR])
     return taken
 
 
@@ -477,6 +477,7 @@ async def motifs(
     distance: float,
     wanted: int,
     attempts: int,
+    seed: str = "",
 ) -> list[Candidate]:
     """What the library is full of: the pictures that look alike, across every folder.
 
@@ -495,9 +496,10 @@ async def motifs(
         await session.scalars(
             select(Media.id)
             .where(Media.status == MediaStatus.ACTIVE, Media.duplicate_of.is_(None))
-            # A fixed shuffle: the same library gives the same leaders, and the leaders
-            # are not all from one corner of the archive.
-            .order_by(func.md5(func.cast(Media.id, Text)))
+            # Shuffled, and differently on every run: which picture leads decides what the
+            # motif becomes, so a second run finds other things the library is full of - the
+            # same seed gives the same order again, which is what the tests hold on to.
+            .order_by(func.md5(func.concat(func.cast(Media.id, Text), seed)))
         )
     )
 

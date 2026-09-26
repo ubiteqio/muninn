@@ -88,7 +88,9 @@ const THEME_ICON: Record<string, string> = {
 }
 
 const MEDALLION: Record<string, { icon: string; className: string }> = {
-  trip: { icon: 'flight', className: 'bg-primary/85 text-primary-foreground' },
+  // A suitcase, not an aeroplane: most journeys here were driven, and a wing over a weekend
+  // at the grandparents' says something that did not happen.
+  trip: { icon: 'luggage', className: 'bg-primary/85 text-primary-foreground' },
   place: { icon: 'place', className: 'bg-background/75 text-foreground' },
   person: { icon: 'face', className: 'bg-secondary/85 text-secondary-foreground' },
   ritual: { icon: 'celebration', className: 'bg-primary/85 text-primary-foreground' },

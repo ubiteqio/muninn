@@ -11,6 +11,7 @@ worker's night and nothing else - and building them anew is the only way a libra
 grown falls into the right groups rather than yesterday's.
 """
 
+import random
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -85,6 +86,7 @@ async def rebuild(
     wanted: int | None = None,
     max_media: int | None = None,
     distance: float = LOOK_DISTANCE,
+    seed: int | None = None,
 ) -> Rebuild:
     """Find every chapter anew, across the whole library.
 
@@ -92,7 +94,15 @@ async def rebuild(
     the list is cut to the number that was asked for. Cutting after the turns rather than
     before is what keeps the mixture: thirty chapters are five of each kind, not the thirty
     largest, which would all be motifs.
+
+    Which of them are kept, and which pictures each one shows, is drawn anew every run. A
+    library of ninety journeys, days and themes can only show twenty-one of them, and always
+    the same twenty-one would make the screen a poster. So the same button pressed twice gives
+    another wall: other journeys, other faces, other pictures of the same lake. ``seed`` fixes
+    the draw where somebody needs the same answer twice, which is what the tests do.
     """
+    # Which chapters and which pictures, not a secret: nothing here guards anything.
+    drawn = random.Random(seed)  # noqa: S311
     settings = await settings_service.get_settings(session)
     cap = max_media if max_media is not None else settings.smart_max_media
     most = wanted if wanted is not None else settings.smart_max_chapters
@@ -119,10 +129,11 @@ async def rebuild(
                 # Enough to fill the wall with motifs if the other rules found little.
                 wanted=most,
                 attempts=MOTIF_ATTEMPTS,
+                seed=str(drawn.random()),
             )
         )
 
-    return await _write(session, candidates, cap=cap, most=most)
+    return await _write(session, candidates, cap=cap, most=most, drawn=drawn)
 
 
 def _days_of(journeys: Sequence[rules.Candidate]) -> list[date]:
@@ -138,15 +149,20 @@ def _days_of(journeys: Sequence[rules.Candidate]) -> list[date]:
 
 
 async def _write(
-    session: AsyncSession, candidates: Sequence[rules.Candidate], *, cap: int, most: int
+    session: AsyncSession,
+    candidates: Sequence[rules.Candidate],
+    *,
+    cap: int,
+    most: int,
+    drawn: random.Random,
 ) -> Rebuild:
     """Everything that was found, in the order the screen shows it. The old chapters go."""
     await session.execute(delete(SmartChapter))
 
     by_kind: dict[str, int] = {}
     media = 0
-    for position, candidate in enumerate(_interleaved(candidates)[:most]):
-        kept = list(candidate.media[:cap])
+    for position, candidate in enumerate(_interleaved(candidates, drawn)[:most]):
+        kept = _some_of(candidate.media, cap, drawn)
         if not kept:
             continue
         span, albums = await _about(session, kept)
@@ -177,18 +193,36 @@ async def _write(
     return Rebuild(chapters=sum(by_kind.values()), media=media, by_kind=by_kind)
 
 
-def _interleaved(candidates: Sequence[rules.Candidate]) -> list[rules.Candidate]:
-    """The kinds take turns, biggest of each kind first.
+def _some_of(media: Sequence[uuid.UUID], cap: int, drawn: random.Random) -> list[uuid.UUID]:
+    """At most this many of them, drawn from the whole chapter rather than off the top.
+
+    A journey of four hundred pictures capped at fifty would otherwise be the first morning,
+    four times over. Drawn across the whole of it, the fifty are the whole journey - and other
+    fifty next time. What is drawn keeps its order, so a journey still runs from Friday to
+    Monday and a motif still leads with what it was built around.
+    """
+    if len(media) <= cap:
+        return list(media)
+    chosen = set(drawn.sample(range(len(media)), cap))
+    return [one for index, one in enumerate(media) if index in chosen]
+
+
+def _interleaved(
+    candidates: Sequence[rules.Candidate], drawn: random.Random
+) -> list[rules.Candidate]:
+    """The kinds take turns, and which one of a kind comes next is drawn.
 
     A screen that lists every journey, then every day, then every motif is a report. Taking
     turns makes it a wall somebody wants to look through: whatever catches the eye next is of
-    another kind than the last one.
+    another kind than the last one. Drawing rather than sorting by size is what makes the
+    second press of the button worth pressing - every candidate here has already earned its
+    place, so none of them is a worse answer than the largest.
     """
     piles: dict[str, list[rules.Candidate]] = {kind: [] for kind in KINDS}
     for candidate in candidates:
         piles.setdefault(candidate.kind, []).append(candidate)
     for pile in piles.values():
-        pile.sort(key=lambda one: len(one.media), reverse=True)
+        drawn.shuffle(pile)
 
     mixed: list[rules.Candidate] = []
     while any(piles.values()):

@@ -392,6 +392,60 @@ class TestRebuilding:
         assert chapters[0].size == 50
         assert len(await service.media_of(session, chapters[0].id, limit=200)) == 50
 
+    async def _many_days(self, session: AsyncSession, how_many: int = 12) -> None:
+        album = await an_album(session, "Fotos")
+        for day in range(how_many):
+            for index in range(45):
+                await a_picture(
+                    session,
+                    album,
+                    f"fest-{day}-{index}.jpg",
+                    taken_at=datetime(2019, 5, 3, 14, tzinfo=UTC) + timedelta(days=day),
+                )
+        await session.commit()
+
+    async def _titles(self, session: AsyncSession) -> list[str]:
+        return [str(one.title_args) for one in await service.chapters_of(session)]
+
+    async def test_another_press_shows_another_wall(self, session: AsyncSession) -> None:
+        """Twelve days and room for three: always the same three would make it a poster."""
+        await self._many_days(session)
+
+        await service.rebuild(session, wanted=3, seed=1)
+        first = await self._titles(session)
+        await service.rebuild(session, wanted=3, seed=2)
+        again = await self._titles(session)
+
+        assert len(first) == len(again) == 3
+        assert first != again
+
+    async def test_the_same_draw_gives_the_same_wall(self, session: AsyncSession) -> None:
+        """Somebody has to be able to ask for the same answer twice - the tests, for one."""
+        await self._many_days(session)
+
+        await service.rebuild(session, wanted=3, seed=7)
+        first = await self._titles(session)
+        await service.rebuild(session, wanted=3, seed=7)
+        again = await self._titles(session)
+
+        assert first == again
+
+    async def test_the_pictures_are_drawn_from_the_whole_chapter(
+        self, session: AsyncSession
+    ) -> None:
+        """Capped at ten, a day of forty-five must not always be the same first ten."""
+        await self._many_days(session, how_many=1)
+
+        await service.rebuild(session, wanted=1, max_media=10, seed=1)
+        chapters = await service.chapters_of(session)
+        first = {one.id for one in await service.media_of(session, chapters[0].id, limit=50)}
+        await service.rebuild(session, wanted=1, max_media=10, seed=2)
+        chapters = await service.chapters_of(session)
+        again = {one.id for one in await service.media_of(session, chapters[0].id, limit=50)}
+
+        assert len(first) == len(again) == 10
+        assert first != again
+
     async def test_a_run_replaces_what_was_there(self, session: AsyncSession) -> None:
         album = await an_album(session, "Fotos")
         for index in range(45):
