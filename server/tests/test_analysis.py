@@ -16,6 +16,8 @@ from muninn.ai.analysis import Analysis
 from muninn.ai.base import AiError, Check
 from muninn.ai.openai_compatible import OpenAiAnalyzer
 from muninn.analysis import service
+from muninn.huginn import attempts, jobs
+from muninn.models.attempt import GIVE_UP_AFTER
 from muninn.models.media import Media, MediaKind
 from muninn.models.user import UserRole
 from muninn.search import service as search_service
@@ -161,6 +163,30 @@ async def a_photo_with_preview(session: AsyncSession, derived: Path) -> Media:
     pyvips.Image.black(1600, 1200, bands=3).linear(1, [30, 120, 200]).write_to_file(str(preview))
     await session.commit()
     return medium
+
+
+async def test_a_video_no_frame_comes_out_of_is_given_up_on(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    """It used to say nothing and leave the video outstanding, so the clock handed it out again
+    every minute - for ever, with nobody able to see why."""
+    album = await an_album(session, "Urlaub/2012 Italien")
+    medium = await a_medium(session, album, taken_at=JULY, name="VID_1.mp4")
+    medium.kind = MediaKind.VIDEO
+    medium.video_path = "no/such/video.mp4"
+    await session.commit()
+
+    for _ in range(GIVE_UP_AFTER):
+        described = await service.apply_analysis(
+            session, medium.id, analyzer=FakeAnalyzer(), model="qwen", derived_root=tmp_path
+        )
+        assert described is False
+
+    failed = await attempts.of_media(session, medium.id)
+    assert failed[jobs.ANALYSIS_STAGE].attempts == GIVE_UP_AFTER
+    assert "not on the disk" in (failed[jobs.ANALYSIS_STAGE].last_error or "")
+    # And the clock leaves it alone now.
+    assert await service.media_without(session, model="qwen") == []
 
 
 async def test_a_photo_is_described_with_its_album_and_date_as_hint(
