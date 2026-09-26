@@ -4,6 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
+from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -23,11 +24,18 @@ from muninn.api.schemas.smarts import (
     SmartsView,
 )
 from muninn.core.config import Settings
-from muninn.core.deps import ActiveUser, AdminUser, get_session, get_settings_from_state
+from muninn.core.deps import (
+    ActiveUser,
+    AdminUser,
+    get_redis,
+    get_session,
+    get_settings_from_state,
+)
 from muninn.core.problem import ProblemError, problem_type
 from muninn.faces import listing
 from muninn.models.media import Media, MediaStatus
 from muninn.models.smart import SmartChapter, SmartChapterMedium
+from muninn.notify import events
 from muninn.smarts import service
 
 router = APIRouter(prefix="/smarts", tags=["smarts"])
@@ -241,6 +249,7 @@ async def build(
     request: BuildRequest,
     admin: AdminUser,
     session: Annotated[AsyncSession, Depends(get_session)],
+    redis: Annotated[Redis, Depends(get_redis)],
 ) -> BuildResult:
     """Find every smart album anew, across the whole library.
 
@@ -255,4 +264,6 @@ async def build(
         max_media=request.max_media,
         distance=request.distance or service.LOOK_DISTANCE,
     )
+    # Every screen that is open somewhere else holds chapters that have just been deleted.
+    await events.publish(redis, events.SMARTS_TOPIC, kind="rebuilt", chapters=done.chapters)
     return BuildResult(chapters=done.chapters, media=done.media, by_kind=done.by_kind)

@@ -20,6 +20,7 @@ import {
   useShelf,
   useSmarts,
 } from '@/features/smarts/use-smarts'
+import { useSmartsUpdates } from '@/features/smarts/use-smarts-updates'
 import { useSocialUpdates } from '@/features/social/use-social'
 import { DESKTOP_QUERY, useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
@@ -46,6 +47,7 @@ export function SmartsScreen({ shelf, medium }: SmartsScreenProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const smarts = useSmarts()
+  useSmartsUpdates()
   const chapters = useMemo(() => chaptersOf(smarts.data?.pages), [smarts.data])
   const first = smarts.data?.pages[0]
 
@@ -267,6 +269,7 @@ function ShelfView({
   const abilities = abilitiesQuery.data
   const query = useShelf(shelf)
   const media = useMemo(() => pagesOf(query.data?.pages), [query.data])
+  useSmartsUpdates()
   const onSimilar = useCallback(
     (mediaId: string) => {
       void navigate({ to: '/search', search: { similar: mediaId } })

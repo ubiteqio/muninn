@@ -10,6 +10,7 @@ import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { useSearchAbilities } from '@/features/search/use-search'
 import { pagesOf, spanOf, titleOf, useChapter } from '@/features/smarts/use-smarts'
+import { useSmartsUpdates } from '@/features/smarts/use-smarts-updates'
 import { useSocialUpdates } from '@/features/social/use-social'
 import { DESKTOP_QUERY, useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
 
@@ -40,6 +41,7 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
   const abilitiesQuery = useSearchAbilities()
   const abilities = abilitiesQuery.data
   const query = useChapter(chapterId)
+  useSmartsUpdates()
   const media = useMemo(() => pagesOf(query.data?.pages), [query.data])
   const chapter = query.data?.pages[0]?.chapter
 

@@ -31,6 +31,11 @@ SOCIAL_TOPIC = "social"
 #: Personen screen answers a list of questions; it must not be a list from ten minutes ago.
 PEOPLE_TOPIC = "people"
 
+#: The smart albums were found anew, which replaces every one of them. A screen that is open
+#: somewhere else - another window, another room - would otherwise show chapters that no longer
+#: exist, and opening one of them would find nothing.
+SMARTS_TOPIC = "smarts"
+
 
 async def publish(redis: Redis, topic: str, **payload: Any) -> None:
     """Tell whoever is listening that something happened. Nobody listening is not an error."""

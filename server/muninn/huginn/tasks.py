@@ -198,6 +198,12 @@ async def _build_smarts() -> int:
     """Find every chapter anew. The library has grown, so it falls into other groups."""
     async with session_scope() as session:
         done = await smarts_service.rebuild(session)
+    # Anybody who left the Smarts open overnight holds chapters that are gone.
+    redis = jobs.connect()
+    try:
+        await events.publish(redis, events.SMARTS_TOPIC, kind="rebuilt", chapters=done.chapters)
+    finally:
+        await redis.aclose()
     logger.info(
         "Smarts: %d chapters over %d media (%s)",
         done.chapters,

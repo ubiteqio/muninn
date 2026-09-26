@@ -1,9 +1,11 @@
 """Smarts: what the library falls into when nobody sorted it."""
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -21,6 +23,7 @@ from muninn.search.service import store_faces as search_store_faces
 from muninn.smarts import kinds as rules
 from muninn.smarts import service
 from tests.helpers import auth_header, create_user, login
+from tests.test_live import Socket
 from tests.test_search import described
 from tests.test_timeline import a_medium, an_album
 
@@ -490,6 +493,38 @@ async def test_the_button_builds_and_says_what_came_of_it(
     # The two numbers an admin sets, as they stand in the settings.
     assert state["max_chapters"] == 60
     assert state["max_media"] == 500
+
+
+async def test_a_run_is_announced_so_open_screens_let_go_of_what_they_hold(
+    api_client: AsyncClient,
+    api_app: FastAPI,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A run deletes every smart album; a screen open elsewhere must hear of it.
+
+    Without this the Smarts stay on screen as they were until somebody reloads - and every card
+    there points at a chapter that no longer exists.
+    """
+    album = await an_album(session, "Fotos")
+    for index in range(45):
+        await a_picture(
+            session, album, f"fest-{index}.jpg", taken_at=datetime(2019, 5, 3, 14, tzinfo=UTC)
+        )
+    await session.commit()
+    await create_user(session_factory, username="chef", display_name="Chef", role=UserRole.ADMIN)
+    tokens = await login(api_client, username="chef")
+    headers = auth_header(tokens)
+
+    async with Socket(api_app, str(tokens["access_token"])) as socket:
+        assert (await socket.next())["type"] == "websocket.accept"
+
+        answer = await api_client.post("/smarts/build", json={}, headers=headers)
+        message = await socket.next()
+
+    assert answer.status_code == 200, answer.text
+    said = json.loads(message["text"])
+    assert (said["topic"], said["kind"]) == ("smarts", "rebuilt")
 
 
 async def test_only_an_admin_may_build_or_read_the_state(
