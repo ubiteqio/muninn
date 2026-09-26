@@ -23,6 +23,8 @@ interface StubbedResponse {
 const BACKGROUND: Record<string, StubbedResponse> = {
   'GET /api/v1/notifications/unread': { body: { count: 0 } },
   'GET /api/v1/activity': { body: { items: [], next_cursor: null } },
+  // The engine room asks how the AI machines are; on most pages that is not the point.
+  'GET /api/v1/admin/jobs/ai': { body: { services: [] } },
   // The Smarts section in the settings asks what they hold; on most pages that is not the point.
   'GET /api/v1/smarts/state': {
     body: { chapters: 0, albums: 0, media: 0, outstanding: 0, built_at: null, wanted: 21 },

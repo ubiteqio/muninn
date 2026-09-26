@@ -38,8 +38,11 @@ function iconsInTheSource(): Map<string, string> {
     for (const found of source.matchAll(/\bicon: '([a-z0-9_]+)'/g)) {
       named.set(found[1] ?? '', path)
     }
-    if (/ICON: Record<string, string>/.test(source)) {
-      for (const found of source.matchAll(/^ {2}[a-z]+: '([a-z0-9_]+)',$/gm)) {
+    // A map of icons by kind: `const STAGE_ICON: Record<string, string> = { derive: 'image', … }`.
+    // Only the values inside that one object; a map of something else in the same file - what
+    // each step waits for, say - is not a list of icons.
+    for (const map of source.matchAll(/ICONS?: Record<string, string> = \{([^}]*)\}/gs)) {
+      for (const found of (map[1] ?? '').matchAll(/:\s*'([a-z0-9_]+)'/g)) {
         named.set(found[1] ?? '', path)
       }
     }

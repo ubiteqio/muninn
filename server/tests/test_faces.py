@@ -99,6 +99,32 @@ async def test_a_picture_without_faces_is_done_too(session: AsyncSession, tmp_pa
     assert await service.count_without(session) == 0
 
 
+async def test_a_video_without_its_720p_version_is_not_outstanding_here(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    """It waits for stage 2, which makes what this stage reads - and counts its own failures.
+
+    Counted here instead, it was handed out every minute and skipped every time without a word,
+    and one film sat in "Medien ohne Gesichtersuche" for ever.
+    """
+    medium = await a_medium(
+        session, await an_album(session, "Fest"), taken_at=JULY, name="IMG_1239.MOV"
+    )
+    medium.kind = MediaKind.VIDEO
+    medium.thumbnail_path = "poster/IMG_1239.webp"
+    medium.video_path = None
+    await session.commit()
+
+    assert await service.media_without(session) == []
+    assert await service.count_without(session) == 0
+
+    # Once stage 2 has made it, the film is this stage's business.
+    medium.video_path = "v/IMG_1239.mp4"
+    await session.commit()
+
+    assert await service.media_without(session) == [medium.id]
+
+
 async def test_a_video_nobody_can_read_is_given_up_on(
     session: AsyncSession, tmp_path: Path
 ) -> None:

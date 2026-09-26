@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 
 import pyvips
-from sqlalchemy import Select, delete, func, select, update
+from sqlalchemy import Select, and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -252,10 +252,22 @@ async def collapse_all_videos(session: AsyncSession, derived_root: Path) -> int:
 
 
 def _missing() -> Select[tuple[uuid.UUID]]:
+    """Media this stage could look at now.
+
+    What it looks at has to be there: a picture is read from its preview, a video from its 720p
+    version. A video that has only a poster - because its transcode failed, or has not run yet -
+    was counted as outstanding here, handed out every minute, and skipped every time without a
+    word, so one film sat in "Medien ohne Gesichtersuche" for ever. It belongs to stage 2 until
+    that stage has made what this one reads, and stage 2 counts its own failures.
+    """
+    ready = or_(
+        and_(Media.kind == MediaKind.VIDEO, Media.video_path.is_not(None)),
+        and_(Media.kind == MediaKind.IMAGE, Media.thumbnail_path.is_not(None)),
+    )
     return select(Media.id).where(
         Media.status == MediaStatus.ACTIVE,
         Media.duplicate_of.is_(None),
-        Media.thumbnail_path.is_not(None),
+        ready,
         Media.face_version < FACE_VERSION,
         attempts.still_open(jobs.FACES_STAGE, Media.id),
     )

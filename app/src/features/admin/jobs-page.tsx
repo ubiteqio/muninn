@@ -12,10 +12,12 @@ import { AdminArea } from '@/features/admin/admin-area'
 import { AiServices } from '@/features/admin/ai-services'
 import {
   type ActiveTask,
+  type AiService,
   type Change,
   type FinishedTask,
   type Jobs,
   type RunningRead,
+  useAiHealth,
   useChanges,
   useJobs,
   useLiveJobs,
@@ -465,8 +467,24 @@ function Behind({ stage }: { stage: string }) {
  * The work still owed, in the order a file travels: seen, read, previews, then the AI stages.
  * Only the steps with something waiting are listed; when nothing waits, one line says so.
  */
+/**
+ * Which machine each step waits for. The steps that read the NAS wait for nobody.
+ *
+ * A stage whose machine does not answer rests rather than failing a thousand media a minute -
+ * deliberately, because a machine that is away is not the file's fault. Its work then stands in
+ * this list and moves no further, which reads as a stuck job unless the list says why.
+ */
+const NEEDS: Record<string, string> = {
+  vector: 'image_embedder',
+  transcript: 'transcriber',
+  analysis: 'analyzer',
+  captionVector: 'text_embedder',
+  faces: 'face_detector',
+}
+
 function OpenWork({ jobs }: { jobs: Jobs }) {
   const { t } = useTranslation()
+  const health = useAiHealth()
 
   // Which line asks the server what is behind it; one at a time.
   const [open, setOpen] = useState<string | null>(null)
@@ -526,6 +544,13 @@ function OpenWork({ jobs }: { jobs: Jobs }) {
                   </span>
                   <span className="flex-1 text-base text-muted-foreground">
                     {t(`admin.jobs.open.${step.key}`)}
+                    {/* Standing still because its machine is away, not because it is stuck. */}
+                    {waitingFor(step.key, health.data?.services ?? []) && (
+                      <span className="text-muted-foreground/80">
+                        {' · '}
+                        {t('admin.jobs.open.waitsForAi')}
+                      </span>
+                    )}
                   </span>
                   <Symbol
                     name="expand_more"
@@ -559,6 +584,14 @@ function OpenWork({ jobs }: { jobs: Jobs }) {
       </Card>
     </section>
   )
+}
+
+/** Whether this step's machine is not answering, and the work is therefore only waiting. */
+function waitingFor(key: string, services: AiService[]): boolean {
+  const kind = NEEDS[key]
+  if (kind === undefined) return false
+  const machine = services.find((service) => service.kind === kind)
+  return machine !== undefined && machine.configured && machine.ok === false
 }
 
 /** Emptying one queue. It asks first: what is thrown away is gone until the next read. */

@@ -33,7 +33,14 @@ from muninn.library.scanner import ScannedFile, ScannedFolder, is_ignored, walk
 from muninn.media import service as media_service
 from muninn.models.album import Album
 from muninn.models.change_log import RETENTION_DAYS, ChangeKind, ChangeLogEntry, SyncTrigger
-from muninn.models.media import Media, MediaFile, MediaFileRole, MediaKind, MediaStatus
+from muninn.models.media import (
+    Media,
+    MediaFile,
+    MediaFileRole,
+    MediaKind,
+    MediaStatus,
+    shown,
+)
 from muninn.models.pending_file import PendingFile
 from muninn.models.publication import Publication, ScanStatus
 from muninn.models.settings import AppSettings
@@ -1415,12 +1422,11 @@ async def index_counts(session: AsyncSession) -> IndexCounts:
     albums = await session.scalar(
         select(func.count()).select_from(Album).where(Album.is_source.is_(True))
     )
+    # The same media the albums, the timeline and the Überblick count: a copy of another file
+    # is not a second picture in the library, and the engine room saying it is left the two
+    # screens disagreeing by exactly the number of duplicates.
     kinds = (
-        await session.execute(
-            select(Media.kind, func.count())
-            .where(Media.status == MediaStatus.ACTIVE)
-            .group_by(Media.kind)
-        )
+        await session.execute(select(Media.kind, func.count()).where(shown()).group_by(Media.kind))
     ).all()
     by_kind = {kind: int(count) for kind, count in kinds}
     media = sum(by_kind.values())

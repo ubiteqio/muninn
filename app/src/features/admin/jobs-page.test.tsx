@@ -10,6 +10,21 @@ import { renderScreen } from '@/test/render'
 
 const JOBS = 'GET /api/v1/admin/jobs'
 const CHANGES = 'GET /api/v1/admin/index/changes'
+const AI = 'GET /api/v1/admin/jobs/ai'
+
+/** One AI machine, as the engine room hears about it. */
+function aMachine(kind: string, ok: boolean) {
+  return {
+    kind,
+    configured: true,
+    model: 'buffalo_l',
+    ok,
+    detail: ok ? 'antwortet' : 'Keine Antwort',
+    milliseconds: null,
+    checked_at: '2026-09-26T20:00:00Z',
+    paused_until: ok ? null : '2026-09-26T20:05:00Z',
+  }
+}
 
 const idle = {
   running: [],
@@ -85,6 +100,34 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('work that waits for a machine', () => {
+  it('says so on the line, instead of looking stuck', async () => {
+    stubApi({
+      [JOBS]: { body: { ...idle, pending_faces: 1 } },
+      [CHANGES]: { body: [] },
+      [AI]: { body: { services: [aMachine('face_detector', false)] } },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+
+    const row = await screen.findByText(/Medien ohne Gesichtersuche/)
+    expect(row).toHaveTextContent('wartet auf die KI-Maschine')
+  })
+
+  it('says nothing of the sort while the machine answers', async () => {
+    stubApi({
+      [JOBS]: { body: { ...idle, pending_faces: 1 } },
+      [CHANGES]: { body: [] },
+      [AI]: { body: { services: [aMachine('face_detector', true)] } },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+
+    const row = await screen.findByText(/Medien ohne Gesichtersuche/)
+    expect(row).not.toHaveTextContent('wartet auf die KI-Maschine')
+  })
 })
 
 describe('the engine room', () => {

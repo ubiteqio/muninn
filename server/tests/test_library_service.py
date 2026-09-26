@@ -900,6 +900,33 @@ async def test_a_folder_that_cannot_be_listed_forgets_nothing(
     assert set(await session.scalars(select(PendingFile.relative_path))) == {"Autos/warten.jpg"}
 
 
+async def test_the_engine_room_counts_the_media_the_library_shows(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """A copy of another file is not a second picture.
+
+    The albums, the timeline and the Überblick all leave duplicates out; the engine room
+    counted them, so the two screens disagreed by exactly the number of copies in the library.
+    """
+    write(library, "Autos/eins.jpg")
+    write(library, "Autos/zwei.jpg")
+    publication = await publish(session, library, "Autos")
+    await sync(session, publication, library, settings)
+    await sync(session, publication, library, settings, now=LATER)
+
+    before = await service.index_counts(session)
+    assert before.media == 2
+
+    # One of them turns out to be a copy of the other.
+    media = list(await session.scalars(select(Media).order_by(Media.id)))
+    media[1].duplicate_of = media[0].id
+    await session.commit()
+
+    after = await service.index_counts(session)
+    assert after.media == 1
+    assert after.photos == 1
+
+
 async def test_a_medium_taken_down_does_not_come_back(
     session: AsyncSession, library: Path, settings: AppSettings
 ) -> None:

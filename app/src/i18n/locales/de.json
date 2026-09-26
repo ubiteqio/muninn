@@ -580,7 +580,8 @@
         "loading": "Wird geladen …",
         "gone": "Nichts mehr offen – die Zahl ist schon älter.",
         "attempts_one": "1 Versuch",
-        "attempts_other": "{{count, number}} Versuche"
+        "attempts_other": "{{count, number}} Versuche",
+        "waitsForAi": "wartet auf die KI-Maschine"
       },
       "schedule": {
         "title": "Zeitplan",
