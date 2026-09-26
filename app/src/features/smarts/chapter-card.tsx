@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Symbol } from '@/components/muninn/symbol'
 import { Badge } from '@/components/ui/badge'
 import { CollectionFrame } from '@/features/albums/collection-frame'
-import { type Chapter, spanOf } from '@/features/smarts/use-smarts'
+import { type Chapter, spanOf, titleOf } from '@/features/smarts/use-smarts'
 import { cn } from '@/lib/utils'
 
 /**
@@ -18,8 +18,16 @@ import { cn } from '@/lib/utils'
  */
 export function ChapterCard({ chapter }: { chapter: Chapter }) {
   const { t } = useTranslation()
-  const title = chapter.title || t('smarts.unnamed')
-  const note = [chapter.album_title, spanOf(chapter)].filter(Boolean).join(' · ')
+  const title = titleOf(chapter, t)
+  // What it is and where it comes from: "Reise · 4 Alben · 10.2016". A chapter that draws from
+  // one folder says so instead of counting to one.
+  const note = [
+    t(`smarts.kind.${chapter.kind}`),
+    chapter.albums > 1 ? t('smarts.fromAlbums', { count: chapter.albums }) : null,
+    spanOf(chapter),
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <Link
@@ -30,6 +38,10 @@ export function ChapterCard({ chapter }: { chapter: Chapter }) {
     >
       <CollectionFrame title={title} note={note}>
         <ChapterCover chapter={chapter} />
+        {/* What kind of chapter it is, at a glance: a journey, a day, a face, a motif. */}
+        <span className="absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-background/70 text-foreground backdrop-blur-sm">
+          <Symbol name={KIND_ICON[chapter.kind] ?? 'auto_awesome'} size={15} />
+        </span>
         {chapter.size > 0 && (
           <Badge variant="count" className="absolute bottom-1.5 right-1.5">
             {chapter.size}
@@ -38,6 +50,16 @@ export function ChapterCard({ chapter }: { chapter: Chapter }) {
       </CollectionFrame>
     </Link>
   )
+}
+
+/** One symbol per kind, so the wall can be read without reading it. */
+const KIND_ICON: Record<string, string> = {
+  trip: 'flight',
+  day: 'event',
+  place: 'place',
+  person: 'face',
+  ritual: 'celebration',
+  motif: 'auto_awesome',
 }
 
 /**

@@ -49,11 +49,13 @@ function aMedium(id: string) {
 const body = {
   chapter: {
     id: 'chapter-1',
-    album_id: 'album-1',
-    album_title: '2018 Budapest',
-    title: 'Katze · Tier · Innenraum',
-    tags: ['katze', 'tier', 'innenraum'],
+    kind: 'trip',
+    title_key: 'trip',
+    title_args: { place: 'Chessy', days: 4, from: '2016-10-30', until: '2016-11-02' },
+    tags: [],
     size: 3,
+    albums: 1,
+    album_id: 'album-1',
     from_at: '2018-03-24T15:30:12Z',
     until_at: '2018-03-24T18:30:12Z',
     cover: [aMedium('media-1')],
@@ -79,9 +81,8 @@ describe('one chapter', () => {
     await renderScreen(<ChapterScreen chapterId="chapter-1" />)
 
     expect(await screen.findByText(/3 Medien/)).toBeInTheDocument()
-    expect(screen.getByText(/2018 Budapest/)).toBeInTheDocument()
-    // The words the name was made of stand under it, as the pictures' own tags.
-    expect(screen.getByText('katze')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '4 Tage Chessy' })).toBeInTheDocument()
+    expect(screen.getByText(/Reise/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Zum Ordner' })).toHaveAttribute(
       'href',
       expect.stringContaining('/albums/album-1'),

@@ -26,7 +26,6 @@ from muninn.core.config import Settings
 from muninn.core.deps import ActiveUser, AdminUser, get_session, get_settings_from_state
 from muninn.core.problem import ProblemError, problem_type
 from muninn.faces import listing
-from muninn.models.album import Album
 from muninn.models.media import Media, MediaStatus
 from muninn.models.smart import SmartChapter, SmartChapterMedium
 from muninn.smarts import service
@@ -72,28 +71,16 @@ async def _covers(
     return found
 
 
-async def _titles(session: AsyncSession, chapters: list[SmartChapter]) -> dict[uuid.UUID, str]:
-    if not chapters:
-        return {}
-    rows = await session.scalars(
-        select(Album).where(Album.id.in_([chapter.album_id for chapter in chapters]))
-    )
-    return {album.id: album.display_title for album in rows}
-
-
-def _view(
-    chapter: SmartChapter,
-    cover: list[Media],
-    album_title: str,
-    settings: Settings,
-) -> ChapterView:
+def _view(chapter: SmartChapter, cover: list[Media], settings: Settings) -> ChapterView:
     return ChapterView(
         id=chapter.id,
-        album_id=chapter.album_id,
-        album_title=album_title,
-        title=chapter.title,
+        kind=chapter.kind,
+        title_key=chapter.title_key,
+        title_args=chapter.title_args,
         tags=list(chapter.tags),
         size=chapter.size,
+        albums=chapter.albums,
+        album_id=chapter.album_id,
         from_at=chapter.from_at,
         until_at=chapter.until_at,
         cover=[
@@ -118,11 +105,10 @@ async def read_smarts(
     Nothing here asks a machine: the groups were found by a worker from the vectors that are in
     the database anyway, so the Smarts work while the AI machine is switched off.
     """
-    chapters = await service.chapters_of(session, limit=limit + 1, offset=offset)
+    chapters = await service.chapters_of(session, offset=offset, limit=limit + 1)
     following = offset + limit if len(chapters) > limit else None
     chapters = chapters[:limit]
     covers = await _covers(session, chapters)
-    titles = await _titles(session, chapters)
     people = await listing.persons(session)
     counted = await session.scalar(
         select(func.count())
@@ -132,10 +118,7 @@ async def read_smarts(
 
     return SmartsView(
         media=int(counted or 0),
-        chapters=[
-            _view(chapter, covers.get(chapter.id, []), titles.get(chapter.album_id, ""), settings)
-            for chapter in chapters
-        ],
+        chapters=[_view(chapter, covers.get(chapter.id, []), settings) for chapter in chapters],
         shelves=[
             ShelfView(key=shelf.key, count=shelf.count) for shelf in await service.shelves(session)
         ],
@@ -162,20 +145,17 @@ async def read_chapters(
     user: ActiveUser,
     session: Annotated[AsyncSession, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings_from_state)],
-    album_id: uuid.UUID | None = None,
+    kind: str | None = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=60)] = 24,
 ) -> ChapterList:
-    chapters = await service.chapters_of(session, album_id, limit=limit + 1, offset=offset)
+    """More chapters, or only those of one kind: the journeys, the days, the motifs."""
+    chapters = await service.chapters_of(session, kind=kind, offset=offset, limit=limit + 1)
     following = offset + limit if len(chapters) > limit else None
     chapters = chapters[:limit]
     covers = await _covers(session, chapters)
-    titles = await _titles(session, chapters)
     return ChapterList(
-        items=[
-            _view(chapter, covers.get(chapter.id, []), titles.get(chapter.album_id, ""), settings)
-            for chapter in chapters
-        ],
+        items=[_view(chapter, covers.get(chapter.id, []), settings) for chapter in chapters],
         next_offset=following,
     )
 
@@ -195,9 +175,8 @@ async def read_chapter(
     media = await service.media_of(session, chapter_id, offset=offset, limit=limit + 1)
     following = offset + limit if len(media) > limit else None
     media = media[:limit]
-    album = await service.album_of(session, found.album_id)
     return ChapterMediaList(
-        chapter=_view(found, media[:COVER_SIZE], album.display_title if album else "", settings),
+        chapter=_view(found, media[:COVER_SIZE], settings),
         items=[
             MediaView.of(
                 medium, library_path=str(settings.library_path), secret=settings.jwt_secret
@@ -245,38 +224,34 @@ async def read_state(
     admin: AdminUser,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SmartsState:
-    """The figures beside the button in the engine room."""
+    """The figures beside the button in the settings."""
     found = await service.state(session)
     return SmartsState(
         chapters=found.chapters,
-        albums=found.albums,
         media=found.media,
-        outstanding=found.outstanding,
         built_at=found.built_at,
+        by_kind=found.by_kind,
+        max_media=found.max_media,
         wanted=found.wanted,
     )
 
 
-@router.post("/build", summary="Find chapters now", status_code=status.HTTP_200_OK)
+@router.post("/build", summary="Find the chapters anew", status_code=status.HTTP_200_OK)
 async def build(
     request: BuildRequest,
     admin: AdminUser,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> BuildResult:
-    """Build one album's chapters, or albums in turn until enough chapters have come out of it.
+    """Find every chapter anew, across the whole library.
 
-    Synchronous on purpose: an admin who presses it wants to see the result, and an album of a
-    few thousand takes seconds. The albums without chapters come first, then the ones whose
-    chapters are oldest, so pressing again carries on rather than repeating.
+    Synchronous on purpose: an admin who presses it wants to see the result, and the whole
+    library takes seconds. What was there is replaced - the chapters are derived, and a library
+    that has grown falls into other groups than it did yesterday.
     """
-    distance = request.distance or service.LOOK_DISTANCE
-    if request.album_id is not None:
-        built = await service.build_album(session, request.album_id, distance=distance)
-        return BuildResult(
-            albums=1,
-            chapters=built.chapters,
-            outstanding=len(await service.albums_to_build(session)),
-        )
-
-    done = await service.build_some(session, wanted=request.chapters, distance=distance)
-    return BuildResult(albums=done.albums, chapters=done.chapters, outstanding=done.outstanding)
+    done = await service.rebuild(
+        session,
+        wanted=request.chapters,
+        max_media=request.max_media,
+        distance=request.distance or service.LOOK_DISTANCE,
+    )
+    return BuildResult(chapters=done.chapters, media=done.media, by_kind=done.by_kind)

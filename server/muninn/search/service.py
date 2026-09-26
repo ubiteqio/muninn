@@ -448,6 +448,44 @@ async def near_pairs(
     return [(row.first, row.second, float(row.distance)) for row in rows]
 
 
+async def near_to(
+    session: AsyncSession,
+    media_id: uuid.UUID,
+    *,
+    model: str,
+    max_distance: float,
+    limit: int,
+) -> list[tuple[uuid.UUID, float]]:
+    """Everything in the library that looks like this one, nearest first, through the index.
+
+    The chapters of the Smarts are built from this: one question per chapter rather than one
+    per pair. Comparing every picture with every other is a quadratic scan - 23 seconds for
+    8000 media here, an hour at 100.000 - while the index answers one of these in milliseconds,
+    however large the library is.
+    """
+    rows = await session.execute(
+        text(
+            _sql(
+                """
+                WITH leader AS (
+                    SELECT embedding::halfvec AS v FROM {table}
+                     WHERE media_id = :media_id AND model = :model
+                )
+                SELECT e.media_id, (e.embedding::halfvec <=> l.v) AS distance
+                  FROM {table} e JOIN media m ON m.id = e.media_id, leader l
+                 WHERE e.model = :model AND m.status = 'active' AND m.duplicate_of IS NULL
+                   AND (e.embedding::halfvec <=> l.v) <= :max_distance
+                 ORDER BY distance
+                 LIMIT :limit
+                """,
+                VectorKind.IMAGE,
+            )
+        ),
+        {"media_id": media_id, "model": model, "max_distance": max_distance, "limit": limit},
+    )
+    return [(row.media_id, float(row.distance)) for row in rows]
+
+
 # --- faces ------------------------------------------------------------------------------------
 
 

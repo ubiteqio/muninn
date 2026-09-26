@@ -51,11 +51,13 @@ function aMedium(id: string) {
 function aChapter(overrides: Record<string, unknown> = {}) {
   return {
     id: 'chapter-1',
-    album_id: 'album-1',
-    album_title: '2018 Budapest',
-    title: 'Katze · Tier · Innenraum',
+    kind: 'motif',
+    title_key: 'motif',
+    title_args: { words: 'Katze · Tier · Innenraum' },
     tags: ['katze', 'tier', 'innenraum'],
     size: 61,
+    albums: 23,
+    album_id: null,
     from_at: '2017-09-17T15:34:00Z',
     until_at: '2019-10-27T12:00:00Z',
     cover: [aMedium('media-1'), aMedium('media-2'), aMedium('media-3')],
@@ -65,7 +67,25 @@ function aChapter(overrides: Record<string, unknown> = {}) {
 
 const body = {
   media: 8142,
-  chapters: [aChapter(), aChapter({ id: 'chapter-2', title: 'Fußball · Trikot', size: 22 })],
+  chapters: [
+    aChapter({
+      id: 'chapter-trip',
+      kind: 'trip',
+      title_key: 'trip',
+      title_args: { place: 'Chessy', days: 4, from: '2016-10-30', until: '2016-11-02' },
+      size: 380,
+      albums: 1,
+      album_id: 'album-1',
+    }),
+    aChapter(),
+    aChapter({
+      id: 'chapter-person',
+      kind: 'person',
+      title_key: 'pair',
+      title_args: { first: 'Olivia', second: 'Matteo' },
+      size: 500,
+    }),
+  ],
   shelves: [
     { key: 'video', count: 61 },
     { key: 'document', count: 68 },
@@ -105,12 +125,15 @@ describe('the Smarts', () => {
 
     await renderScreen(<SmartsScreen />)
 
-    expect(await screen.findByText('Katze · Tier · Innenraum')).toBeInTheDocument()
-    expect(screen.getByText('Fußball · Trikot')).toBeInTheDocument()
+    // Every kind writes its own name: a journey in days and a town, a motif in its words,
+    // two people in both their names.
+    expect(await screen.findByText('4 Tage Chessy')).toBeInTheDocument()
+    expect(screen.getByText('Katze · Tier · Innenraum')).toBeInTheDocument()
+    expect(screen.getByText('Olivia & Matteo')).toBeInTheDocument()
     // The size sits on the card, over the pictures.
     expect(screen.getAllByText('61').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/2018 Budapest/).length).toBe(2)
-    // The span of a chapter, so it says when it happened without an exact date.
+    // What kind it is, how many folders it draws from, and when it was.
+    expect(screen.getAllByText(/Motiv · aus 23 Alben/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/09\.2017/).length).toBeGreaterThan(0)
   })
 
@@ -167,7 +190,7 @@ describe('the Smarts', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Würfeln' }))
 
     await waitFor(() => {
-      expect(router.state.location.pathname).toMatch(/\/smarts\/chapter-[12]/)
+      expect(router.state.location.pathname).toMatch(/\/smarts\/chapter-/)
     })
     expect(router.state.location.search).toEqual({ play: true })
   })

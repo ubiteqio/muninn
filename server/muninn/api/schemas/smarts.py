@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -10,19 +11,23 @@ from muninn.api.schemas.people import FaceView
 
 
 class ChapterView(BaseModel):
-    """One group of media that belong together by what they show."""
+    """One chapter: media that belong together by time, place, face or what they show."""
 
     id: uuid.UUID
-    album_id: uuid.UUID
-    #: The album's title, so a chapter says where it comes from.
-    album_title: str
-    #: What it is called, from the tags of its media. Empty when nothing stood out.
-    title: str
+    #: Which rule found it: trip, day, motif, place, person, ritual.
+    kind: str
+    #: The text key the app renders, and what it renders with. The German lives in the app.
+    title_key: str
+    title_args: dict[str, Any]
+    #: The words the name was made of, where tags made it.
     tags: list[str]
     size: int
+    #: How many folders it draws from, and the one folder when it is only one.
+    albums: int
+    album_id: uuid.UUID | None
     from_at: datetime | None
     until_at: datetime | None
-    #: The clearest examples, for the card. At most six.
+    #: The first few of its media, for the card. At most six.
     cover: list[MediaView]
 
 
@@ -70,30 +75,33 @@ class ShelfMediaList(BaseModel):
 
 
 class BuildRequest(BaseModel):
-    """Build chapters now: one album, or albums in turn until enough have come out of it."""
+    """Find the chapters anew, across the whole library."""
 
-    album_id: uuid.UUID | None = None
-    #: How many chapters this run should produce before it stops. Ignored for a single album.
+    #: How many chapters the run should aim for. The rules that read time, place and faces
+    #: always run to the end; this says how far the motifs fill up behind them.
     chapters: int = Field(default=21, ge=1, le=500)
+    #: How many media one chapter holds at most. Left out, the setting decides.
+    max_media: int | None = Field(default=None, ge=10, le=5000)
     distance: float | None = Field(default=None, gt=0.0, lt=1.0)
 
 
 class BuildResult(BaseModel):
     """What the run did."""
 
-    albums: int
     chapters: int
-    #: Albums that still have no chapters of this version.
-    outstanding: int
+    media: int
+    #: How many of each kind came out of it.
+    by_kind: dict[str, int]
 
 
 class SmartsState(BaseModel):
-    """What the Smarts hold, for the engine room."""
+    """What the Smarts hold, for the settings."""
 
     chapters: int
-    albums: int
     media: int
-    outstanding: int
     built_at: datetime | None
+    by_kind: dict[str, int]
+    #: The cap an admin set: how many media one chapter holds at most.
+    max_media: int
     #: What the field beside the button starts with.
     wanted: int

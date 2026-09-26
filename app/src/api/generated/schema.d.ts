@@ -1060,7 +1060,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** More chapters */
+        /**
+         * More chapters
+         * @description More chapters, or only those of one kind: the journeys, the days, the motifs.
+         */
         get: operations["read_chapters_api_v1_smarts_chapters_get"];
         put?: never;
         post?: never;
@@ -1116,7 +1119,7 @@ export interface paths {
         };
         /**
          * What the Smarts hold
-         * @description The figures beside the button in the engine room.
+         * @description The figures beside the button in the settings.
          */
         get: operations["read_state_api_v1_smarts_state_get"];
         put?: never;
@@ -1137,12 +1140,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Find chapters now
-         * @description Build one album's chapters, or albums in turn until enough chapters have come out of it.
+         * Find the chapters anew
+         * @description Find every chapter anew, across the whole library.
          *
-         *     Synchronous on purpose: an admin who presses it wants to see the result, and an album of a
-         *     few thousand takes seconds. The albums without chapters come first, then the ones whose
-         *     chapters are oldest, so pressing again carries on rather than repeating.
+         *     Synchronous on purpose: an admin who presses it wants to see the result, and the whole
+         *     library takes seconds. What was there is replaced - the chapters are derived, and a library
+         *     that has grown falls into other groups than it did yesterday.
          */
         post: operations["build_api_v1_smarts_build_post"];
         delete?: never;
@@ -2317,16 +2320,16 @@ export interface components {
         };
         /**
          * BuildRequest
-         * @description Build chapters now: one album, or albums in turn until enough have come out of it.
+         * @description Find the chapters anew, across the whole library.
          */
         BuildRequest: {
-            /** Album Id */
-            album_id?: string | null;
             /**
              * Chapters
              * @default 21
              */
             chapters: number;
+            /** Max Media */
+            max_media?: number | null;
             /** Distance */
             distance?: number | null;
         };
@@ -2335,12 +2338,14 @@ export interface components {
          * @description What the run did.
          */
         BuildResult: {
-            /** Albums */
-            albums: number;
             /** Chapters */
             chapters: number;
-            /** Outstanding */
-            outstanding: number;
+            /** Media */
+            media: number;
+            /** By Kind */
+            by_kind: {
+                [key: string]: number;
+            };
         };
         /**
          * ChangeKind
@@ -2388,7 +2393,7 @@ export interface components {
         };
         /**
          * ChapterView
-         * @description One group of media that belong together by what they show.
+         * @description One chapter: media that belong together by time, place, face or what they show.
          */
         ChapterView: {
             /**
@@ -2396,19 +2401,22 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /**
-             * Album Id
-             * Format: uuid
-             */
-            album_id: string;
-            /** Album Title */
-            album_title: string;
-            /** Title */
-            title: string;
+            /** Kind */
+            kind: string;
+            /** Title Key */
+            title_key: string;
+            /** Title Args */
+            title_args: {
+                [key: string]: unknown;
+            };
             /** Tags */
             tags: string[];
             /** Size */
             size: number;
+            /** Albums */
+            albums: number;
+            /** Album Id */
+            album_id: string | null;
             /** From At */
             from_at: string | null;
             /** Until At */
@@ -3772,6 +3780,11 @@ export interface components {
              * @default true
              */
             faces_enabled: boolean;
+            /**
+             * Smart Max Media
+             * @default 500
+             */
+            smart_max_media: number;
         };
         /**
          * SettingsView
@@ -3804,6 +3817,8 @@ export interface components {
             nas_agent_enabled: boolean;
             /** Faces Enabled */
             faces_enabled: boolean;
+            /** Smart Max Media */
+            smart_max_media: number;
             /**
              * Updated At
              * Format: date-time
@@ -3838,19 +3853,21 @@ export interface components {
         };
         /**
          * SmartsState
-         * @description What the Smarts hold, for the engine room.
+         * @description What the Smarts hold, for the settings.
          */
         SmartsState: {
             /** Chapters */
             chapters: number;
-            /** Albums */
-            albums: number;
             /** Media */
             media: number;
-            /** Outstanding */
-            outstanding: number;
             /** Built At */
             built_at: string | null;
+            /** By Kind */
+            by_kind: {
+                [key: string]: number;
+            };
+            /** Max Media */
+            max_media: number;
             /** Wanted */
             wanted: number;
         };
@@ -6050,7 +6067,7 @@ export interface operations {
     read_chapters_api_v1_smarts_chapters_get: {
         parameters: {
             query?: {
-                album_id?: string | null;
+                kind?: string | null;
                 offset?: number;
                 limit?: number;
             };

@@ -152,7 +152,7 @@
   },
   "smarts": {
     "title": "Smarts",
-    "description": "Die Mediathek nach dem geordnet, was auf den Bildern ist — gefunden, ohne dass jemand sortiert hat.",
+    "description": "Die Mediathek nach dem geordnet, was zusammengehört: Reisen, Tage, Personen, Orte, Feste und Motive — quer durch alle Ordner, gefunden ohne dass jemand sortiert hat.",
     "chapters": "Kapitel",
     "ofMedia_one": "aus 1 Medium",
     "ofMedia_other": "aus {{count, number}} Medien",
@@ -180,7 +180,28 @@
     "more": "Mehr Kapitel",
     "loading": "Wird geladen …",
     "empty": "Noch keine Kapitel",
-    "emptyNote": "Sie entstehen nachts, sobald ein Ordner genug Medien hat und beschrieben ist. Bis dahin führen die Ordner ans Ziel."
+    "emptyNote": "Sie entstehen nachts, sobald ein Ordner genug Medien hat und beschrieben ist. Bis dahin führen die Ordner ans Ziel.",
+    "kind": {
+      "trip": "Reise",
+      "day": "Tag",
+      "motif": "Motiv",
+      "person": "Person",
+      "place": "Ort",
+      "ritual": "Fest"
+    },
+    "name": {
+      "trip_one": "Ein Tag {{place}}",
+      "trip_other": "{{count}} Tage {{place}}",
+      "place": "{{place}} · {{span}}",
+      "person": "{{name}} · {{year}}",
+      "pair": "{{first}} & {{second}}",
+      "christmas_one": "Weihnachten",
+      "christmas_other": "Weihnachten · {{count}} Jahre",
+      "newyear_one": "Silvester",
+      "newyear_other": "Silvester · {{count}} Jahre"
+    },
+    "fromAlbums_one": "aus 1 Album",
+    "fromAlbums_other": "aus {{count, number}} Alben"
   },
   "timeline": {
     "title": "Zeitleiste",
@@ -353,6 +374,10 @@
         "deletion_count": {
           "label": "Löschpause: Anzahl",
           "hint": "Dateien, {{min}} bis {{max}}. Verschwinden mehr auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab."
+        },
+        "smart_max_media": {
+          "label": "Medien je Smart-Album",
+          "hint": "{{min}} bis {{max}}"
         }
       },
       "faces": {
@@ -607,15 +632,17 @@
     },
     "smarts": {
       "title": "Smart-Alben",
-      "description": "Was die Bilder zeigen, in Kapiteln. Sie entstehen jede Nacht um 3:30 Uhr für Alben, die sich geändert haben — hier auf Zuruf, für so viele Kapitel wie gewünscht.",
-      "holds": "{{chapters, number}} Kapitel in {{albums, number}} Alben, {{media, number}} Medien",
-      "outstanding_one": "1 Album ohne Kapitel",
-      "outstanding_other": "{{count, number}} Alben ohne Kapitel",
-      "wanted": "Kapitel",
+      "description": "Reisen, Tage, Personen, Orte, Feste und Motive — quer durch die ganze Mediathek. Sie entstehen jede Nacht um 3:30 Uhr neu; hier auf Zuruf.",
+      "holds": "{{chapters, number}} Kapitel mit {{media, number}} Medien, höchstens {{max, number}} je Kapitel",
+      "wanted": "Motive",
       "build": "Neu erstellen",
       "building": "Wird erstellt …",
-      "built": "{{chapters, number}} Kapitel in {{albums, number}} Alben neu erstellt.",
-      "nothingLeft": "Alle Alben sind auf dem neuesten Stand."
+      "built": "{{chapters, number}} Kapitel mit {{media, number}} Medien neu erstellt.",
+      "wantedHint": "Reisen, Tage, Personen, Orte und Feste entstehen immer alle.",
+      "section": {
+        "title": "Smart-Alben",
+        "description": "Wie viele Medien ein Smart-Album höchstens hält. Ein Kapitel ist etwas zum Durchsehen, keine zweite Mediathek."
+      }
     },
     "users": {
       "title": "Benutzerverwaltung",

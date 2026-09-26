@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { useSearchAbilities } from '@/features/search/use-search'
-import { pagesOf, spanOf, useChapter } from '@/features/smarts/use-smarts'
+import { pagesOf, spanOf, titleOf, useChapter } from '@/features/smarts/use-smarts'
 import { useSocialUpdates } from '@/features/social/use-social'
 import { DESKTOP_QUERY, useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
 
@@ -80,7 +80,7 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
   })
   useSocialUpdates()
 
-  const title = chapter?.title || t('smarts.unnamed')
+  const title = chapter ? titleOf(chapter, t) : t('smarts.unnamed')
 
   return (
     <AppShell title={title} active="albums">
@@ -99,8 +99,9 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
             {...(chapter
               ? {
                   description: [
+                    t(`smarts.kind.${chapter.kind}`),
                     t('smarts.count', { count: chapter.size }),
-                    chapter.album_title,
+                    chapter.albums > 1 ? t('smarts.fromAlbums', { count: chapter.albums }) : null,
                     spanOf(chapter),
                   ]
                     .filter(Boolean)
@@ -109,7 +110,8 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
               : {})}
           />
           <div className="flex gap-2">
-            {chapter && (
+            {/* Only where it comes from one folder; most chapters draw from many. */}
+            {chapter?.album_id && (
               <Button variant="outline" asChild>
                 <Link to="/albums/$albumId" params={{ albumId: chapter.album_id }}>
                   <Symbol name="folder" size={18} />

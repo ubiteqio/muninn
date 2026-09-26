@@ -17,6 +17,7 @@ import {
   LIMITS,
   type NumericSetting,
   settingsProblem,
+  SMART_SETTINGS,
   SYNC_SETTINGS,
 } from '@/features/admin/settings-rules'
 import { SmartAlbums } from '@/features/admin/smart-albums'
@@ -36,7 +37,6 @@ export function AdminSettingsPage() {
       )}
       {isError && <p className="text-base text-destructive">{t('auth.error.unreachable')}</p>}
       {data && <SettingsForm settings={data} />}
-      <SmartAlbums />
     </AdminArea>
   )
 }
@@ -136,6 +136,16 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
         </p>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">{SYNC_SETTINGS.map(field)}</div>
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="text-lg font-semibold text-foreground">{t('admin.smarts.section.title')}</h2>
+        <p className="mt-1.5 text-base text-muted-foreground">
+          {t('admin.smarts.section.description')}
+        </p>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">{SMART_SETTINGS.map(field)}</div>
+        <SmartAlbums />
       </Card>
 
       <Card className="p-5">

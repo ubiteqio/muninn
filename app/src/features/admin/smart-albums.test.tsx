@@ -11,11 +11,11 @@ const STATE = 'GET /api/v1/smarts/state'
 const BUILD = 'POST /api/v1/smarts/build'
 
 const state = {
-  chapters: 486,
-  albums: 70,
-  media: 4291,
-  outstanding: 3,
+  chapters: 125,
+  media: 13100,
   built_at: '2026-09-26T03:30:00Z',
+  by_kind: { day: 35, motif: 40, person: 29, trip: 11, place: 8, ritual: 2 },
+  max_media: 500,
   wanted: 21,
 }
 
@@ -32,23 +32,25 @@ afterEach(() => {
 })
 
 describe('building the Smarts by hand', () => {
-  it('says what they hold and what is still outstanding', async () => {
+  it('says what they hold, and of which kinds', async () => {
     stubApi({ [STATE]: { body: state } })
 
     await renderScreen(<SmartAlbums />)
 
-    expect(await screen.findByText(/486 Kapitel in 70 Alben/)).toBeInTheDocument()
-    expect(screen.getByText(/3 Alben ohne Kapitel/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/125 Kapitel mit 13.100 Medien, höchstens 500 je Kapitel/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/40 Motiv, 35 Tag, 29 Person, 11 Reise/)).toBeInTheDocument()
   })
 
-  it('asks for 21 chapters unless another number is typed', async () => {
+  it('asks for 21 motifs unless another number is typed', async () => {
     const { calls } = stubApi({
       [STATE]: { body: state },
-      [BUILD]: { body: { albums: 2, chapters: 22, outstanding: 1 } },
+      [BUILD]: { body: { chapters: 125, media: 13100, by_kind: { motif: 21 } } },
     })
 
     await renderScreen(<SmartAlbums />)
-    expect(await screen.findByLabelText('Kapitel')).toHaveValue(21)
+    expect(await screen.findByLabelText('Motive')).toHaveValue(21)
 
     await userEvent.click(screen.getByRole('button', { name: 'Neu erstellen' }))
 
@@ -57,18 +59,18 @@ describe('building the Smarts by hand', () => {
     })
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({ chapters: 21 })
     expect(await screen.findByRole('status')).toHaveTextContent(
-      '22 Kapitel in 2 Alben neu erstellt.',
+      '125 Kapitel mit 13.100 Medien neu erstellt.',
     )
   })
 
   it('sends the number that was typed', async () => {
     const { calls } = stubApi({
       [STATE]: { body: state },
-      [BUILD]: { body: { albums: 1, chapters: 5, outstanding: 0 } },
+      [BUILD]: { body: { chapters: 5, media: 100, by_kind: { motif: 5 } } },
     })
 
     await renderScreen(<SmartAlbums />)
-    const field = await screen.findByLabelText('Kapitel')
+    const field = await screen.findByLabelText('Motive')
     await userEvent.clear(field)
     await userEvent.type(field, '5')
     await userEvent.click(screen.getByRole('button', { name: 'Neu erstellen' }))
@@ -82,23 +84,9 @@ describe('building the Smarts by hand', () => {
     stubApi({ [STATE]: { body: state } })
 
     await renderScreen(<SmartAlbums />)
-    const field = await screen.findByLabelText('Kapitel')
+    const field = await screen.findByLabelText('Motive')
     await userEvent.clear(field)
 
     expect(screen.getByRole('button', { name: 'Neu erstellen' })).toBeDisabled()
-  })
-
-  it('says plainly when there was nothing left to build', async () => {
-    stubApi({
-      [STATE]: { body: { ...state, outstanding: 0 } },
-      [BUILD]: { body: { albums: 0, chapters: 0, outstanding: 0 } },
-    })
-
-    await renderScreen(<SmartAlbums />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Neu erstellen' }))
-
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'Alle Alben sind auf dem neuesten Stand.',
-    )
   })
 })

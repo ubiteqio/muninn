@@ -1,13 +1,17 @@
-"""Smarts: what an album falls into when nobody sorted it.
+"""Smarts: what the library falls into when nobody sorted it.
 
-A folder of 4500 pictures from four years is not an album, it is a heap. The pictures that look
-alike are found here once and written down as chapters, so browsing costs a read and no machine
-has to be awake for it. What a chapter is called comes from the tags its media carry and the
-album as a whole does not - "Katze" says something in a family album, "Innenraum" does not.
+Twenty-six years of folders are not an archive anybody browses, and a folder is only where a
+file happens to lie. A chapter is something one recognises: four days in Chessy, the third of
+May, Weihnachten over twelve years, every picture of the cat. Each kind has its own rule - time
+and place, faces, feasts, or what the pictures look like - and all of them read what the
+library already knows, so no machine has to be awake for any of it.
+
+A chapter spans whatever folders its media come from; most span many.
 """
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     DateTime,
@@ -20,13 +24,22 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from muninn.models.base import Base
 
-#: Raise it when the grouping itself changes; every album is then looked at again.
-SMART_VERSION = 1
+#: Raise it when the grouping itself changes; everything is then found anew.
+SMART_VERSION = 2
+
+#: What a chapter was made of. Every kind has its own rule and its own name.
+KIND_MOTIF = "motif"
+KIND_TRIP = "trip"
+KIND_DAY = "day"
+KIND_PLACE = "place"
+KIND_RITUAL = "ritual"
+KIND_PERSON = "person"
+KINDS = (KIND_TRIP, KIND_DAY, KIND_MOTIF, KIND_PLACE, KIND_PERSON, KIND_RITUAL)
 
 
 class SmartChapter(Base):
@@ -36,22 +49,33 @@ class SmartChapter(Base):
     __table_args__ = (
         Index("ix_smart_chapters_album_id", "album_id"),
         Index("ix_smart_chapters_size", "size"),
+        Index("ix_smart_chapters_kind", "kind"),
+        Index("ix_smart_chapters_rank", "rank"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    album_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("albums.id", ondelete="CASCADE"), nullable=False
+    #: The album, when everything in the chapter comes from one; nothing when it spans the
+    #: library, which most chapters do.
+    album_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("albums.id", ondelete="CASCADE")
     )
-    #: How it was found: "look" for media that look alike, "trait" for a shelf like documents.
-    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="look")
-    #: What it is called, from the tags of its media. Empty when nothing stood out.
-    title: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    #: The words the title was made of, for the app to show underneath.
+    #: How many albums it draws from.
+    albums: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: Which rule found it: a trip, a day, a motif, a place, a person, a recurring feast.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default=KIND_MOTIF)
+    #: What it is called, as a text key and its values - the app writes the German. A title
+    #: made here would be German in the database, and German belongs in the app's texts.
+    title_key: Mapped[str] = mapped_column(String(32), nullable=False, default="motif")
+    title_args: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    #: The words the name was made of, where tags made it.
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, default=list)
     cover_media_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("media.id", ondelete="SET NULL")
     )
     size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: Where it stands on the screen. The kinds take turns, so a wall of chapters is a mixture
+    #: of journeys, days, faces and motifs rather than one kind after another.
+    rank: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     #: When the earliest and the latest of its media were taken.
     from_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     until_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -34,6 +34,11 @@ DEFAULT_MISSING_GRACE_DAYS = 30
 DEFAULT_DELETION_SHARE_PERCENT = 0
 DEFAULT_DELETION_COUNT = 0
 
+#: How many media one smart album holds at most. A chapter is something to look through, not a
+#: second library: beyond a few hundred nobody reaches the end, and the rest is found by the
+#: chapters it also belongs to.
+DEFAULT_SMART_MAX_MEDIA = 500
+
 
 class AppSettings(TimestampMixin, Base):
     """Single-row table. Use muninn.settings.service to read it, never construct it elsewhere."""
@@ -74,3 +79,8 @@ class AppSettings(TimestampMixin, Base):
     #: Whether faces are looked for and shown. Off, nothing new is found and nobody is named;
     #: what was found stays until an admin deletes it.
     faces_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    #: How many media one smart album holds at most.
+    smart_max_media: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=DEFAULT_SMART_MAX_MEDIA
+    )

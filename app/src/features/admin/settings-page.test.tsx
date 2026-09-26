@@ -23,6 +23,7 @@ const settings = {
   deletion_share_percent: 5,
   deletion_count: 500,
   nas_agent_enabled: false,
+  smart_max_media: 500,
   updated_at: '2026-09-20T08:00:00Z',
 }
 
@@ -56,6 +57,8 @@ describe('the Smarts in the settings', () => {
     await renderScreen(<AdminSettingsPage />)
 
     expect(await screen.findByRole('heading', { name: 'Smart-Alben' })).toBeInTheDocument()
+    // The cap an admin sets, and the button that builds them, in one card.
+    expect(screen.getByLabelText(/Medien je Smart-Album/)).toHaveValue(500)
     expect(screen.getByRole('button', { name: 'Neu erstellen' })).toBeInTheDocument()
   })
 })
