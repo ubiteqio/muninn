@@ -201,8 +201,14 @@ async def _describe_video(
         return False
     video = derived_root / media.video_path
     if not video.is_file():
-        # The 720p version is written down but not on the disk. Counted, or the clock would
-        # hand this video out every minute for ever without anybody noticing.
+        # The 720p version is written down but not on the disk. The clock only reads what the
+        # database says is done, so it would never make the file again by itself: this asks for
+        # it. And the attempt is counted, or this video would come round every minute for ever.
+        failures = await attempts.of_media(session, media.id)
+        failed_deriving = failures.get("derive")
+        if failed_deriving is None or failed_deriving.attempts < attempts.GIVE_UP_AFTER:
+            media.derive_version = 0
+            await session.commit()
         await attempts.note_failure(
             session, media.id, jobs.ANALYSIS_STAGE, f"{media.video_path} is not on the disk"
         )

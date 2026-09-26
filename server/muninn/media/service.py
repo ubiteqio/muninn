@@ -265,7 +265,22 @@ async def apply_derivatives(
     if media.derive_version == DERIVE_VERSION and media.thumbnail_path == relative_of(
         media_id, f"thumb-{stem}.webp"
     ):
-        return True
+        # Written down is not the same as there: files can be lost with a disk, a cleanup or a
+        # half-finished restore. What the database promises is checked before it is believed.
+        recorded = [
+            path
+            for path in (
+                media.thumbnail_path,
+                media.preview_path,
+                media.video_path,
+                media.poster_path,
+            )
+            if path is not None
+        ]
+        if await asyncio.to_thread(
+            lambda: all((derived_root / path).is_file() for path in recorded)
+        ):
+            return True
 
     folder = folder_of(derived_root, media_id)
     try:

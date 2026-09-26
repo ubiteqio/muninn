@@ -206,6 +206,23 @@ class TestDeriving:
         assert done is True
         assert (derived / media.thumbnail_path).stat().st_mtime == written_at
 
+    async def test_previews_that_went_missing_are_made_again(
+        self, session: AsyncSession, library: Path, derived: Path
+    ) -> None:
+        """Written down is not the same as there. A disk that lost them, a half-finished
+        restore: the stage used to trust its own bookkeeping and say the work was done."""
+        media = await indexed_medium(session, library, derived)
+        assert media.thumbnail_path is not None
+        (derived / media.thumbnail_path).unlink()
+
+        settings = await settings_service.get_settings(session)
+        done = await service.apply_derivatives(
+            session, media.id, library_base=library, derived_root=derived, settings=settings
+        )
+
+        assert done is True
+        assert (derived / media.thumbnail_path).exists()
+
     async def test_an_edited_picture_gets_new_files_and_the_old_ones_go(
         self, session: AsyncSession, library: Path, derived: Path
     ) -> None:

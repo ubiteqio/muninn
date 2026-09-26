@@ -176,11 +176,18 @@ async def test_a_video_no_frame_comes_out_of_is_given_up_on(
     medium.video_path = "no/such/video.mp4"
     await session.commit()
 
+    medium.derive_version = 1
+    await session.commit()
+
     for _ in range(GIVE_UP_AFTER):
         described = await service.apply_analysis(
             session, medium.id, analyzer=FakeAnalyzer(), model="qwen", derived_root=tmp_path
         )
         assert described is False
+
+    # It asked for the file again on the way - the clock reads the database, not the disk.
+    await session.refresh(medium)
+    assert medium.derive_version == 0
 
     failed = await attempts.of_media(session, medium.id)
     assert failed[jobs.ANALYSIS_STAGE].attempts == GIVE_UP_AFTER
