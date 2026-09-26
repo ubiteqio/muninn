@@ -19,6 +19,7 @@ import {
   settingsProblem,
   SYNC_SETTINGS,
 } from '@/features/admin/settings-rules'
+import { SmartAlbums } from '@/features/admin/smart-albums'
 import { type AppSettings, useSaveSettings, useSettings } from '@/features/admin/use-settings'
 import { Field } from '@/features/auth/field'
 import { FormError } from '@/features/auth/form-error'
@@ -35,6 +36,7 @@ export function AdminSettingsPage() {
       )}
       {isError && <p className="text-base text-destructive">{t('auth.error.unreachable')}</p>}
       {data && <SettingsForm settings={data} />}
+      <SmartAlbums />
     </AdminArea>
   )
 }

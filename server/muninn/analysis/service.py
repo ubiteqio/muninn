@@ -201,6 +201,11 @@ async def _describe_video(
         return False
     video = derived_root / media.video_path
     if not video.is_file():
+        # The 720p version is written down but not on the disk. Counted, or the clock would
+        # hand this video out every minute for ever without anybody noticing.
+        await attempts.note_failure(
+            session, media.id, jobs.ANALYSIS_STAGE, f"{media.video_path} is not on the disk"
+        )
         return False
 
     context = _context(media)
@@ -225,6 +230,12 @@ async def _describe_video(
         return False
 
     if not seen:
+        # Not one frame came out of it - too short for the sampling, or a video only its own
+        # phone understands. Counted for the same reason: three tries, then it is left alone
+        # and says so in the engine room.
+        await attempts.note_failure(
+            session, media.id, jobs.ANALYSIS_STAGE, "no frame could be read from this video"
+        )
         return False
 
     heard = await session.get(MediaTranscript, media.id)

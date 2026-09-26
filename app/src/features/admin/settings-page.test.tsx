@@ -49,6 +49,17 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe('the Smarts in the settings', () => {
+  it('stands among the things an admin sets, not in the engine room', async () => {
+    stubApi({ [READ]: { body: settings } })
+
+    await renderScreen(<AdminSettingsPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Smart-Alben' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Neu erstellen' })).toBeInTheDocument()
+  })
+})
+
 describe('settings', () => {
   it('shows the stored values', async () => {
     stubApi({ [READ]: { body: settings } })

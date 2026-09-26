@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { AdminArea } from '@/features/admin/admin-area'
 import { AiServices } from '@/features/admin/ai-services'
-import { SmartAlbums } from '@/features/admin/smart-albums'
 import {
   type ActiveTask,
   type Change,
@@ -76,8 +75,6 @@ export function AdminJobsPage() {
           <Schedule jobs={data} />
         </>
       )}
-
-      <SmartAlbums />
 
       <FoundRecently changes={changes.data ?? []} />
     </AdminArea>
