@@ -99,6 +99,21 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     setSheet(null)
   }, [])
 
+  /*
+   * The callbacks as they are right now, without the gallery depending on their identity.
+   *
+   * A caller that writes its handler inline - most of them do - hands over a new function on
+   * every render, and the effect below would then run again after every render. It would find
+   * the gallery open and pull it to where the address says it is; but the address is set by a
+   * navigation, which lands a moment after the picture has already moved, and the picture was
+   * dragged back to the one before. Paging simply did not work, on any screen that keeps the
+   * open medium in the address and passes a handler inline.
+   */
+  const latest = useRef(onCurrentChange)
+  useEffect(() => {
+    latest.current = onCurrentChange
+  }, [onCurrentChange])
+
   useEffect(() => {
     const wanted = current === undefined ? -1 : media.findIndex((item) => item.id === current)
 
@@ -108,7 +123,9 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     }
 
     if (gallery.current) {
-      gallery.current.goTo(wanted)
+      // Only when it is somewhere else: telling it to go where it already is interrupts the
+      // swipe that is still running.
+      if (gallery.current.currIndex !== wanted) gallery.current.goTo(wanted)
       return
     }
 
@@ -171,7 +188,7 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
 
     opened.on('change', () => {
       setIndex(opened.currIndex)
-      onCurrentChange(media[opened.currIndex]?.id)
+      latest.current(media[opened.currIndex]?.id)
       // PhotoSwipe keeps the neighbouring slides in the DOM, so a video that is left behind
       // plays on - out of sight and, worse, still audible. Only the slide on screen may play.
       const shown = opened.currSlide?.container
@@ -212,7 +229,7 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       gallery.current = null
       setHost(null)
       setSheet(null)
-      if (!leaving.current) onCurrentChange(undefined)
+      if (!leaving.current) latest.current(undefined)
     })
 
     if (slideshow !== undefined) {
@@ -285,7 +302,7 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     )
     gallery.current = opened
     setHost(opened.element ?? null)
-  }, [current, media, onCurrentChange, onSimilar, shut, slideshow, social, startAt, t])
+  }, [current, media, shut, slideshow, startAt, t])
 
   // Leaving the album while the gallery is open would otherwise leave it hanging over the next
   // screen: it lives in the body, not in this component's markup. Its closing is then not news

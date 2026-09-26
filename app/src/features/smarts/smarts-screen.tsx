@@ -24,11 +24,8 @@ import { useSocialUpdates } from '@/features/social/use-social'
 import { DESKTOP_QUERY, useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 
-/** The first cards are larger: a wall of equal tiles is a spreadsheet, not a place to browse. */
-const LARGE = 2
-
 /** How many cards stand there while the first answer is on its way. */
-const LOADING_CARDS = 8
+const LOADING_CARDS = 12
 
 interface SmartsScreenProps {
   /** A shelf, when one is open: videos, documents, screenshots. */
@@ -90,13 +87,15 @@ export function SmartsScreen({ shelf, medium }: SmartsScreenProps) {
             }
           />
 
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {/* The same wall the albums stand in: on a wide screen more columns, not larger
+              tiles - a chapter and a folder are the same kind of object. */}
+          <div className="mt-3 grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
             {smarts.isPending &&
               Array.from({ length: LOADING_CARDS }, (_, index) => (
-                <ChapterCardLoading key={index} large={index < LARGE} />
+                <ChapterCardLoading key={index} />
               ))}
-            {chapters.map((chapter, index) => (
-              <ChapterCard key={chapter.id} chapter={chapter} large={index < LARGE} />
+            {chapters.map((chapter) => (
+              <ChapterCard key={chapter.id} chapter={chapter} />
             ))}
           </div>
 
@@ -268,15 +267,18 @@ function ShelfView({
   const abilities = abilitiesQuery.data
   const query = useShelf(shelf)
   const media = useMemo(() => pagesOf(query.data?.pages), [query.data])
+  const onSimilar = useCallback(
+    (mediaId: string) => {
+      void navigate({ to: '/search', search: { similar: mediaId } })
+    },
+    [navigate],
+  )
   const viewer = useMediaViewer(media, {
     // The viewer builds its buttons when it opens, so it waits until "Ähnliche Bilder" is decided.
     current: abilitiesQuery.isPending ? undefined : medium,
     onCurrentChange,
-    onSimilar: abilities?.pictures
-      ? (mediaId: string) => {
-          void navigate({ to: '/search', search: { similar: mediaId } })
-        }
-      : undefined,
+    // Nothing to compare without a picture model: the button would only lead to an empty page.
+    onSimilar: abilities?.pictures ? onSimilar : undefined,
     social: true,
   })
   useSocialUpdates()

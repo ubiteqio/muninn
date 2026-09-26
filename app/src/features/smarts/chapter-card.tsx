@@ -2,102 +2,98 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Symbol } from '@/components/muninn/symbol'
+import { Badge } from '@/components/ui/badge'
+import { CollectionFrame } from '@/features/albums/collection-frame'
 import { type Chapter, spanOf } from '@/features/smarts/use-smarts'
 import { cn } from '@/lib/utils'
 
 /**
- * One chapter as a card: a collage of its clearest pictures, its name and how much is in it.
+ * One chapter as a card.
  *
- * The collage is the point. A name like "Katze · Tier · Innenraum" says what the group is, but
- * six pictures say it faster - and a card one wants to open is a card that shows something.
- * The first picture is the leader of the group, the one everything else was measured against,
- * so it stands large; the others are the next closest to it.
+ * A chapter holds pictures, so it is framed like everything else that holds pictures - an album,
+ * a month, a year: the square cover inset in its mat, the name inside the frame, the count in
+ * the corner. Only a photograph itself goes edge to edge. The cover is built the way an album's
+ * is, from up to four of the pictures, so a chapter and a folder are the same kind of object at
+ * a glance and differ in what they say, not in how they look.
  */
-export function ChapterCard({ chapter, large = false }: { chapter: Chapter; large?: boolean }) {
+export function ChapterCard({ chapter }: { chapter: Chapter }) {
   const { t } = useTranslation()
-  const [first, ...rest] = chapter.cover
-  const beside = rest.slice(0, large ? 4 : 2)
   const title = chapter.title || t('smarts.unnamed')
+  const note = [chapter.album_title, spanOf(chapter)].filter(Boolean).join(' · ')
 
   return (
     <Link
       to="/smarts/$chapterId"
       params={{ chapterId: chapter.id }}
       aria-label={t('smarts.openChapter', { title, count: chapter.size })}
-      className={cn(
-        'group relative flex flex-col overflow-hidden rounded-xl border border-hairline/[0.08] bg-card transition',
-        'hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_14px_30px_-18px_rgba(0,0,0,0.6)]',
-        large && 'sm:col-span-2',
-      )}
+      className="group block text-left"
     >
-      <div className={cn('flex gap-0.5', large ? 'h-44 sm:h-52' : 'h-36')}>
-        <Cover medium={first} className="flex-[2]" />
-        {beside.length > 0 && (
-          <div className={cn('flex flex-1 flex-col gap-0.5', large && 'sm:flex-row')}>
-            {beside.map((medium) => (
-              <Cover key={medium.id} medium={medium} className="flex-1" />
-            ))}
-          </div>
+      <CollectionFrame title={title} note={note}>
+        <ChapterCover chapter={chapter} />
+        {chapter.size > 0 && (
+          <Badge variant="count" className="absolute bottom-1.5 right-1.5">
+            {chapter.size}
+          </Badge>
         )}
-
-        {/* The count sits on the pictures, where the eye already is. */}
-        <span className="absolute right-2 top-2 rounded-badge bg-background/75 px-2 py-0.5 text-2xs font-semibold tabular-nums text-foreground backdrop-blur-sm">
-          {chapter.size}
-        </span>
-
-        {/* A chapter can be watched instead of scrolled: the button says so on hover, and is
-            always there for a finger, which has no hover. */}
-        <span className="pointer-events-none absolute bottom-[4.6rem] right-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary/90 text-primary-foreground opacity-0 shadow-lg transition group-hover:opacity-100 max-md:opacity-90">
-          <Symbol name="play_arrow" size={20} filled />
-        </span>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-1 px-3 py-2.5">
-        <p className="truncate text-base font-semibold text-foreground">{title}</p>
-        <p className="truncate text-2xs text-muted-foreground">
-          {chapter.album_title}
-          {spanOf(chapter) && ` · ${spanOf(chapter)}`}
-        </p>
-      </div>
+      </CollectionFrame>
     </Link>
   )
 }
 
-function Cover({
-  medium,
-  className,
-}: {
-  medium: Chapter['cover'][number] | undefined
-  className?: string
-}) {
-  if (!medium?.urls.thumb) {
-    return <span className={cn('bg-secondary/60', className)} />
+/**
+ * What sits on a chapter's tile: its clearest pictures, the leader first.
+ *
+ * The same shapes an album's cover uses - one fills the tile, two share it, three put the first
+ * beside two smaller ones, four make a square - because it is the same kind of thing.
+ */
+function ChapterCover({ chapter }: { chapter: Chapter }) {
+  const covers = chapter.cover.slice(0, 4)
+
+  if (covers.length === 0) {
+    return (
+      <span className="flex h-full w-full items-center justify-center text-muted-foreground">
+        <Symbol name="auto_awesome" size={28} />
+      </span>
+    )
   }
+
   return (
-    <img
-      src={medium.urls.thumb}
-      alt=""
-      loading="lazy"
-      decoding="async"
-      className={cn('h-full w-full object-cover', className)}
-    />
+    <span
+      className={cn(
+        'grid h-full w-full gap-px',
+        covers.length > 1 && 'grid-cols-2',
+        covers.length > 2 && 'grid-rows-2',
+      )}
+    >
+      {covers.map((medium, index) =>
+        medium.urls.thumb ? (
+          <img
+            key={medium.id}
+            src={medium.urls.thumb}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className={cn(
+              'h-full w-full object-cover',
+              // Three pictures: the first one takes the whole left half.
+              covers.length === 3 && index === 0 && 'row-span-2',
+            )}
+          />
+        ) : (
+          <span key={medium.id} className="h-full w-full bg-secondary/60" />
+        ),
+      )}
+    </span>
   )
 }
 
-/** A card's shape before its chapter is there, so the mosaic does not arrive in steps. */
-export function ChapterCardLoading({ large = false }: { large?: boolean }) {
+/** A card's shape before its chapter is there, so the wall does not arrive in steps. */
+export function ChapterCardLoading() {
   return (
-    <div
-      className={cn(
-        'overflow-hidden rounded-xl border border-hairline/[0.08] bg-card',
-        large && 'sm:col-span-2',
-      )}
-    >
-      <div className={cn('animate-pulse bg-secondary/60', large ? 'h-44 sm:h-52' : 'h-36')} />
-      <div className="space-y-2 px-3 py-3">
-        <div className="h-3.5 w-2/3 animate-pulse rounded bg-secondary/60" />
-        <div className="h-2.5 w-1/2 animate-pulse rounded bg-secondary/40" />
-      </div>
+    <div className="rounded-xl border border-hairline/10 bg-secondary/45 p-1.5">
+      <div className="placeholder aspect-square w-full rounded-lg bg-secondary/60" />
+      <div className="mt-2 h-4 w-2/3 animate-pulse rounded bg-secondary/60" />
+      <div className="mb-1 mt-1.5 h-3 w-1/2 animate-pulse rounded bg-secondary/40" />
     </div>
   )
 }

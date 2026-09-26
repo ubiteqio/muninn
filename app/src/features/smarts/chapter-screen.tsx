@@ -55,6 +55,13 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
     [chapterId, navigate],
   )
 
+  const onSimilar = useCallback(
+    (mediaId: string) => {
+      void navigate({ to: '/search', search: { similar: mediaId } })
+    },
+    [navigate],
+  )
+
   // Asked for by the address, so a slideshow can be sent to somebody: it starts on the first
   // picture unless the address names another one.
   const playing = play === true
@@ -67,11 +74,7 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
         : medium,
     onCurrentChange,
     // Nothing to compare without a picture model: the button would only lead to an empty page.
-    onSimilar: abilities?.pictures
-      ? (mediaId: string) => {
-          void navigate({ to: '/search', search: { similar: mediaId } })
-        }
-      : undefined,
+    onSimilar: abilities?.pictures ? onSimilar : undefined,
     social: true,
     ...(playing ? { slideshow: SLIDESHOW_MS } : {}),
   })

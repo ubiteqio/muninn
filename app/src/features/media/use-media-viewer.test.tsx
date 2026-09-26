@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import PhotoSwipe from 'photoswipe'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -86,6 +87,53 @@ function Album({
 }
 
 const gallery = () => document.querySelector('.pswp')
+
+describe('paging between media', () => {
+  it('does not steer the gallery when the screen renders again', async () => {
+    /*
+     * The gallery moves by itself when somebody swipes; the address follows a moment later.
+     * A screen that renders again in between - and most do, the viewer counts the picture it
+     * is on - must not pull it back to where the address still points, or every swipe lands
+     * on the picture it started from.
+     */
+    const goTo = vi.spyOn(PhotoSwipe.prototype, 'goTo')
+
+    function Screen() {
+      const [ticks, setTicks] = useState(0)
+      const viewer = useMediaViewer(MEDIA, {
+        current: 'media-1',
+        onCurrentChange: () => undefined,
+        // Written inline, the way the screens write it: a new function on every render.
+        onSimilar: () => undefined,
+        social: false,
+      })
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setTicks((count) => count + 1)
+            }}
+          >
+            {`Noch einmal (${String(ticks)})`}
+          </button>
+          {viewer.panel}
+        </div>
+      )
+    }
+
+    await renderScreen(<Screen />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+    goTo.mockClear()
+
+    await userEvent.click(screen.getByRole('button', { name: /Noch einmal/ }))
+    await screen.findByRole('button', { name: 'Noch einmal (1)' })
+
+    expect(goTo).not.toHaveBeenCalled()
+  })
+})
 
 describe('useMediaViewer', () => {
   it('shows nothing while the address names no medium', async () => {
