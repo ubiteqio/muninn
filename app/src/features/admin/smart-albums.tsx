@@ -9,10 +9,14 @@ import { useRebuildSmarts, useSmartsState } from '@/features/admin/use-smarts'
  * how much each one holds.
  *
  * They are found every night, so this is for an admin who has just published a folder, or has
- * just changed one of the numbers and wants to see what comes of it rather than wait for half
- * past three. It takes the numbers as they are saved, which is why it asks for nothing itself.
+ * just changed one of the numbers above and wants to see what comes of it rather than wait for
+ * half past three.
+ *
+ * The button saves those numbers first. They are two fields away from it, in the form they
+ * belong to - and a button that quietly used yesterday's numbers while today's stood right
+ * above it was a trap: it said it had built something, and it had, with the wrong figures.
  */
-export function SmartAlbums() {
+export function SmartAlbums({ save }: { save: () => Promise<boolean> }) {
   const { t } = useTranslation()
   const state = useSmartsState()
   const rebuild = useRebuildSmarts()
@@ -39,7 +43,10 @@ export function SmartAlbums() {
         type="button"
         disabled={rebuild.isPending}
         onClick={() => {
-          rebuild.mutate()
+          void (async () => {
+            // Saved first, so what is built is what stands in the fields.
+            if (await save()) rebuild.mutate()
+          })()
         }}
       >
         <Symbol

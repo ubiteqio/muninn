@@ -72,7 +72,8 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
     )
   }
 
-  async function submit() {
+  /** Returns whether the settings are now saved; the Smarts build on that answer. */
+  async function submit(): Promise<boolean> {
     setError(null)
     setDone(false)
 
@@ -83,7 +84,7 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
     const problem = settingsProblem(values)
     if (problem === 'previewTooSmall') {
       setError(t('admin.settings.error.previewTooSmall'))
-      return
+      return false
     }
     if (problem) {
       setError(
@@ -92,7 +93,7 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
           ...problem.params,
         }),
       )
-      return
+      return false
     }
 
     try {
@@ -104,8 +105,10 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
         faces_enabled: faces,
       })
       setDone(true)
+      return true
     } catch (failure) {
       setError(messageFor(failure, t))
+      return false
     }
   }
 
@@ -145,7 +148,7 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
         </p>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">{SMART_SETTINGS.map(field)}</div>
-        <SmartAlbums />
+        <SmartAlbums save={submit} />
       </Card>
 
       <Card className="p-5">

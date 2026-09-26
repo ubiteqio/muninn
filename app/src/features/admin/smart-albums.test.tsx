@@ -20,7 +20,12 @@ const state = {
   max_media: 50,
 }
 
+/** The settings form's own save, which the button waits for. */
+const save = vi.fn(() => Promise.resolve(true))
+
 beforeEach(() => {
+  save.mockClear()
+  save.mockResolvedValue(true)
   useAuthStore.setState({
     status: 'signed-in',
     needsPasswordChange: false,
@@ -36,7 +41,7 @@ describe('building the Smarts by hand', () => {
   it('says what they hold, and of which kinds', async () => {
     stubApi({ [STATE]: { body: state } })
 
-    await renderScreen(<SmartAlbums />)
+    await renderScreen(<SmartAlbums save={save} />)
 
     expect(await screen.findByText(/Zurzeit 92 Smart-Alben mit 4.241 Medien/)).toBeInTheDocument()
     expect(screen.getByText(/35 Tag, 29 Person, 11 Reise, 8 Ort, 7 Motiv/)).toBeInTheDocument()
@@ -48,7 +53,7 @@ describe('building the Smarts by hand', () => {
       [BUILD]: { body: { chapters: 60, media: 3000, by_kind: { motif: 10 } } },
     })
 
-    await renderScreen(<SmartAlbums />)
+    await renderScreen(<SmartAlbums save={save} />)
     await userEvent.click(await screen.findByRole('button', { name: 'Neu erstellen' }))
 
     await waitFor(() => {
@@ -59,6 +64,32 @@ describe('building the Smarts by hand', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       '60 Smart-Alben mit 3.000 Medien neu erstellt.',
     )
+  })
+
+  it('saves the numbers before it builds, so what is built is what stands in the fields', async () => {
+    const { calls } = stubApi({
+      [STATE]: { body: state },
+      [BUILD]: { body: { chapters: 6, media: 300, by_kind: { motif: 1 } } },
+    })
+
+    await renderScreen(<SmartAlbums save={save} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Neu erstellen' }))
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.method === 'POST')).toBe(true)
+    })
+    expect(save).toHaveBeenCalled()
+  })
+
+  it('builds nothing when the numbers were refused', async () => {
+    save.mockResolvedValue(false)
+    const { calls } = stubApi({ [STATE]: { body: state } })
+
+    await renderScreen(<SmartAlbums save={save} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Neu erstellen' }))
+
+    expect(save).toHaveBeenCalled()
+    expect(calls.some((call) => call.method === 'POST')).toBe(false)
   })
 
   it('throws away the chapters it had in hand: a run writes new ones', async () => {
@@ -73,7 +104,7 @@ describe('building the Smarts by hand', () => {
     // What somebody looked at before pressing the button.
     client.setQueryData(['smarts'], { chapters: ['von vorher'] })
 
-    await renderScreen(<SmartAlbums />, { client })
+    await renderScreen(<SmartAlbums save={save} />, { client })
     await userEvent.click(await screen.findByRole('button', { name: 'Neu erstellen' }))
 
     await waitFor(() => {
