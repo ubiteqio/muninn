@@ -33,6 +33,7 @@ from muninn.notify import service as notify_service
 from muninn.places import service as places_service
 from muninn.search import service as search_service
 from muninn.settings import service as settings_service
+from muninn.smarts import service as smarts_service
 
 logger = logging.getLogger(__name__)
 
@@ -177,10 +178,38 @@ def prune_change_log() -> int:
     return run(_prune_change_log())
 
 
+@celery_app.task(name="muninn.build_smarts", queue="scan")
+def build_smarts() -> int:
+    """Find the chapters of every album that has none yet or has changed since.
+
+    It reads vectors that are already in the database and asks no machine, so it runs whether
+    or not the graphics machine is awake - which is the point of the Smarts.
+    """
+    return run(_build_smarts())
+
+
 @celery_app.task(name="muninn.clean_derived", queue="scan")
 def clean_derived() -> int:
     """Remove previews that belong to no medium any more."""
     return run(_clean_derived())
+
+
+async def _build_smarts() -> int:
+    built = 0
+    async with session_scope() as session:
+        albums = await smarts_service.albums_to_build(session)
+    for album_id in albums:
+        async with session_scope() as session:
+            outcome = await smarts_service.build_album(session, album_id)
+        logger.info(
+            "Smarts for %s: %d chapters, %d of %d media placed",
+            album_id,
+            outcome.chapters,
+            outcome.placed,
+            outcome.placed + outcome.single,
+        )
+        built += 1
+    return built
 
 
 async def _tick() -> list[str]:

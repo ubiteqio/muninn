@@ -26,12 +26,14 @@ from muninn.models.place import Place
 from muninn.models.publication import Publication, ScanStatus
 from muninn.models.refresh_token import RefreshToken
 from muninn.models.settings import AppSettings
+from muninn.models.smart import SMART_VERSION, SmartChapter, SmartChapterMedium
 from muninn.models.social import Comment, CommentMention, Favorite, Like
 from muninn.models.user import User, UserRole, UserStatus
 from muninn.models.withdrawn import WithdrawnMedium
 
 __all__ = [
     "GIVE_UP_AFTER",
+    "SMART_VERSION",
     "Album",
     "AppSettings",
     "Base",
@@ -65,6 +67,8 @@ __all__ = [
     "Publication",
     "RefreshToken",
     "ScanStatus",
+    "SmartChapter",
+    "SmartChapterMedium",
     "SyncTrigger",
     "User",
     "UserRole",

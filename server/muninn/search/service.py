@@ -417,6 +417,37 @@ async def burst_pairs(
     return [(row.first, row.second) for row in rows]
 
 
+async def near_pairs(
+    session: AsyncSession, *, album_id: uuid.UUID, model: str, max_distance: float
+) -> list[tuple[uuid.UUID, uuid.UUID, float]]:
+    """Which media of one album look alike, and how alike - for the chapters of the Smarts.
+
+    Every pair of one album, once, and only those below the distance. An album of a few thousand
+    is a few million comparisons of halfvecs, which PostgreSQL does in about a second and which
+    nobody waits for: this runs in a worker, not in a request.
+    """
+    rows = await session.execute(
+        text(
+            _sql(
+                """
+                WITH pool AS (
+                    SELECT e.media_id, e.embedding::halfvec AS v
+                      FROM {table} e JOIN media m ON m.id = e.media_id
+                     WHERE m.album_id = :album AND m.status = 'active'
+                       AND m.duplicate_of IS NULL AND e.model = :model
+                )
+                SELECT a.media_id AS first, b.media_id AS second, (a.v <=> b.v) AS distance
+                  FROM pool a JOIN pool b ON a.media_id < b.media_id
+                 WHERE a.v <=> b.v <= :max_distance
+                """,
+                VectorKind.IMAGE,
+            )
+        ),
+        {"album": album_id, "model": model, "max_distance": max_distance},
+    )
+    return [(row.first, row.second, float(row.distance)) for row in rows]
+
+
 # --- faces ------------------------------------------------------------------------------------
 
 

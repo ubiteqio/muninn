@@ -27,6 +27,7 @@ from muninn.api.v1.places import router as map_router
 from muninn.api.v1.report import router as report_router
 from muninn.api.v1.search import router as search_router
 from muninn.api.v1.settings import router as admin_settings_router
+from muninn.api.v1.smarts import router as smarts_router
 from muninn.api.v1.social import router as social_router
 from muninn.api.v1.users import admin_router as admin_users_router
 from muninn.api.v1.users import me_router
@@ -102,6 +103,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(map_router, prefix=API_PREFIX)
     app.include_router(places_router, prefix=API_PREFIX)
     app.include_router(memories_router, prefix=API_PREFIX)
+    app.include_router(smarts_router, prefix=API_PREFIX)
     app.include_router(social_router, prefix=API_PREFIX)
     # After social: /people/mentionable is one of its paths, not a person's id.
     app.include_router(people_router, prefix=API_PREFIX)

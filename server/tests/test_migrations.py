@@ -15,6 +15,8 @@ from alembic.config import Config
 REQUIRED_EXTENSIONS = {"citext", "ltree", "pg_trgm", "postgis", "vector"}
 EXPECTED_TABLES = {
     "media_attempts",
+    "smart_chapters",
+    "smart_chapter_media",
     "users",
     "refresh_tokens",
     "settings",
@@ -97,7 +99,7 @@ def test_upgrade_creates_extensions_and_tables(
 
     assert extensions >= REQUIRED_EXTENSIONS
     assert tables >= EXPECTED_TABLES
-    assert version == "0043"
+    assert version == "0044"
 
 
 def test_username_is_case_insensitive_and_unique(
