@@ -34,6 +34,11 @@ _START = b"\xff\xd8"
 _END = b"\xff\xd9"
 _READ_SIZE = 1 << 16
 
+#: How long ffmpeg may say nothing at all before the video counts as unreadable. This is a
+#: watchdog, not a budget for the whole video: the caller describes every frame it is handed,
+#: and a long video may rightly take hours. Only silence from the decoder is a fault.
+STALL_SECONDS = 120
+
 
 @dataclass(frozen=True, slots=True)
 class Frame:
@@ -64,7 +69,7 @@ def split_jpegs(buffer: bytes) -> tuple[list[bytes], bytes]:
 
 
 async def frames_of(
-    video: Path, *, every: int = 1, timeout_seconds: int = 1800
+    video: Path, *, every: int = 1, stall_seconds: int = STALL_SECONDS
 ) -> AsyncIterator[Frame]:
     """One frame every ``every`` seconds of the video, in order, as JPEGs."""
     process = await asyncio.create_subprocess_exec(
@@ -92,16 +97,27 @@ async def frames_of(
     second = 0
     rest = b""
     try:
-        async with asyncio.timeout(timeout_seconds):
-            while chunk := await process.stdout.read(_READ_SIZE):
-                pictures, rest = split_jpegs(rest + chunk)
-                for picture in pictures:
-                    # ffmpeg's own "one every five seconds" rounds and may drop the end; one a
-                    # second is exact, and passing on every fifth of them costs next to nothing.
-                    if second % every == 0:
-                        yield Frame(second=second, jpeg=picture)
-                    second += 1
-            await process.wait()
+        while True:
+            # Each read has its own watchdog. A budget around the whole loop would also count
+            # the time the caller spends on every frame it is handed - a model answering about
+            # an hour of video - and would end a good video halfway through.
+            try:
+                async with asyncio.timeout(stall_seconds):
+                    chunk = await process.stdout.read(_READ_SIZE)
+            except TimeoutError as error:
+                raise FrameError(
+                    f"ffmpeg said nothing about {video.name} for {stall_seconds} seconds."
+                ) from error
+            if not chunk:
+                break
+            pictures, rest = split_jpegs(rest + chunk)
+            for picture in pictures:
+                # ffmpeg's own "one every five seconds" rounds and may drop the end; one a
+                # second is exact, and passing on every fifth of them costs next to nothing.
+                if second % every == 0:
+                    yield Frame(second=second, jpeg=picture)
+                second += 1
+        await process.wait()
     finally:
         if process.returncode is None:
             process.kill()

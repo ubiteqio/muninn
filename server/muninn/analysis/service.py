@@ -33,7 +33,12 @@ from sqlalchemy.orm import selectinload
 from muninn.ai.analysis import Analysis, frame_context
 from muninn.ai.base import Analyzer
 from muninn.analysis import transcripts
-from muninn.analysis.frames import DESCRIBE_EVERY_SECONDS, ChangeFilter, frames_of
+from muninn.analysis.frames import (
+    DESCRIBE_EVERY_SECONDS,
+    ChangeFilter,
+    FrameError,
+    frames_of,
+)
 from muninn.huginn import attempts, jobs
 from muninn.models.analysis import MediaAnalysis, MediaTranscript, VideoFrame
 from muninn.models.media import Media, MediaKind, MediaStatus
@@ -194,16 +199,23 @@ async def _describe_video(
     context = _context(media)
     changes = ChangeFilter()
     seen: list[tuple[int, Analysis]] = []
-    async for frame in frames_of(video, every=DESCRIBE_EVERY_SECONDS):
-        if not await asyncio.to_thread(changes.wants, frame):
-            continue
-        answer = await analyzer.analyze(
-            [frame.data_url()],
-            context=frame_context(context, frame.second, media.duration_seconds),
-        )
-        seen.append((frame.second, answer))
-        if heartbeat is not None:
-            await heartbeat()
+    try:
+        async for frame in frames_of(video, every=DESCRIBE_EVERY_SECONDS):
+            if not await asyncio.to_thread(changes.wants, frame):
+                continue
+            answer = await analyzer.analyze(
+                [frame.data_url()],
+                context=frame_context(context, frame.second, media.duration_seconds),
+            )
+            seen.append((frame.second, answer))
+            if heartbeat is not None:
+                await heartbeat()
+    except FrameError as error:
+        # No frame can be read from this one, and that will not change by asking again. Counted
+        # like faces counts it, so the clock leaves the video alone instead of chewing it for
+        # ever - and an admin reads the sentence in the engine room.
+        await attempts.note_failure(session, media.id, jobs.ANALYSIS_STAGE, str(error))
+        return False
 
     if not seen:
         return False
