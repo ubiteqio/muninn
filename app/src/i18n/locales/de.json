@@ -605,6 +605,18 @@
         "read": "Ordner nicht gelesen"
       }
     },
+    "smarts": {
+      "title": "Smart-Alben",
+      "description": "Was die Bilder zeigen, in Kapiteln. Sie entstehen jede Nacht um 3:30 Uhr für Alben, die sich geändert haben — hier auf Zuruf, für so viele Kapitel wie gewünscht.",
+      "holds": "{{chapters, number}} Kapitel in {{albums, number}} Alben, {{media, number}} Medien",
+      "outstanding_one": "1 Album ohne Kapitel",
+      "outstanding_other": "{{count, number}} Alben ohne Kapitel",
+      "wanted": "Kapitel",
+      "build": "Neu erstellen",
+      "building": "Wird erstellt …",
+      "built": "{{chapters, number}} Kapitel in {{albums, number}} Alben neu erstellt.",
+      "nothingLeft": "Alle Alben sind auf dem neuesten Stand."
+    },
     "users": {
       "title": "Benutzerverwaltung",
       "description": "Konten anlegen, bearbeiten, Rollen vergeben, sperren, löschen und Passwörter zurücksetzen.",

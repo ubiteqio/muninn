@@ -70,11 +70,30 @@ class ShelfMediaList(BaseModel):
 
 
 class BuildRequest(BaseModel):
-    """Build the chapters of one album now, or of every album that needs it."""
+    """Build chapters now: one album, or albums in turn until enough have come out of it."""
 
     album_id: uuid.UUID | None = None
+    #: How many chapters this run should produce before it stops. Ignored for a single album.
+    chapters: int = Field(default=21, ge=1, le=500)
     distance: float | None = Field(default=None, gt=0.0, lt=1.0)
 
 
-class BuildQueued(BaseModel):
+class BuildResult(BaseModel):
+    """What the run did."""
+
     albums: int
+    chapters: int
+    #: Albums that still have no chapters of this version.
+    outstanding: int
+
+
+class SmartsState(BaseModel):
+    """What the Smarts hold, for the engine room."""
+
+    chapters: int
+    albums: int
+    media: int
+    outstanding: int
+    built_at: datetime | None
+    #: What the field beside the button starts with.
+    wanted: int

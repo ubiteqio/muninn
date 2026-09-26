@@ -1107,6 +1107,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/smarts/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the Smarts hold
+         * @description The figures beside the button in the engine room.
+         */
+        get: operations["read_state_api_v1_smarts_state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/smarts/build": {
         parameters: {
             query?: never;
@@ -1117,11 +1137,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Find the chapters now
-         * @description Build one album's chapters, or every album that has none yet or has changed since.
+         * Find chapters now
+         * @description Build one album's chapters, or albums in turn until enough chapters have come out of it.
          *
-         *     Synchronous on purpose: an admin who presses it wants to see the result, and one album of a
-         *     few thousand takes seconds.
+         *     Synchronous on purpose: an admin who presses it wants to see the result, and an album of a
+         *     few thousand takes seconds. The albums without chapters come first, then the ones whose
+         *     chapters are oldest, so pressing again carries on rather than repeating.
          */
         post: operations["build_api_v1_smarts_build_post"];
         delete?: never;
@@ -2294,20 +2315,32 @@ export interface components {
             /** Bottom */
             bottom: number;
         };
-        /** BuildQueued */
-        BuildQueued: {
-            /** Albums */
-            albums: number;
-        };
         /**
          * BuildRequest
-         * @description Build the chapters of one album now, or of every album that needs it.
+         * @description Build chapters now: one album, or albums in turn until enough have come out of it.
          */
         BuildRequest: {
             /** Album Id */
             album_id?: string | null;
+            /**
+             * Chapters
+             * @default 21
+             */
+            chapters: number;
             /** Distance */
             distance?: number | null;
+        };
+        /**
+         * BuildResult
+         * @description What the run did.
+         */
+        BuildResult: {
+            /** Albums */
+            albums: number;
+            /** Chapters */
+            chapters: number;
+            /** Outstanding */
+            outstanding: number;
         };
         /**
          * ChangeKind
@@ -3802,6 +3835,24 @@ export interface components {
             key: string;
             /** Count */
             count: number;
+        };
+        /**
+         * SmartsState
+         * @description What the Smarts hold, for the engine room.
+         */
+        SmartsState: {
+            /** Chapters */
+            chapters: number;
+            /** Albums */
+            albums: number;
+            /** Media */
+            media: number;
+            /** Outstanding */
+            outstanding: number;
+            /** Built At */
+            built_at: string | null;
+            /** Wanted */
+            wanted: number;
         };
         /**
          * SmartsView
@@ -6097,6 +6148,26 @@ export interface operations {
             };
         };
     };
+    read_state_api_v1_smarts_state_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmartsState"];
+                };
+            };
+        };
+    };
     build_api_v1_smarts_build_post: {
         parameters: {
             query?: never;
@@ -6111,12 +6182,12 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BuildQueued"];
+                    "application/json": components["schemas"]["BuildResult"];
                 };
             };
             /** @description Validation Error */

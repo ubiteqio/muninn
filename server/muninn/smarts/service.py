@@ -348,6 +348,89 @@ async def albums_to_build(session: AsyncSession) -> list[uuid.UUID]:
     return list(await session.scalars(statement))
 
 
+#: What the engine room's button asks for when nobody says otherwise: enough new chapters to
+#: fill a screen, and little enough that the answer comes back while somebody is looking at it.
+CHAPTERS_WANTED = 21
+
+
+@dataclass(frozen=True, slots=True)
+class Rebuild:
+    """What one press of the button did."""
+
+    albums: int
+    chapters: int
+    #: Albums that still have no chapters of this version, after this run.
+    outstanding: int
+
+
+@dataclass(frozen=True, slots=True)
+class State:
+    """What the Smarts hold right now, for the admin area."""
+
+    chapters: int
+    albums: int
+    media: int
+    outstanding: int
+    built_at: datetime | None
+    wanted: int = CHAPTERS_WANTED
+
+
+async def build_some(
+    session: AsyncSession, *, wanted: int = CHAPTERS_WANTED, distance: float = LOOK_DISTANCE
+) -> Rebuild:
+    """Build albums until this many chapters have come out of it, then stop.
+
+    The albums that have none yet come first, the biggest of them first; after those, the ones
+    whose chapters are oldest. So pressing the button again carries on where the last press
+    stopped rather than doing the same albums over, and a library nobody has looked at yet is
+    worked through from the ends that show most.
+    """
+    made = 0
+    albums = 0
+    for album_id in await _in_turn(session):
+        built = await build_album(session, album_id, distance=distance)
+        albums += 1
+        made += built.chapters
+        if made >= wanted:
+            break
+    return Rebuild(albums=albums, chapters=made, outstanding=len(await albums_to_build(session)))
+
+
+async def _in_turn(session: AsyncSession) -> list[uuid.UUID]:
+    """Every album worth chapters: those without them first, then the longest untouched."""
+    waiting = await albums_to_build(session)
+    done = list(
+        await session.scalars(
+            select(SmartChapter.album_id)
+            .group_by(SmartChapter.album_id)
+            .order_by(func.max(SmartChapter.built_at))
+        )
+    )
+    seen = set(waiting)
+    return [*waiting, *(album_id for album_id in done if album_id not in seen)]
+
+
+async def state(session: AsyncSession) -> State:
+    """The figures the engine room shows beside the button."""
+    chapters, albums, media, built = (
+        await session.execute(
+            select(
+                func.count(),
+                func.count(func.distinct(SmartChapter.album_id)),
+                func.coalesce(func.sum(SmartChapter.size), 0),
+                func.max(SmartChapter.built_at),
+            ).select_from(SmartChapter)
+        )
+    ).one()
+    return State(
+        chapters=int(chapters or 0),
+        albums=int(albums or 0),
+        media=int(media or 0),
+        outstanding=len(await albums_to_build(session)),
+        built_at=built,
+    )
+
+
 async def chapters_of(
     session: AsyncSession,
     album_id: uuid.UUID | None = None,

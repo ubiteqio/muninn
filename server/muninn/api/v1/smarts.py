@@ -11,14 +11,15 @@ from sqlalchemy.orm import selectinload
 from muninn.api.schemas.media import MediaView
 from muninn.api.schemas.people import FaceView
 from muninn.api.schemas.smarts import (
-    BuildQueued,
     BuildRequest,
+    BuildResult,
     ChapterList,
     ChapterMediaList,
     ChapterView,
     FaceStripView,
     ShelfMediaList,
     ShelfView,
+    SmartsState,
     SmartsView,
 )
 from muninn.core.config import Settings
@@ -239,24 +240,43 @@ async def read_shelf(
     )
 
 
-@router.post("/build", summary="Find the chapters now", status_code=status.HTTP_202_ACCEPTED)
+@router.get("/state", summary="What the Smarts hold")
+async def read_state(
+    admin: AdminUser,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SmartsState:
+    """The figures beside the button in the engine room."""
+    found = await service.state(session)
+    return SmartsState(
+        chapters=found.chapters,
+        albums=found.albums,
+        media=found.media,
+        outstanding=found.outstanding,
+        built_at=found.built_at,
+        wanted=found.wanted,
+    )
+
+
+@router.post("/build", summary="Find chapters now", status_code=status.HTTP_200_OK)
 async def build(
     request: BuildRequest,
     admin: AdminUser,
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> BuildQueued:
-    """Build one album's chapters, or every album that has none yet or has changed since.
+) -> BuildResult:
+    """Build one album's chapters, or albums in turn until enough chapters have come out of it.
 
-    Synchronous on purpose: an admin who presses it wants to see the result, and one album of a
-    few thousand takes seconds.
+    Synchronous on purpose: an admin who presses it wants to see the result, and an album of a
+    few thousand takes seconds. The albums without chapters come first, then the ones whose
+    chapters are oldest, so pressing again carries on rather than repeating.
     """
-    albums = (
-        [request.album_id]
-        if request.album_id is not None
-        else await service.albums_to_build(session)
-    )
-    for album_id in albums:
-        await service.build_album(
-            session, album_id, distance=request.distance or service.LOOK_DISTANCE
+    distance = request.distance or service.LOOK_DISTANCE
+    if request.album_id is not None:
+        built = await service.build_album(session, request.album_id, distance=distance)
+        return BuildResult(
+            albums=1,
+            chapters=built.chapters,
+            outstanding=len(await service.albums_to_build(session)),
         )
-    return BuildQueued(albums=len(albums))
+
+    done = await service.build_some(session, wanted=request.chapters, distance=distance)
+    return BuildResult(albums=done.albums, chapters=done.chapters, outstanding=done.outstanding)

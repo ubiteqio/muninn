@@ -14,6 +14,7 @@ from muninn.ai import service as ai_service
 from muninn.analysis import service as analysis_service
 from muninn.models.ai import AiKind
 from muninn.models.album import Album
+from muninn.models.user import UserRole
 from muninn.search.service import VectorKind, store
 from muninn.smarts import service
 from tests.helpers import auth_header, create_user, login
@@ -299,6 +300,53 @@ async def test_a_shelf_nobody_has_says_so(
 
     assert answer.status_code == 404
     assert answer.json()["type"].endswith("shelf-not-found")
+
+
+async def test_the_button_builds_until_it_has_enough_chapters(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Three albums of four chapters each: asking for five stops after the second album."""
+    await a_profile(session)
+    for name in ("Heap", "Heap2", "Heap3"):
+        await an_album_of_media(
+            session,
+            name,
+            [["katze"] * 8, ["fußball"] * 8, ["torte"] * 8, ["auto"] * 8],
+        )
+    await create_user(session_factory, username="chef", display_name="Chef", role=UserRole.ADMIN)
+    headers = auth_header(await login(api_client, username="chef"))
+
+    answer = (await api_client.post("/smarts/build", json={"chapters": 5}, headers=headers)).json()
+
+    assert answer["albums"] == 2
+    assert answer["chapters"] == 8
+    assert answer["outstanding"] == 1
+
+    # Pressing again carries on with the album that has none yet, rather than repeating.
+    again = (await api_client.post("/smarts/build", json={"chapters": 5}, headers=headers)).json()
+    assert again["outstanding"] == 0
+
+    state = (await api_client.get("/smarts/state", headers=headers)).json()
+    assert state["albums"] == 3
+    assert state["chapters"] == 12
+    assert state["media"] == 96
+    assert state["wanted"] == 21
+
+
+async def test_only_an_admin_may_build_or_read_the_state(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await create_user(session_factory, username="anna", display_name="Anna")
+    headers = auth_header(await login(api_client, username="anna"))
+
+    assert (await api_client.get("/smarts/state", headers=headers)).status_code == 403
+    assert (
+        await api_client.post("/smarts/build", json={"chapters": 5}, headers=headers)
+    ).status_code == 403
 
 
 async def test_a_chapter_that_is_gone_says_so(

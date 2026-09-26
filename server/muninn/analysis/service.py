@@ -69,7 +69,9 @@ def _missing(
 
     A photo needs its preview, a video its 720p version: that is where the frames come from.
     With a speech model in use, a video also waits for its transcript, so its summary can say
-    what is said in it.
+    what is said in it - but not for ever: one that will never be transcribed, because the
+    pipeline has given up on it, is described from its pictures alone. Otherwise a handful of
+    videos would sit in "ohne Beschreibung" with nobody left to take them.
     """
     answered = (
         select(literal(1))
@@ -85,7 +87,12 @@ def _missing(
         and_(
             Media.kind == MediaKind.VIDEO,
             Media.video_path.is_not(None),
-            transcripts.heard_by(transcriber_model) if transcriber_model else true(),
+            or_(
+                transcripts.heard_by(transcriber_model),
+                ~attempts.still_open(jobs.TRANSCRIPTION_STAGE, Media.id),
+            )
+            if transcriber_model
+            else true(),
         ),
     )
     return select(Media.id).where(
