@@ -93,6 +93,8 @@ async def read_jobs(admin: AdminUser, session: SessionDep, redis: RedisDep) -> J
         last_read_at=max(read_times) if read_times else None,
         albums=counts.albums,
         media=counts.media,
+        photos=counts.photos,
+        videos=counts.videos,
         queues=[QueueView(name=name, waiting=waiting) for name, waiting in lengths.items()],
         pending_metadata=counts.pending_metadata,
         pending_derivatives=counts.pending_derivatives,

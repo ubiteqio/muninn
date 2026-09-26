@@ -122,6 +122,11 @@ function WhatHuginnDoes({ jobs }: { jobs: Jobs }) {
                 albums: jobs.albums,
               })
             : t('admin.jobs.now.neverRead')}
+          {/* What kind of work the library is made of: a film is a transcode, a transcript and
+            a description of every fifth second, a photograph is none of that. */}
+          {jobs.last_read_at && jobs.media > 0 && (
+            <> {t('admin.jobs.now.kinds', { photos: jobs.photos, videos: jobs.videos })}</>
+          )}
           {jobs.schedule.next_quick_sync_at && (
             <>
               {' · '}

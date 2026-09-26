@@ -33,7 +33,7 @@ from muninn.library.scanner import ScannedFile, ScannedFolder, is_ignored, walk
 from muninn.media import service as media_service
 from muninn.models.album import Album
 from muninn.models.change_log import RETENTION_DAYS, ChangeKind, ChangeLogEntry, SyncTrigger
-from muninn.models.media import Media, MediaFile, MediaFileRole, MediaStatus
+from muninn.models.media import Media, MediaFile, MediaFileRole, MediaKind, MediaStatus
 from muninn.models.pending_file import PendingFile
 from muninn.models.publication import Publication, ScanStatus
 from muninn.models.settings import AppSettings
@@ -1402,6 +1402,9 @@ async def apply_metadata(session: AsyncSession, media_id: uuid.UUID, *, library_
 class IndexCounts:
     albums: int
     media: int
+    #: Of those media, how many are pictures and how many are films.
+    photos: int
+    videos: int
     missing: int
     pending_metadata: int
     pending_derivatives: int
@@ -1412,9 +1415,15 @@ async def index_counts(session: AsyncSession) -> IndexCounts:
     albums = await session.scalar(
         select(func.count()).select_from(Album).where(Album.is_source.is_(True))
     )
-    media = await session.scalar(
-        select(func.count()).select_from(Media).where(Media.status == MediaStatus.ACTIVE)
-    )
+    kinds = (
+        await session.execute(
+            select(Media.kind, func.count())
+            .where(Media.status == MediaStatus.ACTIVE)
+            .group_by(Media.kind)
+        )
+    ).all()
+    by_kind = {kind: int(count) for kind, count in kinds}
+    media = sum(by_kind.values())
     missing = await session.scalar(
         select(func.count()).select_from(Media).where(Media.status == MediaStatus.MISSING)
     )
@@ -1430,7 +1439,9 @@ async def index_counts(session: AsyncSession) -> IndexCounts:
     )
     return IndexCounts(
         albums=int(albums or 0),
-        media=int(media or 0),
+        media=media,
+        photos=by_kind.get(MediaKind.IMAGE, 0),
+        videos=by_kind.get(MediaKind.VIDEO, 0),
         missing=int(missing or 0),
         pending_metadata=int(pending or 0),
         pending_derivatives=int(undrawn or 0),

@@ -2643,6 +2643,16 @@ export interface components {
             albums: number;
             /** Media */
             media: number;
+            /**
+             * Photos
+             * @default 0
+             */
+            photos: number;
+            /**
+             * Videos
+             * @default 0
+             */
+            videos: number;
             /** Queues */
             queues: components["schemas"]["QueueView"][];
             /** Pending Metadata */

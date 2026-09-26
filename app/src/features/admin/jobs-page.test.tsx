@@ -217,7 +217,9 @@ describe('the engine room', () => {
   it('says what just happened when nothing is running', async () => {
     const justFinished = new Date(Date.now() - 2 * 60_000).toISOString()
     stubApi({
-      [JOBS]: { body: { ...idle, last_read_at: justFinished, media: 8, albums: 2 } },
+      [JOBS]: {
+        body: { ...idle, last_read_at: justFinished, media: 8, albums: 2, photos: 6, videos: 2 },
+      },
       [CHANGES]: { body: [] },
     })
 
@@ -226,6 +228,9 @@ describe('the engine room', () => {
     expect(
       await screen.findByText(/Zuletzt gelesen vor 2 Minuten · 8 Medien in 2 Alben/),
     ).toBeInTheDocument()
+    // What the work is made of: a film is a transcode, a transcript and a description of
+    // every fifth second; a photograph is none of that.
+    expect(screen.getByText(/\(Bilder: 6, Videos: 2\)/)).toBeInTheDocument()
   })
 
   it('shows a running read with how far it got', async () => {

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from muninn.huginn import attempts, jobs
 from muninn.library import service
+from muninn.models.media import MediaKind
 from muninn.models.pending_file import PendingFile
 from muninn.models.user import UserRole
 from tests.helpers import auth_header, create_user, login
@@ -524,3 +525,25 @@ async def test_a_stage_nobody_knows_has_nothing_waiting(
 
     assert answer.status_code == 200
     assert answer.json() == {"stage": "erfunden", "items": [], "files": []}
+
+
+async def test_the_totals_say_how_many_are_pictures_and_how_many_films(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """ "14.989 Medien" says nothing about what kind of work is left: a film is a transcode, a
+    transcript and a description of every fifth second, a photograph is none of that."""
+    headers = await admin_headers(api_client, session_factory)
+    album = await an_album(session, "Fest")
+    for index in range(3):
+        await a_medium(session, album, taken_at=JULY, name=f"bild-{index}.jpg")
+    film = await a_medium(session, album, taken_at=JULY, name="film.mp4")
+    film.kind = MediaKind.VIDEO
+    await session.commit()
+
+    body = (await api_client.get("/admin/jobs", headers=headers)).json()
+
+    assert body["media"] == 4
+    assert body["photos"] == 3
+    assert body["videos"] == 1

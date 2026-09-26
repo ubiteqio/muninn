@@ -423,6 +423,7 @@
         "waiting": "Kein Durchgang läuft – es wartet aber noch Arbeit.",
         "lastRead": "Zuletzt gelesen {{when}} · {{media, number}} Medien in {{albums}} Alben",
         "neverRead": "Noch nie gelesen. Veröffentliche einen Ordner, dann geht es los.",
+        "kinds": "(Bilder: {{photos, number}}, Videos: {{videos, number}})",
         "next": "nächster Durchgang {{when}}",
         "lastMinute": "In der letzten Minute:"
       },

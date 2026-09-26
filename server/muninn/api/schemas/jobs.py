@@ -88,6 +88,9 @@ class JobsView(BaseModel):
     last_read_at: datetime | None
     albums: int
     media: int
+    #: Of those media, how many are pictures and how many are films.
+    photos: int = 0
+    videos: int = 0
     queues: list[QueueView]
     #: Media that still need their metadata read.
     pending_metadata: int
