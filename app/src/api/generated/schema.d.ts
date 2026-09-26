@@ -1030,6 +1030,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/smarts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the library falls into
+         * @description Chapters, shelves and faces - everything the app needs before anything is chosen.
+         *
+         *     Nothing here asks a machine: the groups were found by a worker from the vectors that are in
+         *     the database anyway, so the Smarts work while the AI machine is switched off.
+         */
+        get: operations["read_smarts_api_v1_smarts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/smarts/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** More chapters */
+        get: operations["read_chapters_api_v1_smarts_chapters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/smarts/chapters/{chapter_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One chapter and its media */
+        get: operations["read_chapter_api_v1_smarts_chapters__chapter_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/smarts/shelves/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What stands on one shelf
+         * @description Videos, documents, screenshots: everything with one trait, newest first.
+         */
+        get: operations["read_shelf_api_v1_smarts_shelves__key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/smarts/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Find the chapters now
+         * @description Build one album's chapters, or every album that has none yet or has changed since.
+         *
+         *     Synchronous on purpose: an admin who presses it wants to see the result, and one album of a
+         *     few thousand takes seconds.
+         */
+        post: operations["build_api_v1_smarts_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/media/{media_id}/like": {
         parameters: {
             query?: never;
@@ -2194,6 +2294,21 @@ export interface components {
             /** Bottom */
             bottom: number;
         };
+        /** BuildQueued */
+        BuildQueued: {
+            /** Albums */
+            albums: number;
+        };
+        /**
+         * BuildRequest
+         * @description Build the chapters of one album now, or of every album that needs it.
+         */
+        BuildRequest: {
+            /** Album Id */
+            album_id?: string | null;
+            /** Distance */
+            distance?: number | null;
+        };
         /**
          * ChangeKind
          * @enum {string}
@@ -2222,6 +2337,51 @@ export interface components {
             trigger: components["schemas"]["SyncTrigger"];
             /** Path */
             path: string | null;
+        };
+        /** ChapterList */
+        ChapterList: {
+            /** Items */
+            items: components["schemas"]["ChapterView"][];
+            /** Next Offset */
+            next_offset?: number | null;
+        };
+        /** ChapterMediaList */
+        ChapterMediaList: {
+            chapter: components["schemas"]["ChapterView"];
+            /** Items */
+            items: components["schemas"]["MediaView"][];
+            /** Next Offset */
+            next_offset?: number | null;
+        };
+        /**
+         * ChapterView
+         * @description One group of media that belong together by what they show.
+         */
+        ChapterView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Album Id
+             * Format: uuid
+             */
+            album_id: string;
+            /** Album Title */
+            album_title: string;
+            /** Title */
+            title: string;
+            /** Tags */
+            tags: string[];
+            /** Size */
+            size: number;
+            /** From At */
+            from_at: string | null;
+            /** Until At */
+            until_at: string | null;
+            /** Cover */
+            cover: components["schemas"]["MediaView"][];
         };
         /** ClusterList */
         ClusterList: {
@@ -2414,6 +2574,19 @@ export interface components {
             items: components["schemas"]["FaceView"][];
             /** Next Cursor */
             next_cursor?: string | null;
+        };
+        /** FaceStripView */
+        FaceStripView: {
+            /**
+             * Person Id
+             * Format: uuid
+             */
+            person_id: string;
+            /** Name */
+            name: string;
+            /** Count */
+            count: number;
+            face?: components["schemas"]["FaceView"] | null;
         };
         /** FaceView */
         FaceView: {
@@ -3610,6 +3783,41 @@ export interface components {
             name: string;
             /** Count */
             count: number;
+        };
+        /** ShelfMediaList */
+        ShelfMediaList: {
+            /** Key */
+            key: string;
+            /** Items */
+            items: components["schemas"]["MediaView"][];
+            /** Next Offset */
+            next_offset?: number | null;
+        };
+        /**
+         * ShelfView
+         * @description A group that needed no grouping: everything with one trait.
+         */
+        ShelfView: {
+            /** Key */
+            key: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * SmartsView
+         * @description What the Smarts screen shows before anything is chosen.
+         */
+        SmartsView: {
+            /** Media */
+            media: number;
+            /** Chapters */
+            chapters: components["schemas"]["ChapterView"][];
+            /** Shelves */
+            shelves: components["schemas"]["ShelfView"][];
+            /** Faces */
+            faces: components["schemas"]["FaceStripView"][];
+            /** Next Offset */
+            next_offset?: number | null;
         };
         /** Social */
         Social: {
@@ -5743,6 +5951,172 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemoryList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_smarts_api_v1_smarts_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmartsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_chapters_api_v1_smarts_chapters_get: {
+        parameters: {
+            query?: {
+                album_id?: string | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_chapter_api_v1_smarts_chapters__chapter_id__get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterMediaList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_shelf_api_v1_smarts_shelves__key__get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfMediaList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    build_api_v1_smarts_build_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildQueued"];
                 };
             };
             /** @description Validation Error */

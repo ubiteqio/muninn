@@ -95,10 +95,11 @@ describe('start screen', () => {
   it('offers every navigation destination', async () => {
     await renderScreen(<HomeScreen />)
 
-    for (const label of ['Home', 'Alben', 'Suche', 'Karte', 'Personen']) {
+    for (const label of ['Home', 'Suche', 'Karte', 'Personen']) {
       expect(screen.getAllByRole('link', { name: label }).length).toBeGreaterThan(0)
     }
-    // On the phone Überblick and Profil wait behind "Mehr".
+    // "Alben" opens the folders and the Smarts; Überblick and Profil wait behind "Mehr".
+    expect(screen.getAllByRole('button', { name: 'Alben' }).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Mehr' })).toBeInTheDocument()
   })
 

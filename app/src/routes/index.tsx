@@ -10,10 +10,12 @@ import { AlbumsScreen } from '@/features/albums/albums-screen'
 import { HomeScreen } from '@/features/home/home-screen'
 import { IntroScreen } from '@/features/home/intro-screen'
 import { OverviewScreen } from '@/features/overview/overview-screen'
-import { PeopleScreen,type PeopleSearch } from '@/features/people/people-screen'
+import { PeopleScreen, type PeopleSearch } from '@/features/people/people-screen'
 import { PersonScreen } from '@/features/people/person-screen'
 import { ProfileScreen } from '@/features/profile/profile-screen'
 import { SearchScreen } from '@/features/search/search-screen'
+import { ChapterScreen } from '@/features/smarts/chapter-screen'
+import { SmartsScreen } from '@/features/smarts/smarts-screen'
 import { WalhallScreen } from '@/features/social/walhall-screen'
 import { Route as rootRoute } from '@/routes/__root'
 
@@ -276,6 +278,54 @@ export const personRoute = createRoute({
 function PersonRoute() {
   const { personId } = personRoute.useParams()
   return <PersonScreen key={personId} personId={personId} />
+}
+
+/** Smarts: the library sorted by what is in the pictures, for browsing rather than searching. */
+export interface SmartsSearch {
+  /** A shelf, when one is open: videos, documents, screenshots. */
+  shelf?: string
+  /** The medium shown full screen. */
+  medium?: string
+}
+
+export const smartsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/smarts',
+  component: SmartsRoute,
+  validateSearch: (search: Record<string, unknown>): SmartsSearch => {
+    const shelf = asText(search.shelf)
+    const medium = asText(search.medium)
+    return {
+      ...(shelf === undefined ? {} : { shelf }),
+      ...(medium === undefined ? {} : { medium }),
+    }
+  },
+})
+
+function SmartsRoute() {
+  return <SmartsScreen {...smartsRoute.useSearch()} />
+}
+
+export const chapterRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/smarts/$chapterId',
+  component: ChapterRoute,
+  validateSearch: (search: Record<string, unknown>): { medium?: string; play?: boolean } => {
+    const medium = asText(search.medium)
+    return {
+      ...(medium === undefined ? {} : { medium }),
+      // "?play=1" from the dice and the play button: anything else is not a slideshow.
+      ...(search.play === true || search.play === 'true' || search.play === '1'
+        ? { play: true }
+        : {}),
+    }
+  },
+})
+
+function ChapterRoute() {
+  const { chapterId } = chapterRoute.useParams()
+  const { medium, play } = chapterRoute.useSearch()
+  return <ChapterScreen key={chapterId} chapterId={chapterId} medium={medium} play={play} />
 }
 
 /** Walhall: everybody's own favourites. */

@@ -39,9 +39,13 @@ export async function renderScreen(ui: ReactNode, { path = '/' }: { path?: strin
   // The router resolves its first match before anything renders.
   await router.load()
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  )
+  // The router comes back too: a screen that navigates somewhere is tested by where it went.
+  return {
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    ),
+    router,
+  }
 }

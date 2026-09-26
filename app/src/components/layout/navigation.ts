@@ -9,6 +9,16 @@ export const NAVIGATION = [
   { id: 'profile', icon: 'person', to: '/profile' },
 ] as const
 
+/**
+ * What "Alben" opens: the folders as they lie on the NAS, and the Smarts - the same media
+ * sorted by what is in them. Both are ways into the library, so they hang on one destination
+ * rather than taking two places in a rail that has five.
+ */
+export const ALBUM_WAYS = [
+  { id: 'folders', icon: 'folder', to: '/albums' },
+  { id: 'smarts', icon: 'auto_awesome', to: '/smarts' },
+] as const
+
 /** Personen: after the map in the rail, and in the phone's bottom bar. */
 export const PEOPLE_DESTINATION = { id: 'people', icon: 'group', to: '/people' } as const
 

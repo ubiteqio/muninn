@@ -16,7 +16,15 @@
     "admin": "Admin",
     "people": "Personen",
     "overview": "Überblick",
-    "more": "Mehr"
+    "more": "Mehr",
+    "way": {
+      "folders": "Ordner",
+      "smarts": "Smarts"
+    },
+    "wayHint": {
+      "folders": "Die Ordner der NAS, so wie sie liegen",
+      "smarts": "Sortiert nach dem, was auf den Bildern ist"
+    }
   },
   "header": {
     "notifications_one": "Benachrichtigungen, {{count}} ungelesen",
@@ -141,6 +149,38 @@
       "nothing": "Kein Ort mit diesem Namen.",
       "remove": "Entfernen"
     }
+  },
+  "smarts": {
+    "title": "Smarts",
+    "description": "Die Mediathek nach dem geordnet, was auf den Bildern ist — gefunden, ohne dass jemand sortiert hat.",
+    "chapters": "Kapitel",
+    "ofMedia_one": "aus 1 Medium",
+    "ofMedia_other": "aus {{count, number}} Medien",
+    "count_one": "1 Medium",
+    "count_other": "{{count, number}} Medien",
+    "unnamed": "Ohne Namen",
+    "openChapter": "{{title}}, {{count}} Medien",
+    "dice": "Würfeln",
+    "diceHint": "Ein Kapitel nach dem Zufall, als Diashow",
+    "play": "Diashow",
+    "toAlbum": "Zum Ordner",
+    "back": "Zurück zu Smarts",
+    "faces": "Wer oft zu sehen ist",
+    "shelves": "Regale",
+    "shelf": {
+      "people": "Mit Menschen",
+      "crowd": "Gruppenbilder",
+      "video": "Videos",
+      "document": "Dokumente",
+      "screenshot": "Bildschirmfotos",
+      "text": "Text im Bild"
+    },
+    "shelfCount_one": "1 Medium",
+    "shelfCount_other": "{{count, number}} Medien",
+    "more": "Mehr Kapitel",
+    "loading": "Wird geladen …",
+    "empty": "Noch keine Kapitel",
+    "emptyNote": "Sie entstehen nachts, sobald ein Ordner genug Medien hat und beschrieben ist. Bis dahin führen die Ordner ans Ziel."
   },
   "timeline": {
     "title": "Zeitleiste",

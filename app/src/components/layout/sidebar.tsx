@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { AlbumWays } from '@/components/layout/album-ways'
 import { LogoMark } from '@/components/layout/logo'
 import { MOBILE_NAVIGATION, moreOf, useNavigation } from '@/components/layout/navigation'
 import { OwnAvatar } from '@/components/layout/own-avatar'
@@ -58,18 +59,42 @@ export function Sidebar({ active }: { active: string }) {
       >
         {shown.map((item) => {
           const isActive = item.id === active
+          const seat = cn(
+            'flex w-full shrink-0 flex-col items-center justify-center rounded-lg transition',
+            isShort ? 'h-9 gap-0' : 'h-16 gap-1',
+            isActive
+              ? 'bg-primary/[0.12] text-primary'
+              : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
+          )
+
+          // "Alben" is two places: the folders, and the Smarts. It opens them beside the rail.
+          if (item.id === 'albums') {
+            return (
+              <AlbumWays
+                key={item.id}
+                trigger={
+                  <button type="button" className={seat}>
+                    <Symbol name={item.icon} size={isShort ? 20 : 24} filled={isActive} />
+                    <span
+                      className={cn(
+                        isActive ? 'font-semibold' : 'font-medium',
+                        isShort ? 'sr-only' : 'text-2xs',
+                      )}
+                    >
+                      {t(`nav.${item.id}`)}
+                    </span>
+                  </button>
+                }
+              />
+            )
+          }
+
           return (
             <Link
               key={item.id}
               to={item.to}
               aria-current={isActive ? 'page' : undefined}
-              className={cn(
-                'flex shrink-0 flex-col items-center justify-center rounded-lg transition',
-                isShort ? 'h-9 gap-0' : 'h-16 gap-1',
-                isActive
-                  ? 'bg-primary/[0.12] text-primary'
-                  : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
-              )}
+              className={seat}
             >
               <Symbol name={item.icon} size={isShort ? 20 : 24} filled={isActive} />
               {/* The name is still read out where it cannot be read: a rail of symbols is

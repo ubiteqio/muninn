@@ -11,6 +11,7 @@ import {
   adminUsersRoute,
   albumRoute,
   albumsRoute,
+  chapterRoute,
   favoritesRoute,
   homeRoute,
   introRoute,
@@ -20,6 +21,7 @@ import {
   personRoute,
   profileRoute,
   searchRoute,
+  smartsRoute,
   startRoute,
 } from '@/routes/index'
 
@@ -33,6 +35,8 @@ const routeTree = rootRoute.addChildren([
   startRoute,
   albumsRoute,
   albumRoute,
+  smartsRoute,
+  chapterRoute,
   favoritesRoute,
   searchRoute,
   mapRoute,
