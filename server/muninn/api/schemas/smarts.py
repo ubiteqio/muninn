@@ -63,6 +63,12 @@ class ChapterMediaList(BaseModel):
     next_offset: int | None = None
 
 
+class ShelfMediaList(BaseModel):
+    key: str
+    items: list[MediaView]
+    next_offset: int | None = None
+
+
 class BuildRequest(BaseModel):
     """Build the chapters of one album now, or of every album that needs it."""
 

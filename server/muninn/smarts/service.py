@@ -21,7 +21,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy import Select, delete, func, select
+from sqlalchemy import ColumnElement, Select, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from muninn.ai import service as ai_service
@@ -64,6 +64,17 @@ class Look:
     taken_at: datetime | None
     tags: tuple[str, ...]
     scene: str
+
+
+#: The shelves, and what stands on each: a condition on what stage 5 wrote down.
+SHELVES: dict[str, str] = {
+    "people": "pictures with somebody in them",
+    "crowd": "four people or more",
+    "video": "videos",
+    "document": "papers, receipts, whiteboards",
+    "screenshot": "screenshots",
+    "text": "something readable in the picture",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -378,6 +389,45 @@ async def album_of(session: AsyncSession, album_id: uuid.UUID) -> Album | None:
     return await session.get(Album, album_id)
 
 
+def _on_shelf(key: str) -> ColumnElement[bool]:
+    """What stands on one shelf. One place, so the count and the list can never disagree."""
+    conditions: dict[str, ColumnElement[bool]] = {
+        "people": MediaAnalysis.people_count > 0,
+        "crowd": MediaAnalysis.people_count >= 4,
+        "video": Media.kind == MediaKind.VIDEO,
+        "document": MediaAnalysis.is_document.is_(True),
+        "screenshot": MediaAnalysis.is_screenshot.is_(True),
+        "text": MediaAnalysis.ocr_text != "",
+    }
+    return conditions[key]
+
+
+class UnknownShelfError(KeyError):
+    """A shelf nobody has."""
+
+
+async def media_on_shelf(
+    session: AsyncSession, key: str, *, offset: int = 0, limit: int = 60
+) -> list[Media]:
+    """What stands on one shelf, newest first."""
+    if key not in SHELVES:
+        raise UnknownShelfError(key)
+    return list(
+        await session.scalars(
+            select(Media)
+            .join(MediaAnalysis, MediaAnalysis.media_id == Media.id, isouter=True)
+            .where(
+                Media.status == MediaStatus.ACTIVE,
+                Media.duplicate_of.is_(None),
+                _on_shelf(key),
+            )
+            .order_by(func.coalesce(Media.taken_at, Media.created_at).desc(), Media.id)
+            .offset(offset)
+            .limit(limit)
+        )
+    )
+
+
 async def shelves(session: AsyncSession, album_id: uuid.UUID | None = None) -> list[Shelf]:
     """What the library is made of, without any grouping: one count per trait."""
     where = [Media.status == MediaStatus.ACTIVE, Media.duplicate_of.is_(None)]
@@ -385,18 +435,14 @@ async def shelves(session: AsyncSession, album_id: uuid.UUID | None = None) -> l
         where.append(Media.album_id == album_id)
     row = (
         await session.execute(
-            select(
-                func.count().filter(MediaAnalysis.people_count > 0),
-                func.count().filter(MediaAnalysis.people_count >= 4),
-                func.count().filter(Media.kind == MediaKind.VIDEO),
-                func.count().filter(MediaAnalysis.is_document.is_(True)),
-                func.count().filter(MediaAnalysis.is_screenshot.is_(True)),
-                func.count().filter(MediaAnalysis.ocr_text != ""),
-            )
+            select(*(func.count().filter(_on_shelf(key)) for key in SHELVES))
             .select_from(Media)
             .join(MediaAnalysis, MediaAnalysis.media_id == Media.id, isouter=True)
             .where(*where)
         )
     ).one()
-    keys = ("people", "crowd", "video", "document", "screenshot", "text")
-    return [Shelf(key=key, count=int(count or 0)) for key, count in zip(keys, row, strict=True)]
+    return [
+        Shelf(key=key, count=int(count or 0))
+        for key, count in zip(SHELVES, row, strict=True)
+        if count
+    ]

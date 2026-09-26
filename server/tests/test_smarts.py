@@ -4,6 +4,7 @@ import math
 import uuid
 from collections import Counter
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
@@ -140,8 +141,17 @@ class TestNames:
         assert (title, words) == ("Strand", ["strand"])
 
 
-async def an_album_of_media(session: AsyncSession, path: str, groups: list[list[str]]) -> Album:
-    """One album whose pictures fall into the given groups by what their vectors look like."""
+async def an_album_of_media(
+    session: AsyncSession,
+    path: str,
+    groups: list[list[str]],
+    *,
+    traits: dict[str, Any] | None = None,
+) -> Album:
+    """One album whose pictures fall into the given groups by what their vectors look like.
+
+    ``traits`` marks the first group: a video, a document, somebody in the picture.
+    """
     album = await an_album(session, path)
     for index, group in enumerate(groups):
         for position, tag in enumerate(group):
@@ -152,12 +162,13 @@ async def an_album_of_media(session: AsyncSession, path: str, groups: list[list[
             medium = await a_medium(
                 session, album, taken_at=MARCH, name=f"{tag}-{index}-{position}.jpg"
             )
-            await analysis_service.store(
-                session,
-                medium.id,
-                model="qwen",
-                analysis=described(f"Ein Bild von {tag}.", tag),
+            marked = traits if traits and index == 0 else {}
+            if marked.get("kind") is not None:
+                medium.kind = marked["kind"]
+            analysis = described(f"Ein Bild von {tag}.", tag).model_copy(
+                update={key: value for key, value in marked.items() if key != "kind"}
             )
+            await analysis_service.store(session, medium.id, model="qwen", analysis=analysis)
             await store(
                 session,
                 VectorKind.IMAGE,
@@ -243,11 +254,51 @@ async def test_the_api_hands_out_chapters_with_their_covers(
     assert first["size"] == 8
     assert first["album_title"] == "Heap"
     assert len(first["cover"]) == 6
-    assert {shelf["key"] for shelf in body["shelves"]} >= {"video", "document", "people"}
+    # A shelf nobody has is not offered: an empty pill is a dead end.
+    assert body["shelves"] == []
 
     opened = (await api_client.get(f"/smarts/chapters/{first['id']}", headers=headers)).json()
     assert len(opened["items"]) == 8
     assert opened["chapter"]["title"] == first["title"]
+
+
+async def test_a_shelf_hands_out_what_stands_on_it(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The count on the pill and the list behind it come from the same condition."""
+    await a_profile(session)
+    await an_album_of_media(
+        session,
+        "Heap",
+        [["katze"] * 8, ["fußball"] * 8, ["torte"] * 8],
+        traits={"people_count": 3, "is_document": True},
+    )
+    await create_user(session_factory, username="anna", display_name="Anna")
+    headers = auth_header(await login(api_client, username="anna"))
+
+    shelves = (await api_client.get("/smarts", headers=headers)).json()["shelves"]
+    counted = {shelf["key"]: shelf["count"] for shelf in shelves}
+
+    assert counted == {"people": 8, "document": 8}
+    for key, count in counted.items():
+        listed = (await api_client.get(f"/smarts/shelves/{key}", headers=headers)).json()
+        assert len(listed["items"]) == min(count, 60), key
+
+
+async def test_a_shelf_nobody_has_says_so(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await create_user(session_factory, username="anna", display_name="Anna")
+    headers = auth_header(await login(api_client, username="anna"))
+
+    answer = await api_client.get("/smarts/shelves/quatsch", headers=headers)
+
+    assert answer.status_code == 404
+    assert answer.json()["type"].endswith("shelf-not-found")
 
 
 async def test_a_chapter_that_is_gone_says_so(

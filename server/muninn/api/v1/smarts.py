@@ -17,6 +17,7 @@ from muninn.api.schemas.smarts import (
     ChapterMediaList,
     ChapterView,
     FaceStripView,
+    ShelfMediaList,
     ShelfView,
     SmartsView,
 )
@@ -201,6 +202,38 @@ async def read_chapter(
                 medium, library_path=str(settings.library_path), secret=settings.jwt_secret
             )
             for medium in media
+        ],
+        next_offset=following,
+    )
+
+
+@router.get("/shelves/{key}", summary="What stands on one shelf")
+async def read_shelf(
+    key: str,
+    user: ActiveUser,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings_from_state)],
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=200)] = 60,
+) -> ShelfMediaList:
+    """Videos, documents, screenshots: everything with one trait, newest first."""
+    try:
+        media = await service.media_on_shelf(session, key, offset=offset, limit=limit + 1)
+    except service.UnknownShelfError as error:
+        raise ProblemError(
+            status=status.HTTP_404_NOT_FOUND,
+            type=problem_type("shelf-not-found"),
+            title="Shelf not found",
+            detail=f"Muninn has the shelves {', '.join(service.SHELVES)}.",
+        ) from error
+    following = offset + limit if len(media) > limit else None
+    return ShelfMediaList(
+        key=key,
+        items=[
+            MediaView.of(
+                medium, library_path=str(settings.library_path), secret=settings.jwt_secret
+            )
+            for medium in media[:limit]
         ],
         next_offset=following,
     )
