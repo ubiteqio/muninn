@@ -63,13 +63,23 @@ function Album({
   onCurrentChange = vi.fn(),
   social = false,
   media = MEDIA,
+  onEndReached,
+  hasMore = false,
 }: {
   current?: string | undefined
   onCurrentChange?: (id: string | undefined) => void
   social?: boolean
   media?: Medium[]
+  onEndReached?: (() => void) | undefined
+  hasMore?: boolean
 }) {
-  const viewer = useMediaViewer(media, { current, onCurrentChange, social })
+  const viewer = useMediaViewer(media, {
+    current,
+    onCurrentChange,
+    social,
+    onEndReached,
+    hasMore,
+  })
 
   return (
     <div>
@@ -132,6 +142,61 @@ describe('paging between media', () => {
     await screen.findByRole('button', { name: 'Noch einmal (1)' })
 
     expect(goTo).not.toHaveBeenCalled()
+  })
+})
+
+describe('a list that goes on past what is loaded', () => {
+  it('asks for the next page when it opens near the end', async () => {
+    const more = vi.fn()
+
+    // The last of the loaded pictures: the next page has to be on its way before the swipe.
+    await renderScreen(
+      <Album
+        current="media-2"
+        onEndReached={more}
+        hasMore
+        media={[aMedium('media-1'), aMedium('media-2')]}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(more).toHaveBeenCalled()
+    })
+  })
+
+  it('leaves the pictures alone while the end is far off', async () => {
+    const more = vi.fn()
+    const many = Array.from({ length: 20 }, (_, index) => aMedium(`media-${String(index)}`))
+
+    await renderScreen(<Album current="media-0" onEndReached={more} hasMore media={many} />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    expect(more).not.toHaveBeenCalled()
+  })
+
+  it('does not turn round to the first picture while a page can still arrive', async () => {
+    // PhotoSwipe loops by default, which is how picture 100 of a page led back to picture 1.
+    const init = vi.spyOn(PhotoSwipe.prototype, 'init')
+
+    await renderScreen(<Album current="media-1" hasMore />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    expect((init.mock.contexts[0] as PhotoSwipe | undefined)?.options.loop).toBe(false)
+  })
+
+  it('turns round again once the album has no more pages', async () => {
+    const init = vi.spyOn(PhotoSwipe.prototype, 'init')
+
+    await renderScreen(<Album current="media-1" />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    expect((init.mock.contexts[0] as PhotoSwipe | undefined)?.options.loop).toBe(true)
   })
 })
 

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AppShell } from '@/components/layout/app-shell'
@@ -18,6 +18,7 @@ import {
   pathTo,
   useAlbumMedia,
   useAlbumSync,
+  useAlbumTail,
   useAlbumTree,
 } from '@/features/albums/use-albums'
 import { useLibraryUpdates } from '@/features/albums/use-library-updates'
@@ -102,9 +103,20 @@ export function AlbumsScreen({ albumId, cursor, before, medium }: AlbumsScreenPr
   const elsewhere =
     medium !== undefined && !mediaIsLoading && !media.some((one) => one.id === medium)
   const alone = useMediumAlone(elsewhere ? medium : undefined)
-  const shown = elsewhere && alone.data ? [alone.data] : media
+  const page = elsewhere && alone.data ? [alone.data] : media
 
-  const viewer = useMediaViewer(shown, { current: medium, onCurrentChange, social: true })
+  // The pages after this one, gathered for the viewer while it is open. The grid keeps its page;
+  // somebody looking at the hundredth picture of it wants the hundred-and-first, not the first.
+  const following = useAlbumTail(albumId, mediaQuery.data?.next_cursor ?? null)
+  const shown = useMemo(() => [...page, ...following.tail], [page, following.tail])
+
+  const viewer = useMediaViewer(shown, {
+    current: medium,
+    onCurrentChange,
+    social: true,
+    onEndReached: following.more,
+    hasMore: following.hasMore,
+  })
   useSocialUpdates()
 
   const openAlbum = useCallback(

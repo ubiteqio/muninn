@@ -221,6 +221,35 @@ describe('the album tree', () => {
     })
   })
 
+  it('fetches the next page while the last picture of this one is open', async () => {
+    // Picture 100 of a page of 100 used to lead back to picture 1: the viewer knew only the
+    // page it was built from, and a gallery that runs out turns round.
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: {
+        body: { items: [aMedium({})], next_cursor: 'seite-2', prev_cursor: null },
+      },
+    })
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" medium="media-1" />)
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('cursor=seite-2'))).toBe(true)
+    })
+  })
+
+  it('asks for no further page when the album ends with this one', async () => {
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: { body: { items: [aMedium({})], next_cursor: null, prev_cursor: null } },
+    })
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" medium="media-1" />)
+
+    await screen.findByRole('link', { name: 'Fotos' })
+    expect(calls.filter((call) => call.path.endsWith('/media')).length).toBe(1)
+  })
+
   it('asks for nothing extra when the picture is already on the page', async () => {
     const { calls } = stubApi({
       [TREE]: { body: { items: [root, italien] } },
