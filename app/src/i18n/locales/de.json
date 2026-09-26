@@ -629,6 +629,13 @@
       "inUse": "in Benutzung",
       "use": "Benutzen",
       "edit": "Ändern",
+      "remove": "Löschen",
+      "delete": {
+        "title": "{{name}} löschen?",
+        "description": "Das Profil wird entfernt. Eingerichtet werden kann es jederzeit wieder.",
+        "inUse": "Dieses Profil ist in Benutzung. Wird es entfernt, wartet die Stufe, bis eine andere Maschine benutzt wird.",
+        "confirm": "Löschen"
+      },
       "closeEdit": "Schließen",
       "test": "Verbindung testen",
       "testing": "Frage läuft …",

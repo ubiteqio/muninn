@@ -135,6 +135,26 @@ describe('the AI area', () => {
     expect(await screen.findByText('Bitte prüfen: Gleichzeitig.')).toBeInTheDocument()
   })
 
+  it('asks before a machine is deleted, and says when it is the one in use', async () => {
+    const { calls } = stubApi({
+      [PROFILES]: { body: [gpu] },
+      'DELETE /api/v1/admin/ai/profiles/profile-1': { status: 204, body: null },
+    })
+
+    await renderScreen(<AdminAiPage />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Löschen' }))
+
+    expect(await screen.findByText('GPU im Keller löschen?')).toBeInTheDocument()
+    expect(screen.getByText(/in Benutzung. Wird es entfernt/)).toBeInTheDocument()
+    expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Löschen' }))
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.method === 'DELETE')).toBe(true)
+    })
+  })
+
   it('sets up a machine without making anybody type a secret twice', async () => {
     const { calls } = stubApi({
       [PROFILES]: { body: [] },
