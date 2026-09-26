@@ -7,6 +7,7 @@ import { aUser, stubApi } from '@/test/api-stub'
 import { renderScreen } from '@/test/render'
 
 const CHAPTER = 'GET /api/v1/smarts/chapters/chapter-1'
+const ABILITIES = 'GET /api/v1/search/abilities'
 
 function aMedium(id: string) {
   return {
@@ -61,6 +62,8 @@ const body = {
   next_offset: null,
 }
 
+const abilities = { pictures: true, meanings: true, ready: true }
+
 beforeEach(() => {
   useAuthStore.setState({ status: 'signed-in', user: aUser, needsPasswordChange: false })
 })
@@ -71,7 +74,7 @@ afterEach(() => {
 
 describe('one chapter', () => {
   it('names it, counts it and says which folder it comes from', async () => {
-    stubApi({ [CHAPTER]: { body } })
+    stubApi({ [CHAPTER]: { body }, [ABILITIES]: { body: abilities } })
 
     await renderScreen(<ChapterScreen chapterId="chapter-1" />)
 
@@ -86,7 +89,7 @@ describe('one chapter', () => {
   })
 
   it('shows its media and leads back to the Smarts', async () => {
-    stubApi({ [CHAPTER]: { body } })
+    stubApi({ [CHAPTER]: { body }, [ABILITIES]: { body: abilities } })
 
     await renderScreen(<ChapterScreen chapterId="chapter-1" />)
 
@@ -95,5 +98,30 @@ describe('one chapter', () => {
       'href',
       '/smarts',
     )
+  })
+
+  it('opens the same viewer as the albums and the search, with the same buttons', async () => {
+    stubApi({ [CHAPTER]: { body }, [ABILITIES]: { body: abilities } })
+
+    await renderScreen(<ChapterScreen chapterId="chapter-1" medium="media-1" />, {
+      path: '/smarts/chapter-1',
+    })
+
+    expect(await screen.findByRole('button', { name: 'Details anzeigen' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ähnliche Bilder' })).toBeInTheDocument()
+  })
+
+  it('offers nothing to compare when there is no picture model', async () => {
+    stubApi({
+      [CHAPTER]: { body },
+      [ABILITIES]: { body: { pictures: false, meanings: true, ready: true } },
+    })
+
+    await renderScreen(<ChapterScreen chapterId="chapter-1" medium="media-1" />, {
+      path: '/smarts/chapter-1',
+    })
+
+    expect(await screen.findByRole('button', { name: 'Details anzeigen' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ähnliche Bilder' })).not.toBeInTheDocument()
   })
 })

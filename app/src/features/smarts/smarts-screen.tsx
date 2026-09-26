@@ -7,8 +7,9 @@ import { PageHeading } from '@/components/layout/page-heading'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
-import { MediaGrid } from '@/features/media/media-grid'
+import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
+import { useSearchAbilities } from '@/features/search/use-search'
 import { ChapterCard, ChapterCardLoading } from '@/features/smarts/chapter-card'
 import {
   type Chapter,
@@ -19,6 +20,8 @@ import {
   useShelf,
   useSmarts,
 } from '@/features/smarts/use-smarts'
+import { useSocialUpdates } from '@/features/social/use-social'
+import { DESKTOP_QUERY, useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 
 /** The first cards are larger: a wall of equal tiles is a spreadsheet, not a place to browse. */
@@ -66,7 +69,7 @@ export function SmartsScreen({ shelf, medium }: SmartsScreenProps) {
 
   return (
     <AppShell title={t('smarts.title')} active="albums">
-      <div className="space-y-7">
+      <div className="space-y-6 px-5 md:px-0">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <PageHeading title={t('smarts.title')} description={t('smarts.description')} />
           <Dice chapters={chapters} />
@@ -256,13 +259,31 @@ function ShelfView({
   onCurrentChange: (mediaId: string | undefined) => void
 }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  // The same tiles as the albums and the search: more columns, never larger pictures.
+  const isWide = useMediaQuery(WIDE_QUERY)
+  const isDesktop = useMediaQuery(DESKTOP_QUERY)
+  const columns = isDesktop ? 6 : isWide ? 5 : 3
+  const abilitiesQuery = useSearchAbilities()
+  const abilities = abilitiesQuery.data
   const query = useShelf(shelf)
   const media = useMemo(() => pagesOf(query.data?.pages), [query.data])
-  const viewer = useMediaViewer(media, { current: medium, onCurrentChange, social: true })
+  const viewer = useMediaViewer(media, {
+    // The viewer builds its buttons when it opens, so it waits until "Ähnliche Bilder" is decided.
+    current: abilitiesQuery.isPending ? undefined : medium,
+    onCurrentChange,
+    onSimilar: abilities?.pictures
+      ? (mediaId: string) => {
+          void navigate({ to: '/search', search: { similar: mediaId } })
+        }
+      : undefined,
+    social: true,
+  })
+  useSocialUpdates()
 
   return (
     <AppShell title={t(`smarts.shelf.${shelf}`)} active="albums">
-      <div className="space-y-5">
+      <div className="space-y-5 px-5 md:px-0">
         <Link
           to="/smarts"
           className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-accent"
@@ -275,9 +296,11 @@ function ShelfView({
           description={t('smarts.shelfCount', { count: media.length })}
         />
 
+        {query.isPending && <MediaGridLoading columns={columns} />}
+
         <MediaGrid
           media={media}
-          columns={4}
+          columns={columns}
           onOpen={(index) => {
             viewer.open(index)
           }}

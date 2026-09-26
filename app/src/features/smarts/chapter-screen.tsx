@@ -8,7 +8,10 @@ import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
 import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
+import { useSearchAbilities } from '@/features/search/use-search'
 import { pagesOf, spanOf, useChapter } from '@/features/smarts/use-smarts'
+import { useSocialUpdates } from '@/features/social/use-social'
+import { DESKTOP_QUERY, useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
 
 /** How long one picture stands in the slideshow. Long enough to look, short enough to go on. */
 const SLIDESHOW_MS = 3500
@@ -30,6 +33,12 @@ interface ChapterScreenProps {
 export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  // The same tiles as everywhere else: more columns on a wide screen, not larger pictures.
+  const isWide = useMediaQuery(WIDE_QUERY)
+  const isDesktop = useMediaQuery(DESKTOP_QUERY)
+  const columns = isDesktop ? 6 : isWide ? 5 : 3
+  const abilitiesQuery = useSearchAbilities()
+  const abilities = abilitiesQuery.data
   const query = useChapter(chapterId)
   const media = useMemo(() => pagesOf(query.data?.pages), [query.data])
   const chapter = query.data?.pages[0]?.chapter
@@ -50,17 +59,29 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
   // picture unless the address names another one.
   const playing = play === true
   const viewer = useMediaViewer(media, {
-    current: playing && medium === undefined ? media[0]?.id : medium,
+    // The viewer builds its buttons when it opens, so it waits until "Ähnliche Bilder" is decided.
+    current: abilitiesQuery.isPending
+      ? undefined
+      : playing && medium === undefined
+        ? media[0]?.id
+        : medium,
     onCurrentChange,
+    // Nothing to compare without a picture model: the button would only lead to an empty page.
+    onSimilar: abilities?.pictures
+      ? (mediaId: string) => {
+          void navigate({ to: '/search', search: { similar: mediaId } })
+        }
+      : undefined,
     social: true,
     ...(playing ? { slideshow: SLIDESHOW_MS } : {}),
   })
+  useSocialUpdates()
 
   const title = chapter?.title || t('smarts.unnamed')
 
   return (
     <AppShell title={title} active="albums">
-      <div className="space-y-5">
+      <div className="space-y-5 px-5 md:px-0">
         <Link
           to="/smarts"
           className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-accent"
@@ -119,12 +140,12 @@ export function ChapterScreen({ chapterId, play, medium }: ChapterScreenProps) {
           </ul>
         )}
 
-        {query.isPending && <MediaGridLoading columns={4} tiles={24} />}
+        {query.isPending && <MediaGridLoading columns={columns} tiles={chapter?.size} />}
 
         {media.length > 0 && (
           <MediaGrid
             media={media}
-            columns={4}
+            columns={columns}
             onOpen={(index) => {
               viewer.open(index)
             }}

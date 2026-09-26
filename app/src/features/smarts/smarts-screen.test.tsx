@@ -9,6 +9,7 @@ import { renderScreen } from '@/test/render'
 
 const SMARTS = 'GET /api/v1/smarts'
 const SHELF = 'GET /api/v1/smarts/shelves/video'
+const ABILITIES = 'GET /api/v1/search/abilities'
 
 function aMedium(id: string) {
   return {
@@ -148,6 +149,7 @@ describe('the Smarts', () => {
     stubApi({
       [SMARTS]: { body },
       [SHELF]: { body: { key: 'video', items: [aMedium('media-9')], next_offset: null } },
+      [ABILITIES]: { body: { pictures: true, meanings: true, ready: true } },
     })
 
     await renderScreen(<SmartsScreen shelf="video" />)
