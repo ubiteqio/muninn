@@ -822,8 +822,8 @@
     "photobooks": {
       "title": "Fotobücher",
       "description": "Aus einem veröffentlichten Album ein Buch machen: ausgewählte Bilder, Seite für Seite erzählt.",
-      "album": "Album",
-      "albumHint": "Aus welchem Ordner das Buch entsteht.",
+      "album": "Ordner",
+      "albumHint": "Mehrere Ordner ergeben ein Buch. Der erste bestimmt, wo es im Baum hängt.",
       "chooseAlbum": "Album wählen",
       "size": "Umfang",
       "sizeHint": "Anteil der Bilder des Albums: klein 15 %, mittel 30 %, groß 60 %.",
@@ -849,7 +849,15 @@
       "removeBody": "„{{title}}“ wird entfernt. Die Bilder im Album bleiben unberührt.",
       "needsAlbum": "Bitte zuerst ein Album wählen.",
       "made_one": "{{count}} Buch in Arbeit. Der Worker baut die Seiten.",
-      "made_other": "{{count}} Bücher in Arbeit. Der Worker baut die Seiten."
+      "made_other": "{{count}} Bücher in Arbeit. Der Worker baut die Seiten.",
+      "library": "Bibliothek",
+      "noFolders": "Hier liegen keine Ordner.",
+      "withSubfolders": "Mit Unterordnern",
+      "withSubfoldersOf": "{{name}} mit allen Unterordnern wählen",
+      "open": "{{name}} öffnen",
+      "unpick": "{{name}} wieder abwählen",
+      "chosenCount_one": "{{count}} Ordner · {{pictures}} Aufnahmen",
+      "chosenCount_other": "{{count}} Ordner · {{pictures}} Aufnahmen"
     }
   },
   "media": {

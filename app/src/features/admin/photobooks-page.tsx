@@ -6,6 +6,7 @@ import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { AdminArea } from '@/features/admin/admin-area'
+import { AlbumPicker } from '@/features/admin/album-picker'
 import { Field } from '@/features/auth/field'
 import {
   type Photobook,
@@ -34,7 +35,7 @@ export function PhotobooksPage() {
   const make = useMakePhotobooks()
   usePhotobookUpdates()
 
-  const [albumId, setAlbumId] = useState('')
+  const [chosen, setChosen] = useState<string[]>([])
   const [size, setSize] = useState<(typeof SIZES)[number]>('medium')
   const [maxMedia, setMaxMedia] = useState('150')
   const [count, setCount] = useState('1')
@@ -52,21 +53,20 @@ export function PhotobooksPage() {
           </p>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Choice
-              label={t('admin.photobooks.album')}
-              hint={t('admin.photobooks.albumHint')}
-              value={albumId}
-              onChange={(event) => {
-                setAlbumId(event.target.value)
-              }}
-            >
-              <option value="">{t('admin.photobooks.chooseAlbum')}</option>
-              {(albums.data ?? []).map((album) => (
-                <option key={album.id} value={album.id}>
-                  {album.relative_path} ({album.media_count})
-                </option>
-              ))}
-            </Choice>
+            <div className="sm:col-span-2">
+              <span className="text-xs-plus font-medium">{t('admin.photobooks.album')}</span>
+              <div className="mt-1.5">
+                <AlbumPicker chosen={chosen} onChange={setChosen} />
+              </div>
+              <Chosen
+                chosen={chosen}
+                onChange={setChosen}
+                albums={albums.data ?? []}
+              />
+              <span className="mt-1 block text-2xs text-muted-foreground">
+                {t('admin.photobooks.albumHint')}
+              </span>
+            </div>
 
             <Choice
               label={t('admin.photobooks.size')}
@@ -122,10 +122,10 @@ export function PhotobooksPage() {
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Button
               type="button"
-              disabled={albumId === '' || make.isPending}
+              disabled={chosen.length === 0 || make.isPending}
               onClick={() => {
                 make.mutate({
-                  album_id: albumId,
+                  album_ids: chosen,
                   size,
                   style: 'scrapbook',
                   max_media: Number(maxMedia),
@@ -137,7 +137,7 @@ export function PhotobooksPage() {
               <Symbol name="menu_book" size={20} />
               {t(make.isPending ? 'admin.photobooks.making' : 'admin.photobooks.make')}
             </Button>
-            {albumId === '' && (
+            {chosen.length === 0 && (
               <span className="text-xs-plus text-muted-foreground">
                 {t('admin.photobooks.needsAlbum')}
               </span>
@@ -279,5 +279,51 @@ function BookRow({ book }: { book: Photobook }) {
         </div>
       </div>
     </Card>
+  )
+}
+
+/** The folders a book will be made of, in the order they were ticked. */
+function Chosen({
+  chosen,
+  albums,
+  onChange,
+}: {
+  chosen: string[]
+  albums: { id: string; title: string; relative_path: string; media_count: number }[]
+  onChange: (chosen: string[]) => void
+}) {
+  const { t } = useTranslation()
+  if (chosen.length === 0) return null
+
+  const byId = new Map(albums.map((album) => [album.id, album]))
+  const picked = chosen.map((id) => byId.get(id)).filter((album) => album !== undefined)
+  const pictures = picked.reduce((all, album) => all + album.media_count, 0)
+
+  return (
+    <div className="mt-2">
+      <ul className="flex flex-wrap gap-1.5">
+        {picked.map((album, index) => (
+          <li key={album.id}>
+            <button
+              type="button"
+              aria-label={t('admin.photobooks.unpick', { name: album.title })}
+              title={album.relative_path}
+              className="flex items-center gap-1.5 rounded-full border border-hairline/10 bg-secondary/50 py-1 pl-2.5 pr-1.5 text-xs-plus text-foreground transition hover:border-destructive/40"
+              onClick={() => {
+                onChange(chosen.filter((id) => id !== album.id))
+              }}
+            >
+              {index === 0 && <Symbol name="star" size={13} filled className="text-primary" />}
+              <span className="max-w-[180px] truncate">{album.title}</span>
+              <span className="tabular-nums text-muted-foreground">{album.media_count}</span>
+              <Symbol name="close" size={14} className="text-muted-foreground" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-2xs text-muted-foreground">
+        {t('admin.photobooks.chosenCount', { count: chosen.length, pictures })}
+      </p>
+    </div>
   )
 }

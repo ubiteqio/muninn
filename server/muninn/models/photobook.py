@@ -101,3 +101,20 @@ class Photobook(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class PhotobookAlbum(Base):
+    """One of the folders a book draws from. The book's own album is among them.
+
+    Some folders belong together - a holiday split into days, a year kept month by month - and
+    a book of one of them would be a book of a fragment.
+    """
+
+    __tablename__ = "photobook_albums"
+
+    photobook_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("photobooks.id", ondelete="CASCADE"), primary_key=True
+    )
+    album_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("albums.id", ondelete="CASCADE"), primary_key=True
+    )

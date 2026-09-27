@@ -50,14 +50,16 @@ class PhotobookRead(PhotobookView):
 
 
 class NewPhotobook(BaseModel):
-    """What an admin says when they make books of an album."""
+    """What an admin says when they make books of one or more folders."""
 
-    album_id: uuid.UUID
+    #: The folders the book draws from. The first is where the book hangs in the tree and, when
+    #: no title is given and they share no parent, the one that names it.
+    album_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
     size: str = SIZE_MEDIUM
     style: str = STYLE_SCRAPBOOK
     #: The ceiling on pictures. A folder of 4500 holidays is not a book.
     max_media: int = Field(default=DEFAULT_MAX_MEDIA, ge=4, le=400)
-    #: How many books to make of this album at once. Each draws its own pictures.
+    #: How many books to make of these folders at once. Each draws its own pictures.
     count: int = Field(default=1, ge=1, le=20)
     title: str = ""
 

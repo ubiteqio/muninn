@@ -74,12 +74,53 @@ async def an_album_of(session: AsyncSession, name: str, pictures: int = 12) -> A
     return album
 
 
+class TestSeveralFolders:
+    """Some folders belong together: a holiday split into days, a year kept month by month."""
+
+    async def test_a_book_draws_from_every_folder_it_was_given(self, session: AsyncSession) -> None:
+        first = await an_album_of(session, "Estland/Tag 1", pictures=6)
+        second = await an_album_of(session, "Estland/Tag 2", pictures=6)
+
+        (book,) = await service.create(session, albums=[first, second])
+        await service.build(session, book)
+
+        assert book.media_count > 0
+        # Both folders are in it, and the book hangs in the first of them.
+        assert set(await service.albums_of(session, book)) == {first.id, second.id}
+        assert book.album_id == first.id
+        assert len(await service.shots_of(session, [first.id, second.id])) == 12
+
+    async def test_folders_of_one_parent_lend_the_book_that_parent_name(
+        self, session: AsyncSession
+    ) -> None:
+        above = await an_album(session, "Estland")
+        first = await an_album_of(session, "Estland/Tag 1", pictures=4)
+        second = await an_album_of(session, "Estland/Tag 2", pictures=4)
+        first.parent_id = above.id
+        second.parent_id = above.id
+        await session.commit()
+
+        (book,) = await service.create(session, albums=[first, second])
+
+        assert book.title == above.display_title
+
+    async def test_a_book_of_one_folder_is_still_a_book_of_that_folder(
+        self, session: AsyncSession
+    ) -> None:
+        album = await an_album_of(session, "Estland", pictures=6)
+
+        (book,) = await service.create(session, albums=[album])
+
+        assert book.title == album.display_title
+        assert await service.albums_of(session, book) == [album.id]
+
+
 class TestBuilding:
     async def test_a_book_is_built_from_the_album_with_pages_and_a_cover(
         self, session: AsyncSession
     ) -> None:
         album = await an_album_of(session, "Estland")
-        (book,) = await service.create(session, album=album, size=SIZE_LARGE, max_media=150)
+        (book,) = await service.create(session, albums=[album], size=SIZE_LARGE, max_media=150)
 
         await service.build(session, book)
 
@@ -95,7 +136,7 @@ class TestBuilding:
         self, session: AsyncSession
     ) -> None:
         album = await an_album_of(session, "Estland")
-        (book,) = await service.create(session, album=album)
+        (book,) = await service.create(session, albums=[album])
 
         await service.build(session, book)
 
@@ -109,7 +150,7 @@ class TestBuilding:
         self, session: AsyncSession
     ) -> None:
         album = await an_album_of(session, "Viele", pictures=40)
-        (book,) = await service.create(session, album=album, size=SIZE_LARGE, max_media=10)
+        (book,) = await service.create(session, albums=[album], size=SIZE_LARGE, max_media=10)
 
         await service.build(session, book)
 
@@ -120,7 +161,7 @@ class TestBuilding:
     ) -> None:
         album = await an_album_of(session, "Estland", pictures=40)
         first, second = await service.create(
-            session, album=album, size=SIZE_SMALL, max_media=150, count=2
+            session, albums=[album], size=SIZE_SMALL, max_media=150, count=2
         )
 
         await service.build(session, first)
@@ -135,11 +176,11 @@ class TestBuilding:
         self, session: AsyncSession
     ) -> None:
         album = await an_album_of(session, "Estland", pictures=40)
-        (book,) = await service.create(session, album=album, size=SIZE_SMALL, max_media=150)
+        (book,) = await service.create(session, albums=[album], size=SIZE_SMALL, max_media=150)
 
         await service.build(session, book)
         chosen = _media_in(book)
-        first = await service.shots_of(session, album.id)
+        first = await service.shots_of(session, [album.id])
 
         assert first[0].id in chosen
         assert first[-1].id in chosen
@@ -149,7 +190,7 @@ class TestBuilding:
     ) -> None:
         album = await an_album(session, "Leer")
         await session.commit()
-        (book,) = await service.create(session, album=album)
+        (book,) = await service.create(session, albums=[album])
 
         await service.build(session, book)
 
@@ -160,7 +201,7 @@ class TestBuilding:
         self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         album = await an_album_of(session, "Estland", pictures=6)
-        (book,) = await service.create(session, album=album)
+        (book,) = await service.create(session, albums=[album])
 
         async def wrote(_writer: object, pages: list[dict[str, object]], **_: object) -> int:
             for page in pages:
@@ -180,7 +221,7 @@ class TestBuilding:
         self, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         album = await an_album_of(session, "Estland", pictures=6)
-        (book,) = await service.create(session, album=album)
+        (book,) = await service.create(session, albums=[album])
 
         async def refused(*_: object, **__: object) -> int:
             raise AiError("Die Maschine ist aus.")
@@ -227,7 +268,7 @@ class TestApi:
         session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         album = await an_album_of(session, "Estland")
-        (book,) = await service.create(session, album=album)
+        (book,) = await service.create(session, albums=[album])
         await service.build(session, book)
         await session.commit()
         await create_user(session_factory, username="anna", display_name="Anna")
@@ -251,13 +292,13 @@ class TestApi:
         session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         album = await an_album_of(session, "Estland")
-        (book,) = await service.create(session, album=album)
+        (book,) = await service.create(session, albums=[album])
         await session.commit()
         await create_user(session_factory, username="anna", display_name="Anna")
         headers = auth_header(await login(api_client, username="anna"))
 
         made = await api_client.post(
-            "/photobooks", json={"album_id": str(album.id)}, headers=headers
+            "/photobooks", json={"album_ids": [str(album.id)]}, headers=headers
         )
         removed = await api_client.delete(f"/photobooks/{book.id}", headers=headers)
 
@@ -279,7 +320,7 @@ class TestApi:
         answer = await api_client.post(
             "/photobooks",
             json={
-                "album_id": str(album.id),
+                "album_ids": [str(album.id)],
                 "size": SIZE_SMALL,
                 "max_media": 20,
                 "count": 3,
@@ -300,7 +341,7 @@ class TestApi:
         session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         album = await an_album_of(session, "Estland")
-        (book,) = await service.create(session, album=album)
+        (book,) = await service.create(session, albums=[album])
         await service.build(session, book)
         await session.commit()
         await create_user(
@@ -312,7 +353,7 @@ class TestApi:
 
         assert gone.status_code == 204
         assert await service.listed(session) == []
-        assert len(await service.shots_of(session, album.id)) == 12
+        assert len(await service.shots_of(session, [album.id])) == 12
 
     async def test_a_book_nobody_made(
         self,
@@ -341,7 +382,7 @@ class TestApi:
 
         answer = await api_client.post(
             "/photobooks",
-            json={"album_id": str(album.id), "size": "riesig"},
+            json={"album_ids": [str(album.id)], "size": "riesig"},
             headers=headers,
         )
 

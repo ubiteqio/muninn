@@ -34,6 +34,7 @@ from muninn.models.photobook import (
     STATE_READY,
     STYLE_SCRAPBOOK,
     Photobook,
+    PhotobookAlbum,
 )
 from muninn.models.place import Place
 from muninn.photobooks import pages as layout
@@ -47,24 +48,31 @@ MOST_AT_ONCE = 20
 async def create(
     session: AsyncSession,
     *,
-    album: Album,
+    albums: Sequence[Album],
     size: str = SIZE_MEDIUM,
     max_media: int = DEFAULT_MAX_MEDIA,
     style: str = STYLE_SCRAPBOOK,
     title: str = "",
     count: int = 1,
 ) -> list[Photobook]:
-    """Puts ``count`` books of one album on the shelf, still empty, and hands them back.
+    """Puts ``count`` books of these folders on the shelf, still empty, and hands them back.
 
-    Each gets its own seed, so the second book of an album draws other pictures and finds other
-    words. The pages come later, in the worker: a book of 4500 pictures is not built while an
-    admin waits for the page to answer.
+    Several folders make one book: a holiday split into days, a year kept month by month. The
+    first is where the book hangs in the tree; the rest only bring their pictures.
+
+    Each book gets its own seed, so the second book of the same folders draws other pictures and
+    finds other words. The pages come later, in the worker: a book of 4500 pictures is not built
+    while an admin waits for the page to answer.
     """
+    if not albums:
+        raise ValueError("Ein Buch braucht mindestens einen Ordner.")
+
+    home = albums[0]
     made: list[Photobook] = []
     for number in range(max(1, min(count, MOST_AT_ONCE))):
         book = Photobook(
-            album_id=album.id,
-            title=title or album.display_title,
+            album_id=home.id,
+            title=title or await _named(session, albums),
             style=style,
             size=size,
             max_media=max(1, max_media),
@@ -76,7 +84,41 @@ async def create(
         session.add(book)
         made.append(book)
     await session.flush()
+    for book in made:
+        session.add_all(PhotobookAlbum(photobook_id=book.id, album_id=album.id) for album in albums)
+    await session.flush()
     return made
+
+
+async def _named(session: AsyncSession, albums: Sequence[Album]) -> str:
+    """What a book of several folders is called before an admin says otherwise.
+
+    One folder lends its own name. Several that live in the same folder lend that folder's name
+    - "2014 Italien" rather than "Tag 1 · Tag 2" - and folders from all over the tree are named
+    after the first two of them.
+    """
+    if len(albums) == 1:
+        return albums[0].display_title
+
+    parents = {album.parent_id for album in albums}
+    if len(parents) == 1:
+        above = parents.pop()
+        parent = await session.get(Album, above) if above is not None else None
+        if parent is not None:
+            return parent.display_title
+
+    return " · ".join(album.display_title for album in albums[:2]) + (
+        f" +{len(albums) - 2}" if len(albums) > 2 else ""
+    )
+
+
+async def albums_of(session: AsyncSession, book: Photobook) -> list[uuid.UUID]:
+    """The folders a book draws from. A book from before they were several has only its own."""
+    rows = await session.scalars(
+        select(PhotobookAlbum.album_id).where(PhotobookAlbum.photobook_id == book.id)
+    )
+    found = list(rows)
+    return found or [book.album_id]
 
 
 def _volume(number: int) -> str:
@@ -110,8 +152,8 @@ async def remove(session: AsyncSession, book: Photobook) -> None:
     await session.execute(delete(Photobook).where(Photobook.id == book.id))
 
 
-async def shots_of(session: AsyncSession, album_id: uuid.UUID) -> list[Shot]:
-    """Everything an album shows, with all a book may know about it, oldest first."""
+async def shots_of(session: AsyncSession, album_ids: Sequence[uuid.UUID]) -> list[Shot]:
+    """Everything these folders show, with all a book may know about it, oldest first."""
     confirmed = (
         select(Face.media_id, func.array_agg(func.distinct(Person.name)).label("names"))
         .join(Person, Person.id == Face.person_id)
@@ -132,7 +174,7 @@ async def shots_of(session: AsyncSession, album_id: uuid.UUID) -> list[Shot]:
         .outerjoin(Place, Place.id == Media.place_id)
         .outerjoin(confirmed, confirmed.c.media_id == Media.id)
         .outerjoin(suspected, suspected.c.media_id == Media.id)
-        .where(Media.album_id == album_id, shown(), Media.taken_at.is_not(None))
+        .where(Media.album_id.in_(list(album_ids)), shown(), Media.taken_at.is_not(None))
         .order_by(Media.taken_at, Media.id)
     )
     return [
@@ -179,7 +221,7 @@ async def build(session: AsyncSession, book: Photobook) -> Photobook:
     if album is None:  # pragma: no cover - the foreign key removes the book with the album
         raise ValueError("Zu diesem Buch gibt es kein Album mehr.")
 
-    everything = await shots_of(session, book.album_id)
+    everything = await shots_of(session, await albums_of(session, book))
     picked = chosen(everything, size=book.size, ceiling=book.max_media, seed=book.seed)
     if not picked:
         book.state = STATE_FAILED

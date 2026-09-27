@@ -3273,14 +3273,11 @@ export interface components {
         };
         /**
          * NewPhotobook
-         * @description What an admin says when they make books of an album.
+         * @description What an admin says when they make books of one or more folders.
          */
         NewPhotobook: {
-            /**
-             * Album Id
-             * Format: uuid
-             */
-            album_id: string;
+            /** Album Ids */
+            album_ids: string[];
             /**
              * Size
              * @default medium

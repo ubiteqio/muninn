@@ -6,6 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 from redis.asyncio import Redis
+from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -94,17 +95,23 @@ async def create_books(
             type=UNKNOWN_SHAPE,
         )
 
-    album = await session.get(Album, wanted.album_id)
-    if album is None:
+    # In the order the admin chose them: the first is the one the book belongs to.
+    found = {
+        album.id: album
+        for album in await session.scalars(select(Album).where(Album.id.in_(set(wanted.album_ids))))
+    }
+    albums = [found[album_id] for album_id in wanted.album_ids if album_id in found]
+    if len(albums) != len(wanted.album_ids):
         raise ProblemError(
             status=status.HTTP_404_NOT_FOUND,
-            title="Dieses Album gibt es nicht.",
+            title="Mindestens einen dieser Ordner gibt es nicht.",
             type=NO_ALBUM,
         )
+    album = albums[0]
 
     books = await service.create(
         session,
-        album=album,
+        albums=albums,
         size=wanted.size,
         style=wanted.style,
         max_media=wanted.max_media,

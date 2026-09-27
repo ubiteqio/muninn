@@ -65,9 +65,9 @@ describe('Fotobücher im Admin-Bereich', () => {
 
     await renderScreen(<PhotobooksPage />, { path: '/admin/photobooks' })
 
-    // The tree has to be in before the album can be chosen from it.
-    await screen.findByRole('option', { name: /Urlaub 2024 - Estland/ })
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /^Album/ }), 'album-1')
+    // The folders are walked, not picked from a list of six hundred: the tree has to be in
+    // before one can be ticked.
+    await userEvent.click(await screen.findByRole('button', { name: /Urlaub 2024 - Estland/ }))
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /Umfang/ }), 'large')
     const ceiling = screen.getByRole('spinbutton', { name: /Höchstzahl Bilder/ })
     await userEvent.clear(ceiling)
@@ -82,7 +82,7 @@ describe('Fotobücher im Admin-Bereich', () => {
       expect(calls.filter((call) => call.method === 'POST')).toHaveLength(1)
     })
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
-      album_id: 'album-1',
+      album_ids: ['album-1'],
       size: 'large',
       style: 'scrapbook',
       max_media: 60,
@@ -90,6 +90,31 @@ describe('Fotobücher im Admin-Bereich', () => {
       title: '',
     })
     expect(await screen.findByText(/2 Bücher in Arbeit/)).toBeInTheDocument()
+  })
+
+  it('makes one book of several folders, the first of them its home', async () => {
+    // A holiday split into days is one book, not five. The tree is walked and the folders
+    // that belong together are ticked.
+    const { calls } = stubApi({
+      [TREE]: {
+        body: {
+          items: [
+            anAlbum({ id: 'album-1', title: 'Tag 1', name: 'Tag 1' }),
+            anAlbum({ id: 'album-2', title: 'Tag 2', name: 'Tag 2', media_count: 30 }),
+          ],
+        },
+      },
+      [SHELF]: { body: { items: [] } },
+      [MAKE]: { body: { items: [], job_id: 'job-1' } },
+    })
+
+    await renderScreen(<PhotobooksPage />, { path: '/admin/photobooks' })
+    await userEvent.click(await screen.findByRole('button', { name: /Tag 1/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Tag 2/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Fotobuch erstellen/ }))
+
+    const made = calls.find((call) => call.method === 'POST')
+    expect(made?.body).toMatchObject({ album_ids: ['album-1', 'album-2'] })
   })
 
   it('will not make a book before an album is chosen', async () => {

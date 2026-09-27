@@ -60,6 +60,7 @@ ICONS = [
     "info",
     "ios_share",
     "label",
+    "library_add",
     "light_mode",
     "local_florist",
     "location_city",

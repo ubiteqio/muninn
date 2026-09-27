@@ -22,7 +22,7 @@ from muninn.models.notification import (
     NotificationSettings,
 )
 from muninn.models.pending_file import PendingFile
-from muninn.models.photobook import PHOTOBOOK_VERSION, Photobook
+from muninn.models.photobook import PHOTOBOOK_VERSION, Photobook, PhotobookAlbum
 from muninn.models.place import Place
 from muninn.models.publication import Publication, ScanStatus
 from muninn.models.refresh_token import RefreshToken
@@ -66,6 +66,7 @@ __all__ = [
     "PendingFile",
     "Person",
     "Photobook",
+    "PhotobookAlbum",
     "Place",
     "Publication",
     "RefreshToken",
