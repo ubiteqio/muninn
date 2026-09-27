@@ -62,6 +62,23 @@ const ASK_WITHIN = 3
 /** How long the hand has to rest before the address is told which picture it came to. */
 const SETTLED_MS = 250
 
+/**
+ * Whether an open gallery has to be sent somewhere.
+ *
+ * Only a changed address moves it - a link, the back button, a picture named from elsewhere -
+ * and only when it is not there already. What it must never answer to is its own move: between
+ * a swipe and the navigation that follows, the address still names the picture before, and a
+ * gallery sent back there is a gallery that cannot be moved at all.
+ */
+export function steers(
+  current: string | undefined,
+  seen: string | undefined,
+  at: number,
+  wanted: number,
+): boolean {
+  return current !== seen && at !== wanted
+}
+
 interface Viewer {
   /** Open the gallery at this position in the list it was built with. */
   open: (index: number) => void
@@ -140,8 +157,13 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     latest.current = onCurrentChange
   }, [onCurrentChange])
 
-  /** The medium the gallery was last sent to, so a list that changes does not send it again. */
-  const steered = useRef<string | undefined>(undefined)
+  /**
+   * The medium the address named the last time this looked, so only a change of the address
+   * moves the gallery. Not the medium the gallery moved to of its own accord: between a swipe
+   * and the navigation that follows it, those two are different, and comparing against the
+   * wrong one pulls the picture straight back to where it came from.
+   */
+  const seen = useRef<string | undefined>(undefined)
 
   const ask = useRef(onEndReached)
   useEffect(() => {
@@ -193,13 +215,13 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
        * turned; a list replaced in that moment used to pull the gallery back to where the
        * address still pointed, and the key press looked as if it had done nothing at all.
        */
-      if (current !== steered.current && gallery.current.currIndex !== wanted) {
-        steered.current = current
+      if (steers(current, seen.current, gallery.current.currIndex, wanted)) {
         gallery.current.goTo(wanted)
       }
+      seen.current = current
       return
     }
-    steered.current = current
+    seen.current = current
 
     // Built from the list as it is in this very render: the ref is kept up to date by the
     // effect above, but a gallery must never be able to open on yesterday's pictures.
@@ -302,8 +324,6 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       // arrived since is a picture the address must be able to name, or the viewer would be
       // told that what it is showing does not exist and close itself.
       const moved = listed.current[opened.currIndex]?.id
-      // It went there of its own accord; nothing has to send it.
-      steered.current = moved
       sayLater(moved)
       askIfNearTheEnd()
       // PhotoSwipe keeps the neighbouring slides in the DOM, so a video that is left behind

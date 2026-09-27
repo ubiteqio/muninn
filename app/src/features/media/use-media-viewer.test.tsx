@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { Medium } from '@/features/albums/use-albums'
 import { useAuthStore } from '@/features/auth/auth-store'
-import { useMediaViewer } from '@/features/media/use-media-viewer'
+import { steers, useMediaViewer } from '@/features/media/use-media-viewer'
 import { stubApi } from '@/test/api-stub'
 import { renderScreen } from '@/test/render'
 
@@ -142,6 +142,24 @@ describe('paging between media', () => {
     await screen.findByRole('button', { name: 'Noch einmal (1)' })
 
     expect(goTo).not.toHaveBeenCalled()
+  })
+})
+
+describe('when an open gallery is sent somewhere', () => {
+  /*
+   * The picture moved and the address had not caught up yet, so every swipe and every arrow key
+   * was undone: the gallery turned to the next picture and was sent straight back to the one
+   * the address still named. In an album it looked as though the keys did nothing at all.
+   */
+  it("answers a changed address, and never the gallery's own move", () => {
+    // The address moved on - a link, the back button - and the gallery is elsewhere.
+    expect(steers('media-2', 'media-1', 0, 1)).toBe(true)
+    // The address moved on and the gallery is already there: nothing to do.
+    expect(steers('media-2', 'media-1', 1, 1)).toBe(false)
+    // The gallery turned by itself; the address still names the picture before it.
+    expect(steers('media-1', 'media-1', 1, 0)).toBe(false)
+    // Nothing has changed at all.
+    expect(steers('media-1', 'media-1', 0, 0)).toBe(false)
   })
 })
 
