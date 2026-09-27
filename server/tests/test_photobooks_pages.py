@@ -204,11 +204,27 @@ class TestPages:
         assert kinds[1] == "tag"
         assert "streifen" in kinds
 
-    def test_a_burst_becomes_a_contact_sheet_and_a_handful_a_strip(self) -> None:
+    def test_no_page_holds_more_than_three_pictures(self) -> None:
+        """A dozen on one page is a contact sheet: looked at once and turned over."""
+        book = layout.pages_of([a_shot(at) for at in range(12)])
+
+        for page in book:
+            on_it = (
+                len(page.get("pictures", []))
+                + len(page.get("column", []))
+                + len(page.get("sheet", []))
+                + len(page.get("taped", []))
+                + len(page.get("strip", []))
+                + (1 if page.get("hero") else 0)
+                + (1 if page.get("picture") else 0)
+            )
+            assert on_it <= layout.MOST_ON_A_PAGE, page["kind"]
+
+    def test_a_long_moment_becomes_several_pages_and_a_handful_one_strip(self) -> None:
         many = layout.pages_of([a_shot(at) for at in range(12)])
         few = layout.pages_of([a_shot(at) for at in range(3)])
 
-        assert any(page["kind"] == "kontaktbogen" for page in many)
+        assert sum(1 for page in many if page["kind"] in {"streifen", "zwei"}) >= 4
         assert any(page["kind"] == "streifen" for page in few)
 
     def test_a_single_wide_picture_runs_across_the_page(self) -> None:

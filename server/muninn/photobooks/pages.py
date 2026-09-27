@@ -131,6 +131,9 @@ def by_day(media: Sequence[Shot]) -> dict[date, list[list[Shot]]]:
     return dict(sorted(days.items()))
 
 
+#: How many pictures a page may hold. More than that and one stops looking at them.
+MOST_ON_A_PAGE = 3
+
 #: Between two times, German sets an en dash. Ruff mistrusts it in source; here it is text.
 UNTIL = "\u2013"
 
@@ -400,24 +403,11 @@ def page_for(run: Sequence[Shot], scene: dict[str, Any] | None = None) -> list[d
             return pages
         head = run[0]
 
-    if len(run) >= 10:
-        return [
-            *pages,
-            {
-                "kind": "kontaktbogen",
-                "facts": facts_of(run, scene),
-                "headline": what or "Kurz hintereinander",
-                "note": f"{shots(len(run))} · {span(run)}",
-                "story": story_of(run),
-                "card": place_card(head),
-                "hero": picture(run[len(run) // 2], with_caption=True),
-                "sheet": [picture(one, "thumb") for one in run],
-            },
-        ]
-
+    # Three pictures to a page at most. A page that holds a dozen is a contact sheet, not a
+    # page of a book: one looks at it once and turns over. Three can be shown large enough to
+    # be looked at, so a long moment becomes several pages instead of one crowded one.
     if len(run) >= 5 and any(one.latitude for one in run):
-        return [
-            *pages,
+        pages.append(
             {
                 "kind": "karte",
                 "facts": facts_of(run, scene),
@@ -428,53 +418,55 @@ def page_for(run: Sequence[Shot], scene: dict[str, Any] | None = None) -> list[d
                 "points": [
                     {"lat": one.latitude, "lon": one.longitude} for one in run if one.latitude
                 ],
-                "taped": [picture(one, with_caption=True) for one in run[:2]],
-                "strip": [picture(one, "thumb") for one in run[2:6]],
-            },
-        ]
+                "taped": [picture(run[0], with_caption=True)],
+                "strip": [picture(one, "thumb") for one in run[1:MOST_ON_A_PAGE]],
+            }
+        )
+        run = list(run[MOST_ON_A_PAGE:])
+
+    pages.extend(
+        _a_page(run[at : at + MOST_ON_A_PAGE], scene, what)
+        for at in range(0, len(run), MOST_ON_A_PAGE)
+    )
+    return pages
+
+
+def _a_page(run: Sequence[Shot], scene: dict[str, Any] | None, what: str) -> dict[str, Any]:
+    """One page of at most three: a wide picture alone, three as a strip, one or two as they are."""
+    head = run[0]
+
+    if len(run) == 1 and head.width > head.height:
+        return {
+            "kind": "doppelseite",
+            "facts": facts_of(run, scene),
+            "headline": what or head.place or "",
+            "note": f"{head.place} · {clock(head.taken_at)} Uhr"
+            if head.place
+            else f"{clock(head.taken_at)} Uhr",
+            "story": sentence(head.caption),
+            "picture": picture(head),
+        }
 
     if len(run) >= 3:
         hero = max(run, key=lambda one: (one.people, len(one.caption)))
-        rest = [one for one in run if one.id != hero.id][:3]
-        return [
-            *pages,
-            {
-                "kind": "streifen",
-                "facts": facts_of(run, scene),
-                "headline": what or head.place or "",
-                "note": f"{head.place} · {span(run)}" if head.place else span(run),
-                "story": story_of(run),
-                "card": place_card(head),
-                "hero": picture(hero, with_caption=True),
-                "column": [picture(one, "thumb") for one in rest],
-            },
-        ]
-
-    wide = [one for one in run if one.width > one.height]
-    if wide and len(run) == 1:
-        return [
-            *pages,
-            {
-                "kind": "doppelseite",
-                "facts": facts_of(run, scene),
-                "headline": what or head.place or "",
-                "note": f"{head.place} · {clock(head.taken_at)} Uhr"
-                if head.place
-                else f"{clock(head.taken_at)} Uhr",
-                "story": sentence(head.caption),
-                "picture": picture(wide[0]),
-            },
-        ]
-
-    return [
-        *pages,
-        {
-            "kind": "zwei",
+        rest = [one for one in run if one.id != hero.id]
+        return {
+            "kind": "streifen",
             "facts": facts_of(run, scene),
             "headline": what or head.place or "",
-            "note": span(run) if len(run) > 1 else f"{clock(head.taken_at)} Uhr",
+            "note": f"{head.place} · {span(run)}" if head.place else span(run),
             "story": story_of(run),
             "card": place_card(head),
-            "pictures": [picture(one, with_caption=True) for one in run],
-        },
-    ]
+            "hero": picture(hero, with_caption=True),
+            "column": [picture(one, "thumb") for one in rest],
+        }
+
+    return {
+        "kind": "zwei",
+        "facts": facts_of(run, scene),
+        "headline": what or head.place or "",
+        "note": span(run) if len(run) > 1 else f"{clock(head.taken_at)} Uhr",
+        "story": story_of(run),
+        "card": place_card(head),
+        "pictures": [picture(one, with_caption=True) for one in run],
+    }
