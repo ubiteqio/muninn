@@ -7,7 +7,15 @@ from typing import Any
 from muninn.models.photobook import SIZE_LARGE, SIZE_MEDIUM, SIZE_SMALL
 from muninn.photobooks import pages as layout
 from muninn.photobooks import words
-from muninn.photobooks.selection import Shot, apart, chosen, how_many, spread, thinned
+from muninn.photobooks.selection import (
+    Shot,
+    apart,
+    chosen,
+    how_many,
+    runs_of,
+    spread,
+    thinned,
+)
 
 NOON = datetime(2024, 4, 25, 12, 0, tzinfo=UTC)
 
@@ -128,6 +136,50 @@ class TestSpread:
         album = [a_shot(at) for at in range(5)]
 
         assert spread(album, 10) == album
+
+    def test_whole_moments_are_taken_rather_than_every_nth_picture(self) -> None:
+        """The flaw the real album showed: a book of single pictures.
+
+        Ten afternoons of five shots each, cut to twenty pictures. Taking every other picture
+        leaves twenty moments of one shot, and every page of the book is then one picture on its
+        own - no strip, no contact sheet. Taking whole afternoons leaves pages worth looking at.
+        """
+        album = [
+            a_shot(day * 100 + at, minutes=day * 600 + at, fingerprint=far(day * 100 + at))
+            for day in range(10)
+            for at in range(5)
+        ]
+
+        picked = chosen(album, size=SIZE_SMALL, ceiling=20, seed=3)
+        runs = runs_of(picked)
+
+        assert len(picked) <= 20
+        assert max(len(run) for run in runs) > 1  # at least one moment kept several pictures
+        assert sum(1 for run in runs if len(run) == 1) < len(runs)
+
+    def test_a_picture_dated_by_its_folder_does_not_give_the_book_its_date(self) -> None:
+        """What the real album showed: the book began on the 1st of January.
+
+        A picture whose date comes from the folder name carries the 1st of January, so it sorts
+        in front of everything and became the first picture of the book - and with it the book's
+        first date - although it belongs to an afternoon in April.
+        """
+        january = Shot(
+            id="ffffffff-0000-0000-0000-000000000000",
+            taken_at=datetime(2024, 1, 1, 0, 0, tzinfo=UTC),
+            guessed=True,
+            kind="image",
+            width=4000,
+            height=3000,
+            has_preview=True,
+            tags=("grill",),
+        )
+        april = [a_shot(at, tags=("grill",), fingerprint=far(at)) for at in range(6)]
+
+        picked = chosen([january, *april], size=SIZE_LARGE, ceiling=150)
+
+        assert picked[0].taken_at == april[0].taken_at
+        assert picked[-1].taken_at == april[-1].taken_at
 
     def test_thinning_happens_before_the_spread(self) -> None:
         # Ten pictures, of which eight are the same shot: a book of five cannot be five of those.

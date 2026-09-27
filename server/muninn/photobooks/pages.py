@@ -15,11 +15,10 @@ the writing is that those do not end up under the pictures.
 import hashlib
 from collections import Counter, defaultdict
 from collections.abc import Sequence
-from dataclasses import replace
 from datetime import date, datetime
 from typing import Any
 
-from muninn.photobooks.selection import Shot
+from muninn.photobooks.selection import Shot, placed, runs_of
 
 MONTHS = (
     "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -43,9 +42,6 @@ DOINGS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Im Schnee", ("schnee", "winter", "eis", "schlitten")),
     ("Am Wasser", ("see", "fluss", "boot", "hafen")),
 )
-
-#: How long a gap makes the next picture a new moment.
-GAP_MINUTES = 45
 
 
 def tilt(media_id: str, spread: float = 2.0) -> float:
@@ -126,45 +122,6 @@ def read_lines(ocr: str) -> list[str]:
     pieces = [piece.strip(" .,·") for piece in ocr.replace("\n", " / ").split("/")]
     kept = [piece for piece in pieces if 2 < len(piece) < 46]
     return kept[:7] if kept else [ocr[:60]]
-
-
-def like(one: Shot, other: Shot) -> float:
-    """How much two pictures are about the same thing, by the words the analyzer used."""
-    mine = {*one.tags, one.scene} - {""}
-    theirs = {*other.tags, other.scene} - {""}
-    return len(mine & theirs) / len(mine | theirs) if mine and theirs else 0.0
-
-
-def placed(media: Sequence[Shot]) -> list[Shot]:
-    """Pictures dated only by their folder name, put where they belong by what is in them.
-
-    "Urlaub 2024 - Estland" gives a year and nothing more, so such a picture carries the 1st of
-    January and would open the book on a day that never happened. It belongs to the afternoon
-    whose pictures look most like it, and it shows no time of its own, because none was recorded.
-    """
-    dated = [one for one in media if not one.guessed]
-    guessed = [one for one in media if one.guessed]
-    if not dated or not guessed:
-        return sorted(media, key=lambda one: (one.taken_at, one.id))
-
-    runs = runs_of(dated)
-    settled = list(dated)
-    for one in guessed:
-        home = max(runs, key=lambda run: max(like(one, other) for other in run))
-        settled.append(replace(one, taken_at=home[-1].taken_at))
-    return sorted(settled, key=lambda one: (one.taken_at, one.id))
-
-
-def runs_of(media: Sequence[Shot], gap_minutes: int = GAP_MINUTES) -> list[list[Shot]]:
-    """The pictures grouped into moments: everything taken within three quarters of an hour."""
-    runs: list[list[Shot]] = []
-    for one in media:
-        last = runs[-1][-1] if runs else None
-        if last and (one.taken_at - last.taken_at).total_seconds() <= gap_minutes * 60:
-            runs[-1].append(one)
-        else:
-            runs.append([one])
-    return runs
 
 
 def by_day(media: Sequence[Shot]) -> dict[date, list[list[Shot]]]:
