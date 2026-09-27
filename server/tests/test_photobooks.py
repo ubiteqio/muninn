@@ -90,6 +90,36 @@ class TestSeveralFolders:
         assert book.album_id == first.id
         assert len(await service.shots_of(session, [first.id, second.id])) == 12
 
+    async def test_a_folder_that_only_holds_folders_makes_a_book_of_what_is_in_them(
+        self, session: AsyncSession
+    ) -> None:
+        """A year holds its months, a holiday its days: pointing at one of those used to make a
+        book of nothing."""
+        above = await an_album(session, "Estland")
+        first = await an_album_of(session, "Estland/Tag 1", pictures=6)
+        second = await an_album_of(session, "Estland/Tag 2", pictures=6)
+        first.parent_id = above.id
+        second.parent_id = above.id
+        await session.commit()
+
+        (book,) = await service.create(session, albums=[above])
+        await service.build(session, book)
+
+        assert book.state == STATE_READY
+        assert book.media_count > 0
+
+    async def test_a_folder_deep_below_is_in_it_too(self, session: AsyncSession) -> None:
+        above = await an_album(session, "Estland")
+        middle = await an_album(session, "Estland/2014")
+        below = await an_album_of(session, "Estland/2014/Tag 1", pictures=6)
+        middle.parent_id = above.id
+        below.parent_id = middle.id
+        await session.commit()
+
+        folders = await service.with_everything_below(session, [above.id])
+
+        assert set(folders) == {above.id, middle.id, below.id}
+
     async def test_folders_of_one_parent_lend_the_book_that_parent_name(
         self, session: AsyncSession
     ) -> None:

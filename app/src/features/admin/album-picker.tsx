@@ -39,13 +39,13 @@ export function AlbumPicker({
     return steps
   }, [byId, here])
 
-  const pick = (album: Album, withChildren: boolean) => {
-    const family = withChildren ? [album.id, ...descendants(album.id, tree.data?.children)] : [album.id]
-    const has = chosen.includes(album.id)
+  // A folder means everything in it: the server walks down from what is ticked, so a year
+  // that holds its months is a book of those months.
+  const pick = (album: Album) => {
     onChange(
-      has
-        ? chosen.filter((id) => !family.includes(id))
-        : [...chosen, ...family.filter((id) => !chosen.includes(id))],
+      chosen.includes(album.id)
+        ? chosen.filter((id) => id !== album.id)
+        : [...chosen, album.id],
     )
   }
 
@@ -75,6 +75,7 @@ export function AlbumPicker({
         )}
         {folders.map((album) => {
           const inside = tree.data?.children.get(album.id)?.length ?? 0
+          const pictures = withBelow(album, tree.data?.children)
           const ticked = chosen.includes(album.id)
           return (
             <li key={album.id} className="flex items-center gap-1">
@@ -86,7 +87,7 @@ export function AlbumPicker({
                   ticked && 'text-foreground',
                 )}
                 onClick={() => {
-                  pick(album, false)
+                  pick(album)
                 }}
               >
                 <Symbol
@@ -97,34 +98,21 @@ export function AlbumPicker({
                 />
                 <span className="min-w-0 flex-1 truncate">{album.title}</span>
                 <span className="shrink-0 tabular-nums text-xs-plus text-muted-foreground">
-                  {album.media_count}
+                  {pictures}
                 </span>
               </button>
 
               {inside > 0 && (
-                <>
-                  <button
-                    type="button"
-                    title={t('admin.photobooks.withSubfolders')}
-                    aria-label={t('admin.photobooks.withSubfoldersOf', { name: album.title })}
-                    className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-secondary/60 hover:text-foreground"
-                    onClick={() => {
-                      pick(album, true)
-                    }}
-                  >
-                    <Symbol name="library_add" size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={t('admin.photobooks.open', { name: album.title })}
-                    className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-secondary/60 hover:text-foreground"
-                    onClick={() => {
-                      setAt(album.id)
-                    }}
-                  >
-                    <Symbol name="chevron_right" size={18} />
-                  </button>
-                </>
+                <button
+                  type="button"
+                  aria-label={t('admin.photobooks.open', { name: album.title })}
+                  className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-secondary/60 hover:text-foreground"
+                  onClick={() => {
+                    setAt(album.id)
+                  }}
+                >
+                  <Symbol name="chevron_right" size={18} />
+                </button>
               )}
             </li>
           )
@@ -134,10 +122,10 @@ export function AlbumPicker({
   )
 }
 
-/** Every folder below this one, at any depth. */
-function descendants(id: string, children: Map<string | null, Album[]> | undefined): string[] {
-  const below = children?.get(id) ?? []
-  return below.flatMap((album) => [album.id, ...descendants(album.id, children)])
+/** What a book of this folder would draw on: its own pictures and those of every folder in it. */
+export function withBelow(album: Album, children: Map<string | null, Album[]> | undefined): number {
+  const below = children?.get(album.id) ?? []
+  return album.media_count + below.reduce((all, one) => all + withBelow(one, children), 0)
 }
 
 function Step({

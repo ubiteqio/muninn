@@ -6,14 +6,14 @@ import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { AdminArea } from '@/features/admin/admin-area'
-import { AlbumPicker } from '@/features/admin/album-picker'
+import { AlbumPicker, withBelow } from '@/features/admin/album-picker'
+import { useAlbumTree } from '@/features/albums/use-albums'
 import { Field } from '@/features/auth/field'
 import {
   type Photobook,
   useMakePhotobooks,
   usePhotobooks,
   usePhotobookUpdates,
-  usePublishedAlbums,
   useRebuildPhotobook,
   useRemovePhotobook,
 } from '@/features/photobooks/use-photobooks'
@@ -30,7 +30,6 @@ const SIZES = ['small', 'medium', 'large'] as const
  */
 export function PhotobooksPage() {
   const { t } = useTranslation()
-  const albums = usePublishedAlbums()
   const shelf = usePhotobooks()
   const make = useMakePhotobooks()
   usePhotobookUpdates()
@@ -58,11 +57,7 @@ export function PhotobooksPage() {
               <div className="mt-1.5">
                 <AlbumPicker chosen={chosen} onChange={setChosen} />
               </div>
-              <Chosen
-                chosen={chosen}
-                onChange={setChosen}
-                albums={albums.data ?? []}
-              />
+              <Chosen chosen={chosen} onChange={setChosen} />
               <span className="mt-1 block text-2xs text-muted-foreground">
                 {t('admin.photobooks.albumHint')}
               </span>
@@ -285,19 +280,23 @@ function BookRow({ book }: { book: Photobook }) {
 /** The folders a book will be made of, in the order they were ticked. */
 function Chosen({
   chosen,
-  albums,
   onChange,
 }: {
   chosen: string[]
-  albums: { id: string; title: string; relative_path: string; media_count: number }[]
   onChange: (chosen: string[]) => void
 }) {
   const { t } = useTranslation()
+  const tree = useAlbumTree()
   if (chosen.length === 0) return null
 
-  const byId = new Map(albums.map((album) => [album.id, album]))
-  const picked = chosen.map((id) => byId.get(id)).filter((album) => album !== undefined)
-  const pictures = picked.reduce((all, album) => all + album.media_count, 0)
+  const picked = chosen
+    .map((id) => tree.data?.byId.get(id))
+    .filter((album) => album !== undefined)
+  // What the book will draw on, counted the way the picker counts it: with everything below.
+  const pictures = picked.reduce(
+    (all, album) => all + withBelow(album, tree.data?.children),
+    0,
+  )
 
   return (
     <div className="mt-2">
@@ -315,7 +314,9 @@ function Chosen({
             >
               {index === 0 && <Symbol name="star" size={13} filled className="text-primary" />}
               <span className="max-w-[180px] truncate">{album.title}</span>
-              <span className="tabular-nums text-muted-foreground">{album.media_count}</span>
+              <span className="tabular-nums text-muted-foreground">
+                {withBelow(album, tree.data?.children)}
+              </span>
               <Symbol name="close" size={14} className="text-muted-foreground" />
             </button>
           </li>

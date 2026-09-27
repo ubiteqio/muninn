@@ -121,6 +121,26 @@ async def albums_of(session: AsyncSession, book: Photobook) -> list[uuid.UUID]:
     return found or [book.album_id]
 
 
+async def with_everything_below(
+    session: AsyncSession, album_ids: Sequence[uuid.UUID]
+) -> list[uuid.UUID]:
+    """The chosen folders and every folder inside them, however deep.
+
+    A folder is what one points at, and what one means is everything in it. Many folders hold
+    nothing themselves - a year that holds its months, a holiday that holds its days - and a
+    book of one of those would otherwise be a book of nothing.
+    """
+    if not album_ids:
+        return []
+
+    chosen = (
+        select(Album.id).where(Album.id.in_(list(album_ids))).cte("chosen_albums", recursive=True)
+    )
+    tree = chosen.union_all(select(Album.id).join(chosen, Album.parent_id == chosen.c.id))
+    rows = await session.scalars(select(tree.c.id))
+    return list(rows)
+
+
 def _volume(number: int) -> str:
     """Several books of one album are told apart by a number, not by their dates."""
     return ("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X")[number % 10]
@@ -221,11 +241,18 @@ async def build(session: AsyncSession, book: Photobook) -> Photobook:
     if album is None:  # pragma: no cover - the foreign key removes the book with the album
         raise ValueError("Zu diesem Buch gibt es kein Album mehr.")
 
-    everything = await shots_of(session, await albums_of(session, book))
+    # Expanded when the book is built, not when it is ordered: a folder that gains a subfolder
+    # afterwards belongs to the book the next time it is made.
+    folders = await with_everything_below(session, await albums_of(session, book))
+    everything = await shots_of(session, folders)
     picked = chosen(everything, size=book.size, ceiling=book.max_media, seed=book.seed)
     if not picked:
         book.state = STATE_FAILED
-        book.trouble = "In diesem Album ist keine Aufnahme mit Datum, aus der ein Buch würde."
+        book.trouble = (
+            "In diesen Ordnern ist keine Aufnahme mit Datum, aus der ein Buch würde."
+            if len(folders) > 1
+            else "In diesem Ordner ist keine Aufnahme mit Datum, aus der ein Buch würde."
+        )
         book.built_at = datetime.now(UTC)
         return book
 
