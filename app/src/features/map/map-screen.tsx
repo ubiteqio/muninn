@@ -1,10 +1,5 @@
-import 'maplibre-gl/dist/maplibre-gl.css'
-
 import { useNavigate } from '@tanstack/react-router'
-import { Map as MapLibre, Marker, NavigationControl, setWorkerUrl } from 'maplibre-gl'
-// MapLibre draws in a worker it loads from its own file, which a bundle does not carry along
-// by itself: Vite builds it into one file here and MapLibre is told where it lies.
-import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
+import { Map as MapLibre, Marker, NavigationControl } from 'maplibre-gl'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +7,7 @@ import { AppShell } from '@/components/layout/app-shell'
 import { ScrollContainerProvider } from '@/components/layout/scroll-container'
 import { Symbol } from '@/components/muninn/symbol'
 import { plainStyle } from '@/features/map/map-style'
+import { prepareMapLibre } from '@/features/map/maplibre'
 import {
   type Bounds,
   type Cluster,
@@ -27,7 +23,7 @@ import { useSocialUpdates } from '@/features/social/use-social'
 import { useDark } from '@/hooks/use-dark'
 import { useMediaQuery, WIDE_QUERY } from '@/hooks/use-media-query'
 
-setWorkerUrl(workerUrl)
+prepareMapLibre()
 
 const VIEW_KEY = 'muninn.map.view'
 /** Germany in the middle, most of Europe around it. */

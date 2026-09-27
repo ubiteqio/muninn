@@ -2,6 +2,7 @@ import { Map as MapLibre } from 'maplibre-gl'
 import { useEffect, useRef } from 'react'
 
 import { inGerman, plainStyle } from '@/features/map/map-style'
+import { prepareMapLibre } from '@/features/map/maplibre'
 import { useMapStyle } from '@/features/map/use-map'
 
 export interface Point {
@@ -35,6 +36,7 @@ export function BookMap({
 
   useEffect(() => {
     if (element.current === null || points.length === 0) return
+    prepareMapLibre()
 
     const shown = whole ? heartland(points) : points
     const map = new MapLibre({
@@ -50,7 +52,17 @@ export function BookMap({
       hideForeignNames(map)
       drawRoute(map, points, whole ?? false)
     })
+
+    // A book builds every page and shows one. A map born on a page that is not on screen
+    // measures nothing, asks for no tiles and stays empty for ever - it has no reason to look
+    // again. This tells it the moment its page has a size.
+    const watching = new ResizeObserver(() => {
+      map.resize()
+    })
+    watching.observe(element.current)
+
     return () => {
+      watching.disconnect()
       map.remove()
     }
   }, [points, whole, ready])
