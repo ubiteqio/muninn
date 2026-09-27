@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PhotoSwipe from 'photoswipe'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Medium } from '@/features/albums/use-albums'
@@ -140,6 +140,53 @@ describe('paging between media', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Noch einmal/ }))
     await screen.findByRole('button', { name: 'Noch einmal (1)' })
+
+    expect(goTo).not.toHaveBeenCalled()
+  })
+})
+
+describe('a list that is read again while somebody browses', () => {
+  it('does not pull the gallery back when the same pictures arrive as a new list', async () => {
+    /*
+     * The album reads itself again every couple of seconds while the NAS is being indexed, and
+     * every answer is a new array of the same pictures. The gallery had moved on; the address
+     * follows a moment later, and the effect that runs on the new list used to send the gallery
+     * back to where the address still pointed. Pressing the arrow key then did nothing at all.
+     */
+    const goTo = vi.spyOn(PhotoSwipe.prototype, 'goTo')
+
+    function Screen() {
+      const [again, setAgain] = useState(0)
+      // A fresh array every time the query answers, holding the very same pictures.
+      const media = useMemo(() => MEDIA.map((one) => ({ ...one })), [again])
+      const viewer = useMediaViewer(media, {
+        current: 'media-1',
+        onCurrentChange: () => undefined,
+        social: false,
+      })
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setAgain((count) => count + 1)
+            }}
+          >
+            {`Gelesen (${String(again)})`}
+          </button>
+          {viewer.panel}
+        </div>
+      )
+    }
+
+    await renderScreen(<Screen />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+    goTo.mockClear()
+
+    await userEvent.click(screen.getByRole('button', { name: /Gelesen/ }))
+    await screen.findByRole('button', { name: 'Gelesen (1)' })
 
     expect(goTo).not.toHaveBeenCalled()
   })

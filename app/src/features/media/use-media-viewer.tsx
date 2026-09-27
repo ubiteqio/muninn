@@ -59,6 +59,9 @@ interface ViewerAddress {
 /** How close to the end the next page is asked for: one picture is not enough warning. */
 const ASK_WITHIN = 3
 
+/** How long the hand has to rest before the address is told which picture it came to. */
+const SETTLED_MS = 250
+
 interface Viewer {
   /** Open the gallery at this position in the list it was built with. */
   open: (index: number) => void
@@ -137,6 +140,9 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     latest.current = onCurrentChange
   }, [onCurrentChange])
 
+  /** The medium the gallery was last sent to, so a list that changes does not send it again. */
+  const steered = useRef<string | undefined>(undefined)
+
   const ask = useRef(onEndReached)
   useEffect(() => {
     ask.current = onEndReached
@@ -158,6 +164,9 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     listed.current = media
     if (gallery.current === null) return
 
+    // What it was built with, as it is now: the filters below answer from the same array, and
+    // anything that reads the source directly must not see the list the gallery opened on.
+    gallery.current.options.dataSource = slides.current
     // The end is only the end when nothing more can come; until then it must not turn round.
     gallery.current.options.loop = !hasMore
     // Still near the end after a page arrived: somebody is going through faster than the pages
@@ -174,11 +183,28 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     }
 
     if (gallery.current) {
-      // Only when it is somewhere else: telling it to go where it already is interrupts the
-      // swipe that is still running.
-      if (gallery.current.currIndex !== wanted) gallery.current.goTo(wanted)
+      /*
+       * Only when the address itself changed - a link, the back button - and only when the
+       * gallery is somewhere else.
+       *
+       * This effect runs again whenever the list is replaced, and on a screen that reads the
+       * library while somebody browses it, that happens every couple of seconds. The address
+       * follows a move by a navigation, which lands a moment after the picture has already
+       * turned; a list replaced in that moment used to pull the gallery back to where the
+       * address still pointed, and the key press looked as if it had done nothing at all.
+       */
+      if (current !== steered.current && gallery.current.currIndex !== wanted) {
+        steered.current = current
+        gallery.current.goTo(wanted)
+      }
       return
     }
+    steered.current = current
+
+    // Built from the list as it is in this very render: the ref is kept up to date by the
+    // effect above, but a gallery must never be able to open on yesterday's pictures.
+    slides.current = media.map((medium) => slideOf(medium, startAt?.get(medium.id)))
+    listed.current = media
 
     const opened = new PhotoSwipe({
       dataSource: slides.current,
@@ -207,6 +233,26 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
     // there - no rebuild, no flicker, and the picture on screen never moves.
     opened.addFilter('numItems', () => slides.current.length)
     opened.addFilter('itemData', (itemData, position) => slides.current[position] ?? itemData)
+
+    /*
+     * The address follows when the hand comes to rest, not at every picture it passes.
+     *
+     * Writing it is a navigation, and a navigation renders the whole screen behind the gallery
+     * - the tree, the grid, the pager, the pills. Holding the arrow key down through an album
+     * then means one of those per picture, and the pictures arrive in fits and starts. What is
+     * on screen is the gallery's own business; the address only has to be right for a link, a
+     * reload and the back button, and a quarter of a second later is soon enough for all three.
+     */
+    let saying: ReturnType<typeof setTimeout> | undefined
+    const sayLater = (mediaId: string | undefined) => {
+      clearTimeout(saying)
+      saying = setTimeout(() => {
+        latest.current(mediaId)
+      }, SETTLED_MS)
+    }
+    opened.on('destroy', () => {
+      clearTimeout(saying)
+    })
 
     /** Near the end: time to ask for the next page, while there are still pictures to look at. */
     const askIfNearTheEnd = () => {
@@ -255,7 +301,10 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
       // The list as it is now, not as it was when this opened: a picture from a page that
       // arrived since is a picture the address must be able to name, or the viewer would be
       // told that what it is showing does not exist and close itself.
-      latest.current(listed.current[opened.currIndex]?.id)
+      const moved = listed.current[opened.currIndex]?.id
+      // It went there of its own accord; nothing has to send it.
+      steered.current = moved
+      sayLater(moved)
       askIfNearTheEnd()
       // PhotoSwipe keeps the neighbouring slides in the DOM, so a video that is left behind
       // plays on - out of sight and, worse, still audible. Only the slide on screen may play.
