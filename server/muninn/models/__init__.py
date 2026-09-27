@@ -22,6 +22,7 @@ from muninn.models.notification import (
     NotificationSettings,
 )
 from muninn.models.pending_file import PendingFile
+from muninn.models.photobook import PHOTOBOOK_VERSION, Photobook
 from muninn.models.place import Place
 from muninn.models.publication import Publication, ScanStatus
 from muninn.models.refresh_token import RefreshToken
@@ -33,6 +34,7 @@ from muninn.models.withdrawn import WithdrawnMedium
 
 __all__ = [
     "GIVE_UP_AFTER",
+    "PHOTOBOOK_VERSION",
     "SMART_VERSION",
     "Album",
     "AppSettings",
@@ -63,6 +65,7 @@ __all__ = [
     "NotificationSettings",
     "PendingFile",
     "Person",
+    "Photobook",
     "Place",
     "Publication",
     "RefreshToken",

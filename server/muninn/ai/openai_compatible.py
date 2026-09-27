@@ -1,7 +1,8 @@
 """Talking to an OpenAI-compatible server: the API vLLM, Ollama and the others all speak."""
 
+import json
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import httpx
@@ -446,6 +447,89 @@ CONNECT_SECONDS = 5
 def _timeout(seconds: int) -> httpx.Timeout:
     """The profile's time for the answer, but a short one for getting through at all."""
     return httpx.Timeout(seconds, connect=min(CONNECT_SECONDS, seconds))
+
+
+class OpenAiWriter:
+    """Prose from a chat model behind /v1/chat/completions, answered as JSON.
+
+    Nothing here knows what it is writing about: the rules and the facts come from the domain
+    that wants the text, and the model, the address and the key come from the profile.
+    """
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: str = "",
+        timeout_seconds: int = 120,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+        self._api_key = api_key
+        self._timeout = timeout_seconds
+        self._client = client
+
+    async def write(
+        self,
+        facts: Mapping[str, Any],
+        *,
+        rules: str,
+        temperature: float = 0.8,
+        most: int = 500,
+    ) -> dict[str, Any]:
+        answer = _message_of(
+            await post_json(
+                f"{self._base_url}/chat/completions",
+                {
+                    "model": self._model,
+                    "messages": [
+                        {"role": "system", "content": rules},
+                        {"role": "user", "content": json.dumps(facts, ensure_ascii=False)},
+                    ],
+                    "temperature": temperature,
+                    "max_tokens": most,
+                    "response_format": {"type": "json_object"},
+                },
+                api_key=self._api_key,
+                timeout_seconds=self._timeout,
+                client=self._client,
+            )
+        )
+        return _object_in(answer, self._model)
+
+    async def check(self) -> Check:
+        started = time.perf_counter()
+        try:
+            written = await self.write(
+                {"probe": "Sag Hallo."},
+                rules='Antworte nur mit JSON: {"hallo": "..."}',
+                temperature=0,
+                most=30,
+            )
+        except AiError as error:
+            return Check(ok=False, detail=str(error), milliseconds=_since(started))
+        return Check(
+            ok=bool(written),
+            detail=f"{self._model} antwortet in JSON.",
+            milliseconds=_since(started),
+        )
+
+
+def _object_in(answer: str, model: str) -> dict[str, Any]:
+    """The JSON object in an answer that may carry a sentence or a fence around it."""
+    text = _without_fences(answer)
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end < start:
+        raise AiError(f"{model} antwortet nicht in JSON.")
+    try:
+        written = json.loads(text[start : end + 1])
+    except json.JSONDecodeError as error:
+        raise AiError(f"{model} antwortet mit unlesbarem JSON: {error}") from error
+    if not isinstance(written, dict):
+        raise AiError(f"{model} antwortet mit {type(written).__name__} statt einem Objekt.")
+    return written
 
 
 async def post_json(

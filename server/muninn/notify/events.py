@@ -36,6 +36,9 @@ PEOPLE_TOPIC = "people"
 #: exist, and opening one of them would find nothing.
 SMARTS_TOPIC = "smarts"
 
+#: Fotobücher: one was made, built or removed, so every open shelf reads itself again.
+PHOTOBOOKS_TOPIC = "photobooks"
+
 
 async def publish(redis: Redis, topic: str, **payload: Any) -> None:
     """Tell whoever is listening that something happened. Nobody listening is not an error."""

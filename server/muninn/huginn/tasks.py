@@ -24,12 +24,14 @@ from muninn.huginn.runtime import run, session_scope
 from muninn.library import service
 from muninn.media import service as media_service
 from muninn.memories import service as memories_service
+from muninn.models import photobook
 from muninn.models.ai import AiKind
 from muninn.models.change_log import SyncTrigger
 from muninn.models.notification import NotificationKind
 from muninn.models.publication import ScanStatus
 from muninn.notify import events
 from muninn.notify import service as notify_service
+from muninn.photobooks import service as photobooks_service
 from muninn.places import service as places_service
 from muninn.search import service as search_service
 from muninn.settings import service as settings_service
@@ -188,6 +190,17 @@ def build_smarts() -> int:
     return run(_build_smarts())
 
 
+@celery_app.task(name="muninn.build_photobooks", queue="scan")
+def build_photobooks(book_ids: list[str]) -> int:
+    """Build these photo books: choose the pictures, lay out the pages, ask for the words.
+
+    On the scan queue rather than the AI queue, although it does talk to the machine: one book
+    is a handful of minutes of small text prompts, and it must not sit behind a night of picture
+    descriptions while an admin waits for their shelf to fill.
+    """
+    return run(_build_photobooks([uuid.UUID(one) for one in book_ids]))
+
+
 @celery_app.task(name="muninn.clean_derived", queue="scan")
 def clean_derived() -> int:
     """Remove previews that belong to no medium any more."""
@@ -211,6 +224,35 @@ async def _build_smarts() -> int:
         ", ".join(f"{kind} {count}" for kind, count in sorted(done.by_kind.items())),
     )
     return done.chapters
+
+
+async def _build_photobooks(book_ids: list[uuid.UUID]) -> int:
+    """One book at a time, each in its own transaction: a book that fails leaves the rest."""
+    done = 0
+    for book_id in book_ids:
+        async with session_scope() as session:
+            book = await photobooks_service.get(session, book_id)
+            if book is None:
+                continue
+            try:
+                await photobooks_service.build(session, book)
+            except Exception as error:
+                book.state = photobook.STATE_FAILED
+                book.trouble = f"{type(error).__name__}: {error}"
+                logger.exception("Fotobuch %s ist nicht entstanden", book_id)
+            else:
+                done += 1
+            await session.commit()
+            built = book.page_count
+
+        logger.info("Fotobuch %s: %d Seiten, Texte: %s", book_id, built, book.written)
+
+    redis = jobs.connect()
+    try:
+        await events.publish(redis, events.PHOTOBOOKS_TOPIC, kind="built", books=done)
+    finally:
+        await redis.aclose()
+    return done
 
 
 async def _tick() -> list[str]:
