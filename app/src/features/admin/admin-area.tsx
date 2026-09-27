@@ -9,7 +9,14 @@ import { useAuthStore } from '@/features/auth/auth-store'
 import { cn } from '@/lib/utils'
 
 export type AdminSection =
-  'report' | 'settings' | 'folders' | 'jobs' | 'ai' | 'users' | 'duplicates'
+  | 'report'
+  | 'settings'
+  | 'folders'
+  | 'jobs'
+  | 'ai'
+  | 'users'
+  | 'duplicates'
+  | 'photobooks'
 
 const SECTIONS = [
   { id: 'settings', to: '/admin/settings' },
@@ -18,6 +25,7 @@ const SECTIONS = [
   { id: 'ai', to: '/admin/ai' },
   { id: 'users', to: '/admin/users' },
   { id: 'duplicates', to: '/admin/duplicates' },
+  { id: 'photobooks', to: '/admin/photobooks' },
 ] as const
 
 /**

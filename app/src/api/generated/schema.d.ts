@@ -1155,6 +1155,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/photobooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every photo book
+         * @description The shelf, newest first.
+         *
+         *     Everybody signed in reads the books; only an admin makes and removes them. A book that is
+         *     still being built is listed with its state, so nobody wonders where it went.
+         */
+        get: operations["list_books_api_v1_photobooks_get"];
+        put?: never;
+        /**
+         * Make books of an album
+         * @description Puts the books on the shelf and hands the building to the worker.
+         *
+         *     Answered at once, because building a book of a large album takes longer than a request may:
+         *     the pictures are chosen and laid out, and then the machine is asked for the prose, page by
+         *     page. Until that is done the books are listed as "wird gebaut".
+         */
+        post: operations["create_books_api_v1_photobooks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/photobooks/{book_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One photo book, with its pages
+         * @description The whole book. Every picture on every page carries an address signed for this hour.
+         */
+        get: operations["read_book_api_v1_photobooks__book_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove a photo book
+         * @description Removes the book and nothing else: not one picture is touched by this.
+         */
+        delete: operations["delete_book_api_v1_photobooks__book_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/photobooks/{book_id}/rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build a book anew
+         * @description The same book, built again - for when the album has grown, or the machine was away while
+         *     it was made and its pages still speak in dates rather than in sentences.
+         */
+        post: operations["rebuild_book_api_v1_photobooks__book_id__rebuild_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/media/{media_id}/like": {
         parameters: {
             query?: never;
@@ -3196,6 +3272,42 @@ export interface components {
             parent_id?: string | null;
         };
         /**
+         * NewPhotobook
+         * @description What an admin says when they make books of an album.
+         */
+        NewPhotobook: {
+            /**
+             * Album Id
+             * Format: uuid
+             */
+            album_id: string;
+            /**
+             * Size
+             * @default medium
+             */
+            size: string;
+            /**
+             * Style
+             * @default scrapbook
+             */
+            style: string;
+            /**
+             * Max Media
+             * @default 150
+             */
+            max_media: number;
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+        };
+        /**
          * NotificationSettingsView
          * @description Which events also come as a push notification, and the quiet hours without any.
          *
@@ -3437,6 +3549,123 @@ export interface components {
             display_name: string;
             /** Username */
             username: string;
+        };
+        /** PhotobookList */
+        PhotobookList: {
+            /** Items */
+            items: components["schemas"]["PhotobookView"][];
+        };
+        /**
+         * PhotobookQueued
+         * @description The books that were put on the shelf, and the job that fills them.
+         */
+        PhotobookQueued: {
+            /** Items */
+            items: components["schemas"]["PhotobookView"][];
+            /** Job Id */
+            job_id?: string | null;
+        };
+        /**
+         * PhotobookRead
+         * @description The book itself: its pages, with every picture addressed and signed for this hour.
+         */
+        PhotobookRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Album Id
+             * Format: uuid
+             */
+            album_id: string;
+            /** Album */
+            album: string;
+            /** Title */
+            title: string;
+            /** Subtitle */
+            subtitle: string;
+            /** Style */
+            style: string;
+            /** Size */
+            size: string;
+            /** State */
+            state: string;
+            /** Written */
+            written: boolean;
+            /** Trouble */
+            trouble: string;
+            /** Pages */
+            pages: number;
+            /** Media */
+            media: number;
+            /** Cover */
+            cover: string | null;
+            /** From At */
+            from_at: string | null;
+            /** Until At */
+            until_at: string | null;
+            /** Built At */
+            built_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Leaves */
+            leaves: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * PhotobookView
+         * @description One book on the shelf: everything the list of books shows.
+         */
+        PhotobookView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Album Id
+             * Format: uuid
+             */
+            album_id: string;
+            /** Album */
+            album: string;
+            /** Title */
+            title: string;
+            /** Subtitle */
+            subtitle: string;
+            /** Style */
+            style: string;
+            /** Size */
+            size: string;
+            /** State */
+            state: string;
+            /** Written */
+            written: boolean;
+            /** Trouble */
+            trouble: string;
+            /** Pages */
+            pages: number;
+            /** Media */
+            media: number;
+            /** Cover */
+            cover: string | null;
+            /** From At */
+            from_at: string | null;
+            /** Until At */
+            until_at: string | null;
+            /** Built At */
+            built_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** PlaceList */
         PlaceList: {
@@ -6212,6 +6441,161 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BuildResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_books_api_v1_photobooks_get: {
+        parameters: {
+            query?: {
+                album_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotobookList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_books_api_v1_photobooks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPhotobook"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotobookQueued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_book_api_v1_photobooks__book_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotobookRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_book_api_v1_photobooks__book_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rebuild_book_api_v1_photobooks__book_id__rebuild_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                book_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotobookQueued"];
                 };
             };
             /** @description Validation Error */

@@ -6,6 +6,7 @@ import {
   adminDuplicatesRoute,
   adminFoldersRoute,
   adminJobsRoute,
+  adminPhotobooksRoute,
   adminRoute,
   adminSettingsRoute,
   adminUsersRoute,
@@ -19,6 +20,8 @@ import {
   overviewRoute,
   peopleRoute,
   personRoute,
+  photobookRoute,
+  photobooksRoute,
   profileRoute,
   searchRoute,
   smartsRoute,
@@ -37,6 +40,8 @@ const routeTree = rootRoute.addChildren([
   albumRoute,
   smartsRoute,
   chapterRoute,
+  photobooksRoute,
+  photobookRoute,
   favoritesRoute,
   searchRoute,
   mapRoute,
@@ -50,6 +55,7 @@ const routeTree = rootRoute.addChildren([
   adminSettingsRoute,
   adminUsersRoute,
   adminDuplicatesRoute,
+  adminPhotobooksRoute,
   overviewRoute,
 ])
 

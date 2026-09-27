@@ -4,6 +4,7 @@ import { AdminAiPage } from '@/features/admin/ai-page'
 import { AdminDuplicatesPage } from '@/features/admin/duplicates-page'
 import { AdminFoldersPage } from '@/features/admin/folders-page'
 import { AdminJobsPage } from '@/features/admin/jobs-page'
+import { PhotobooksPage } from '@/features/admin/photobooks-page'
 import { AdminSettingsPage } from '@/features/admin/settings-page'
 import { AdminUsersPage } from '@/features/admin/users-page'
 import { AlbumsScreen } from '@/features/albums/albums-screen'
@@ -12,6 +13,7 @@ import { IntroScreen } from '@/features/home/intro-screen'
 import { OverviewScreen } from '@/features/overview/overview-screen'
 import { PeopleScreen, type PeopleSearch } from '@/features/people/people-screen'
 import { PersonScreen } from '@/features/people/person-screen'
+import { PhotobooksScreen } from '@/features/photobooks/photobooks-screen'
 import { ProfileScreen } from '@/features/profile/profile-screen'
 import { SearchScreen } from '@/features/search/search-screen'
 import { ChapterScreen } from '@/features/smarts/chapter-screen'
@@ -150,6 +152,12 @@ export const overviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/overview',
   component: OverviewScreen,
+})
+
+export const adminPhotobooksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/photobooks',
+  component: PhotobooksPage,
 })
 
 export const adminDuplicatesRoute = createRoute({
@@ -304,6 +312,26 @@ export const smartsRoute = createRoute({
 
 function SmartsRoute() {
   return <SmartsScreen {...smartsRoute.useSearch()} />
+}
+
+export const photobooksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/photobooks',
+  component: PhotobooksRoute,
+})
+
+function PhotobooksRoute() {
+  return <PhotobooksScreen />
+}
+
+export const photobookRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/photobooks/$bookId',
+  component: PhotobookRoute,
+})
+
+function PhotobookRoute() {
+  return <PhotobooksScreen bookId={photobookRoute.useParams().bookId} />
 }
 
 export const chapterRoute = createRoute({

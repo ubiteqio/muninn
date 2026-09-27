@@ -10,13 +10,15 @@ export const NAVIGATION = [
 ] as const
 
 /**
- * What "Alben" opens: the folders as they lie on the NAS, and the Smarts - the same media
- * sorted by what is in them. Both are ways into the library, so they hang on one destination
- * rather than taking two places in a rail that has five.
+ * What "Alben" opens: the folders as they lie on the NAS, the Smarts - the same media sorted by
+ * what is in them - and the Fotobücher, an album made into something that is read from front to
+ * back. Three ways into the library, so they hang on one destination rather than taking three
+ * places in a rail that has five.
  */
 export const ALBUM_WAYS = [
   { id: 'folders', icon: 'folder', to: '/albums' },
   { id: 'smarts', icon: 'auto_awesome', to: '/smarts' },
+  { id: 'photobooks', icon: 'menu_book', to: '/photobooks' },
 ] as const
 
 /** Personen: after the map in the rail, and in the phone's bottom bar. */
