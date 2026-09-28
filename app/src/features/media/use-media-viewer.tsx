@@ -30,6 +30,15 @@ const LOOK_AT_MOST = 25
  */
 const TOUCHED_BY = ['pointerdown', 'click', 'play', 'pause', 'seeking', 'volumechange'] as const
 
+/**
+ * The strip along the bottom of a video where the browser draws its controls, in pixels.
+ *
+ * A finger that starts there is on the scrubber, not turning the page: dragging the position
+ * along it would otherwise swipe to the next medium. Generous, because the phone lifts its
+ * controls above the home indicator and nobody aims for the bar exactly.
+ */
+const CONTROLS_STRIP = 96
+
 interface ViewerAddress {
   /** The medium the address asks for, or nothing when the album itself is on screen. */
   current: string | undefined
@@ -353,6 +362,13 @@ export function useMediaViewer(media: Medium[], address: ViewerAddress): Viewer 
         window.dispatchEvent(new Event(STIRRED))
       }
       for (const name of TOUCHED_BY) video.addEventListener(name, touched)
+      // PhotoSwipe hears the pointer on its scroll wrapper, above the video. Kept from it, a
+      // finger on the controls works them; everywhere above them it still swipes.
+      video.addEventListener('pointerdown', (event) => {
+        if (event.clientY >= video.getBoundingClientRect().bottom - CONTROLS_STRIP) {
+          event.stopPropagation()
+        }
+      })
     })
     // The slide one leaves: its content goes, but a video that was playing carries on - taken
     // out of the page it keeps its sound. This is the moment to stop it.

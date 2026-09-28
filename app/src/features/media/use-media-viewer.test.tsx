@@ -443,6 +443,34 @@ describe('useMediaViewer', () => {
     }
   })
 
+  it('leaves a finger on the video controls to the controls, and swipes above them', async () => {
+    // Dragging the position along the scrubber turned to the next film instead.
+    const played = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+
+    try {
+      await renderScreen(<Album current="film-1" media={[aVideo('film-1'), aVideo('film-2')]} />)
+
+      const video = await waitFor(() => {
+        const found = document.querySelector<HTMLVideoElement>('.pswp__item video')
+        expect(found).not.toBeNull()
+        return found as HTMLVideoElement
+      })
+      vi.spyOn(video, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 400, 800))
+      const heard = vi.fn()
+      document.querySelector('.pswp__scroll-wrap')?.addEventListener('pointerdown', heard)
+      const press = (clientY: number) =>
+        video.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY }))
+
+      press(780)
+      expect(heard).not.toHaveBeenCalled()
+
+      press(400)
+      expect(heard).toHaveBeenCalledOnce()
+    } finally {
+      played.mockRestore()
+    }
+  })
+
   it('offers an admin what the pipeline can do to the picture, and nobody else', async () => {
     stubApi({
       'GET /api/v1/media/media-2': { body: { ...MEDIA[1], analysis: null, transcript: null } },
