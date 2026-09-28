@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -171,6 +171,24 @@ describe('Fotobücher', () => {
 
     await userEvent.keyboard('{Escape}')
 
+    expect(left).toHaveBeenCalledOnce()
+  })
+
+  it('closes with a swipe down, and a page turn that wobbles does not close it', () => {
+    // On a phone the cross sat under the status bar, out of reach of a finger.
+    const left = vi.fn()
+    const { container } = render(<BookReader pages={LEAVES} title="Estland" onLeave={left} />)
+    const book = container.querySelector('.book') as HTMLElement
+    const swipe = (dx: number, dy: number) => {
+      fireEvent.touchStart(book, { touches: [{ clientX: 200, clientY: 200 }] })
+      fireEvent.touchEnd(book, { changedTouches: [{ clientX: 200 + dx, clientY: 200 + dy }] })
+    }
+
+    swipe(-120, 40)
+    swipe(0, -150)
+    expect(left).not.toHaveBeenCalled()
+
+    swipe(20, 150)
     expect(left).toHaveBeenCalledOnce()
   })
 

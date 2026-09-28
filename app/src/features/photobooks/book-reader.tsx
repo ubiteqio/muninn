@@ -13,13 +13,16 @@ const SPREAD_FROM = 900
 /** A swipe shorter than this is somebody holding the phone, not turning a page. */
 const SWIPE = 60
 
+/** A swipe down this long puts the book away, as it closes a picture in the viewer. */
+const SWIPE_AWAY = 100
+
 /**
  * A photo book, full screen.
  *
  * Nothing of the app is on screen while it is open: no rail, no header, no bell. A book is read,
  * not operated, so what is left is the fewest possible ways to turn a page - arrow keys, a
- * swipe, and a small bar on a desktop - and Escape, which closes it and hands the reader back
- * to the shelf.
+ * swipe, and a small bar on a desktop - and to close it: Escape, a swipe down, or the cross.
+ * Each hands the reader back to the shelf.
  */
 export function BookReader({
   pages,
@@ -34,7 +37,7 @@ export function BookReader({
   const [at, setAt] = useState(0)
   const [spread, setSpread] = useState(() => howMany())
   const [printing, setPrinting] = useState(false)
-  const from = useRef<number | null>(null)
+  const from = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     const measure = () => {
@@ -98,16 +101,25 @@ export function BookReader({
   }, [])
 
   const onTouchStart = (event: React.TouchEvent) => {
-    from.current = event.touches[0]?.clientX ?? null
+    const touch = event.touches[0]
+    from.current = touch ? { x: touch.clientX, y: touch.clientY } : null
   }
 
+  // Whichever way the finger went further decides: a page turn wobbles up and down a little,
+  // and a swipe down drifts sideways.
   const onTouchEnd = (event: React.TouchEvent) => {
-    const to = event.changedTouches[0]?.clientX ?? null
-    if (from.current !== null && to !== null) {
-      if (from.current - to > SWIPE) step(1)
-      if (to - from.current > SWIPE) step(-1)
-    }
+    const touch = event.changedTouches[0]
+    const start = from.current
     from.current = null
+    if (!touch || !start) return
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+    if (Math.abs(dy) > Math.abs(dx)) {
+      if (dy > SWIPE_AWAY) onLeave()
+      return
+    }
+    if (dx < -SWIPE) step(1)
+    if (dx > SWIPE) step(-1)
   }
 
   const open = printing ? pages : pages.slice(at, at + spread)
@@ -128,7 +140,7 @@ export function BookReader({
         type="button"
         onClick={onLeave}
         aria-label={t('photobooks.close')}
-        className="book-leave fixed top-4 right-4 z-10 flex size-10 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur"
+        className="book-leave fixed top-[max(env(safe-area-inset-top),16px)] right-[max(env(safe-area-inset-right),16px)] z-10 flex size-10 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur"
       >
         <Symbol name="close" size={22} />
       </button>
