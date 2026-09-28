@@ -3,11 +3,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Symbol } from '@/components/muninn/symbol'
 import type { Medium } from '@/features/albums/use-albums'
-import { downloadOriginal } from '@/features/media/original'
 import { STIRRED } from '@/features/media/stirred'
+import { type Handing, useHandOver } from '@/features/media/use-hand-over'
 import { REACTIONS } from '@/features/social/reactions'
 import { useSocial, useToggleFavorite, useToggleLike } from '@/features/social/use-social'
 import { cn } from '@/lib/utils'
+import { isNative } from '@/platform/server'
 
 /** How long the chrome stays after the last sign of life. */
 const REST_MS = 3000
@@ -68,6 +69,8 @@ export function ViewerChrome({
     rest()
   }, [rest])
 
+  const handOver = useHandOver(medium, stir)
+
   useEffect(() => {
     // While the details or the conversation are open, one is reading and answering, not
     // looking at a picture: the chrome has no business fading away under that.
@@ -94,7 +97,8 @@ export function ViewerChrome({
   // spent on that alone - the next one zooms the picture or stops the video. A mouse usually
   // never gets here, because moving wakes the chrome long before anything is clicked; where it
   // does - a window just focused, or a browser pretending to be a phone - a click does it too.
-  const shown = awake || busy
+  // Nor while a file is loading to be saved or shared: the spinning button is the only sign.
+  const shown = awake || busy || handOver.working !== null
 
   useEffect(() => {
     if (shown) return
@@ -182,7 +186,20 @@ export function ViewerChrome({
           onComments={onComments}
           onInfo={onInfo}
           onSimilar={onSimilar}
+          handOver={handOver}
         />
+      </div>
+
+      {/* Above the video's controls, where a thumb is not. */}
+      <div
+        role="status"
+        className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+120px)] flex justify-center px-4"
+      >
+        {handOver.news !== null && (
+          <span className="rounded-full bg-black/70 px-4 py-2 text-sm text-white backdrop-blur-md">
+            {handOver.news}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -240,6 +257,7 @@ function Actions({
   onComments,
   onInfo,
   onSimilar,
+  handOver,
 }: {
   medium: Medium
   social: boolean
@@ -248,13 +266,19 @@ function Actions({
   onComments: () => void
   onInfo: () => void
   onSimilar?: (() => void) | undefined
+  handOver: {
+    working: Handing | null
+    save: () => void
+    share: () => void
+    shareable: boolean
+  }
 }) {
   const { t } = useTranslation()
   const target = { kind: 'media' as const, id: medium.id }
   const state = useSocial(social ? target : undefined).data
   const like = useToggleLike(target)
   const favorite = useToggleFavorite(target)
-  const shareable = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+  const native = isNative()
 
   return (
     /*
@@ -320,21 +344,22 @@ function Actions({
         <Round label={t('media.info.show')} icon="info" onClick={onInfo} />
         {onSimilar && <Round label={t('media.similar')} icon="image_search" onClick={onSimilar} />}
         <Line />
-        {shareable ? (
+        {/* The file itself, never a link: into the phone's photos - a download in a browser -
+          and to another app through the share sheet. */}
+        <Round
+          label={t(native ? 'media.save' : 'media.info.download')}
+          icon={handOver.working === 'save' ? 'sync' : 'download'}
+          spinning={handOver.working === 'save'}
+          disabled={handOver.working !== null}
+          onClick={handOver.save}
+        />
+        {handOver.shareable && (
           <Round
             label={t('media.share')}
-            icon="ios_share"
-            onClick={() => {
-              void navigator.share({ title: medium.origin.filename, url: window.location.href })
-            }}
-          />
-        ) : (
-          <Round
-            label={t('media.info.download')}
-            icon="download"
-            onClick={() => {
-              downloadOriginal(medium)
-            }}
+            icon={handOver.working === 'share' ? 'sync' : 'ios_share'}
+            spinning={handOver.working === 'share'}
+            disabled={handOver.working !== null}
+            onClick={handOver.share}
           />
         )}
       </div>
@@ -352,23 +377,29 @@ function Round({
   icon,
   count,
   filled = false,
+  spinning = false,
+  disabled = false,
   onClick,
 }: {
   label: string
   icon: string
   count?: number | undefined
   filled?: boolean | undefined
+  spinning?: boolean | undefined
+  disabled?: boolean | undefined
   onClick: () => void
 }) {
   return (
     <button
       type="button"
       aria-label={label}
+      aria-busy={spinning || undefined}
       title={label}
-      className="relative flex size-11 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/15"
+      disabled={disabled}
+      className="relative flex size-11 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/15 disabled:opacity-60"
       onClick={onClick}
     >
-      <Symbol name={icon} size={22} filled={filled} />
+      <Symbol name={icon} size={22} filled={filled} className={cn(spinning && 'animate-spin')} />
       {/* In a column there is no room beside the icon, so what there is of a thing is a small
         number on its shoulder. */}
       {count !== undefined && count > 0 && (
