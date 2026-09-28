@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { api, unwrap } from '@/api/client'
 import { isApiError } from '@/api/problem'
 import { ConfirmDialog } from '@/components/muninn/confirm-dialog'
+import { InfoHint } from '@/components/muninn/info-hint'
 import { Symbol } from '@/components/muninn/symbol'
 import { Toggle } from '@/components/muninn/toggle'
 import { Button } from '@/components/ui/button'
@@ -54,10 +55,18 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
   const [done, setDone] = useState(false)
 
   function field(setting: NumericSetting) {
+    const label = t(`admin.settings.field.${setting}.label`)
     return (
       <Field
         key={setting}
-        label={t(`admin.settings.field.${setting}.label`)}
+        label={label}
+        info={
+          <InfoHint about={label}>
+            {explanationOf(t, setting).map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </InfoHint>
+        }
         hint={t(`admin.settings.field.${setting}.hint`, LIMITS[setting])}
         type="number"
         inputMode="numeric"
@@ -257,6 +266,21 @@ function ForgetFaces() {
       )}
     </div>
   )
+}
+
+/**
+ * The paragraphs behind the ⓘ of a setting.
+ *
+ * They are kept as a list in the texts rather than as one long string: a wall of text nobody
+ * reads is exactly what this is meant to avoid. i18next hands a list back as a plain value, so
+ * this is the one place that knows what it asked for.
+ */
+function explanationOf(t: TFunction, setting: NumericSetting): string[] {
+  const written: unknown = t(`admin.settings.field.${setting}.info`, {
+    ...LIMITS[setting],
+    returnObjects: true,
+  })
+  return Array.isArray(written) ? (written as string[]) : []
 }
 
 function draftOf(settings: AppSettings): Draft {

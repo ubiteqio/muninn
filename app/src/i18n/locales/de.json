@@ -4,7 +4,8 @@
     "close": "Schließen",
     "cancel": "Abbrechen",
     "done": "Fertig",
-    "loading": "Wird geladen …"
+    "loading": "Wird geladen …",
+    "explain": "Erklärung: {{name}}"
   },
   "nav": {
     "label": "Hauptnavigation",
@@ -362,51 +363,111 @@
       "field": {
         "thumbnail_size": {
           "label": "Vorschaubild im Raster",
-          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}."
+          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}.",
+          "info": [
+            "Die längste Kante des kleinen Bildes, das im Raster, in der Suche und auf der Startseite steht. Alles, was man scrollt, ist dieses Bild.",
+            "Größer heißt schärfer auf dichten Bildschirmen, aber mehr Platz auf der SSD und mehr Rechenzeit beim Ableiten. 400 reicht für Handy und Rechner; darüber lohnt es sich nur, wenn du das Raster sehr groß stellst.",
+            "Der Wert gilt für alles, was ab jetzt abgeleitet wird. Vorhandene Vorschaubilder bleiben, wie sie sind, bis ein Medium neu abgeleitet wird — einzeln über das ⋯-Menü in der Vollansicht."
+          ]
         },
         "preview_size": {
           "label": "Große Vorschau",
-          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}. Muss größer sein als das Vorschaubild."
+          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}. Muss größer sein als das Vorschaubild.",
+          "info": [
+            "Die längste Kante des großen Bildes in der Vollansicht. Es wird nie größer gerechnet als das Original: ein kleines Bild bleibt klein, statt unscharf aufgeblasen zu werden.",
+            "Größer heißt, dass man beim Hineinzoomen länger etwas sieht, kostet aber Platz und Ladezeit. 2000 bis 2560 ist für Bildschirme richtig, 4000 nur, wenn regelmäßig jemand ins Detail zoomt.",
+            "Muss größer sein als das Vorschaubild im Raster, sonst wird nicht gespeichert. Gilt ebenfalls erst für neu abgeleitete Medien."
+          ]
         },
         "image_quality": {
           "label": "Bildqualität",
-          "hint": "WebP-Qualität, {{min}} bis {{max}}. Höher heißt schöner und größer."
+          "hint": "WebP-Qualität, {{min}} bis {{max}}. Höher heißt schöner und größer.",
+          "info": [
+            "Wie stark die abgeleiteten Bilder komprimiert werden. Sie sind WebP; die Originale auf dem NAS werden nie angefasst, hier geht nichts unwiederbringlich verloren.",
+            "82 bis 88 ist der Bereich, in dem man keinen Unterschied mehr sieht und die Dateien halb so groß sind. Über 92 wachsen die Dateien stark, ohne dass das Auge etwas davon hat.",
+            "Gilt für Vorschaubild, große Vorschau und das Standbild eines Videos gleichermaßen."
+          ]
         },
         "video_height": {
           "label": "Höhe der Videovorschau",
-          "hint": "In Pixeln, {{min}} bis {{max}}. Die Breite ergibt sich aus dem Seitenverhältnis."
+          "hint": "In Pixeln, {{min}} bis {{max}}. Die Breite ergibt sich aus dem Seitenverhältnis.",
+          "info": [
+            "Die Höhe der abgespielten Fassung eines Videos. Browser spielen weder AVI noch MTS noch WMV, deshalb macht Muninn daraus eine MP4-Fassung (H.264, AAC-Ton) — das Original bleibt unberührt.",
+            "Die Breite ergibt sich aus dem Seitenverhältnis, und es wird nie hochgerechnet: ein 480p-Video aus der Videokamera bleibt 480p.",
+            "1080 ist ein guter Wert. 1440 oder 2160 vervielfachen Rechenzeit und Platz, und auf dem Sofa sieht niemand den Unterschied."
+          ]
         },
         "quick_sync_seconds": {
           "label": "Schnell-Abgleich",
-          "hint": "Abstand in Sekunden, {{min}} bis {{max}}. Vergleicht je Ordner die Signatur und liest nur Geändertes."
+          "hint": "Abstand in Sekunden, {{min}} bis {{max}}. Vergleicht je Ordner die Signatur und liest nur Geändertes.",
+          "info": [
+            "Wie oft Muninn nachsieht, ob sich auf dem NAS etwas getan hat. Über SMB gibt es keine Benachrichtigungen — ohne Nachsehen erfährt Muninn nichts.",
+            "Der Schnell-Abgleich bildet je Ordner einen Fingerabdruck aus Namen, Größen und Zeiten der Dateien und liest nur die Ordner, deren Fingerabdruck sich geändert hat. Ein unveränderter Ordner kostet also eine einzige Anfrage.",
+            "Kleiner heißt, dass neue Bilder schneller auftauchen, und mehr Last auf dem NAS. 60 bis 300 Sekunden sind üblich."
+          ]
         },
         "full_sync_hour": {
           "label": "Voll-Abgleich um",
-          "hint": "Stunde der Nacht, {{min}} bis {{max}}. Liest jede Datei einzeln."
+          "hint": "Stunde der Nacht, {{min}} bis {{max}}. Liest jede Datei einzeln.",
+          "info": [
+            "Die Stunde der Nacht, in der Muninn jede Datei einzeln ansieht, statt sich auf die Fingerabdrücke der Ordner zu verlassen. Damit findet er auch, was ein Fingerabdruck nicht verrät.",
+            "In derselben Nacht wird auch aufgeräumt: abgeleitete Ordner, zu denen es kein Medium mehr gibt, werden gelöscht — nur solche, die älter als eine Stunde sind, damit nie etwas weggeräumt wird, das gerade entsteht.",
+            "Leg die Stunde so, dass das NAS sonst nichts zu tun hat. 1 bis 4 Uhr ist richtig."
+          ]
         },
         "stability_seconds": {
           "label": "Stabilitätsfenster",
-          "hint": "Sekunden, {{min}} bis {{max}}. So lange muss eine Datei unverändert bleiben, bevor Muninn sie anfasst."
+          "hint": "Sekunden, {{min}} bis {{max}}. So lange muss eine Datei unverändert bleiben, bevor Muninn sie anfasst.",
+          "info": [
+            "So lange muss eine Datei unverändert auf dem NAS liegen, bevor Muninn sie anfasst. Das schützt vor halb kopierten Dateien: eine Übertragung, die noch läuft, würde sonst als kaputtes Bild im Album landen.",
+            "Muninn merkt sich solche Dateien und sieht später noch einmal nach, statt sie zu verwerfen.",
+            "Größer bei langsamen Übertragungen über WLAN, kleiner, wenn Bilder sofort erscheinen sollen. 30 bis 60 Sekunden passen fast immer."
+          ]
         },
         "missing_grace_days": {
           "label": "Schonfrist für Fehlendes",
-          "hint": "Tage, {{min}} bis {{max}}. 0 entfernt sofort. Fehlende Medien sind sofort unsichtbar, die Frist gilt fürs endgültige Löschen."
+          "hint": "Tage, {{min}} bis {{max}}. 0 entfernt sofort. Fehlende Medien sind sofort unsichtbar, die Frist gilt fürs endgültige Löschen.",
+          "info": [
+            "Was passiert, wenn eine Datei auf dem NAS gelöscht wird: Das Medium verschwindet beim nächsten Abgleich sofort aus Alben, Suche, Karte und Smart-Alben. Nur die Zeile in der Datenbank bleibt noch so viele Tage stehen.",
+            "In dieser Zeit lässt sich alles zurückholen, indem die Datei wieder an ihren Platz kommt — mit Reaktionen, Kommentaren, Gesichtern und vergebenen Namen. Danach wird die Zeile gelöscht, und mit ihr Vorschauen, Videofassung und Gesichtsausschnitte auf der SSD.",
+            "0 heißt: beim nächsten Abgleich über diesen Ordner ist alles davon endgültig weg. Zwei bis sieben Tage fangen einen Aussetzer der Freigabe oder eine versehentlich verschobene Datei noch auf."
+          ]
         },
         "deletion_share_percent": {
           "label": "Löschpause: Anteil",
-          "hint": "Prozent, {{min}} bis {{max}}. Verschwinden mehr Dateien auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab: Gelöschtes verschwindet sofort aus den Alben."
+          "hint": "Prozent, {{min}} bis {{max}}. Verschwinden mehr Dateien auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab: Gelöschtes verschwindet sofort aus den Alben.",
+          "info": [
+            "Das Sicherheitsnetz gegen Unfälle: Verschwindet auf einmal mehr als dieser Anteil der Dateien, die der Abgleich gerade beurteilt, markiert er nichts, sondern hält an und wartet auf deine Bestätigung im Bereich „Ordner\".",
+            "Gedacht ist es gegen den Fall, dass eine Freigabe leer wirkt, obwohl die Bilder noch da sind. Den eigentlichen Ausfall fangen andere Prüfungen schon vorher ab: eine Freigabe, die nicht eingehängt ist, liegt auf einem anderen Dateisystem, und ein Ordner, der sich nicht auflisten lässt, löscht grundsätzlich nichts.",
+            "0 schaltet die Pause ab — dann verschwindet Gelöschtes sofort aus den Alben. 10 Prozent sind ein vorsichtiger Wert."
+          ]
         },
         "deletion_count": {
           "label": "Löschpause: Anzahl",
-          "hint": "Dateien, {{min}} bis {{max}}. Verschwinden mehr auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab."
+          "hint": "Dateien, {{min}} bis {{max}}. Verschwinden mehr auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab.",
+          "info": [
+            "Dasselbe Sicherheitsnetz, nur als feste Zahl statt als Anteil: Verschwinden mehr Dateien auf einmal, hält der Abgleich an und wartet auf eine Bestätigung.",
+            "Beide Regeln gelten nebeneinander; es reicht, wenn eine davon anschlägt. Als Anzahl ist sie bei kleinen Ordnern die verlässlichere, weil dort schon drei Dateien ein großer Anteil sind.",
+            "0 schaltet sie ab. 500 ist ein Wert, bei dem einzelne Aufräumarbeiten durchgehen und ein Unfall auffällt."
+          ]
         },
         "smart_max_media": {
           "label": "Medien je Smart-Album",
-          "hint": "{{min}} bis {{max}}"
+          "hint": "{{min}} bis {{max}}",
+          "info": [
+            "Wie viele Aufnahmen ein einzelnes Smart-Album höchstens zeigt. Eine Reise mit viertausend Bildern wird damit auf eine Auswahl gebracht, durch die man tatsächlich scrollen mag.",
+            "Die Auswahl wird bei jedem Lauf neu gezogen, also zeigt dieselbe Reise beim nächsten Mal andere Bilder.",
+            "Mehr heißt vollständiger und langsamer beim Öffnen; 300 bis 800 sind ein guter Bereich."
+          ]
         },
         "smart_max_chapters": {
           "label": "Anzahl Smart-Alben",
-          "hint": "{{min}} bis {{max}}"
+          "hint": "{{min}} bis {{max}}",
+          "info": [
+            "Wie viele Smart-Alben höchstens auf der Übersicht stehen — Reisen, Tage, Themen, Personen, Orte und Feste zusammengenommen.",
+            "Es sind nicht einfach die größten: Von jeder Art wird der Reihe nach gezogen, damit die Wand gemischt bleibt und nicht nur aus Motiven besteht. Welche es werden, wird bei jedem Lauf neu gelost — dieselbe Bibliothek gibt zweimal hintereinander eine andere Wand.",
+            "Mehr heißt mehr zu stöbern und einen längeren Lauf in der Nacht."
+          ]
         }
       },
       "faces": {

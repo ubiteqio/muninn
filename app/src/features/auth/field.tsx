@@ -1,4 +1,4 @@
-import { type ComponentProps, useId } from 'react'
+import { type ComponentProps, type ReactNode, useId } from 'react'
 
 import { Input } from '@/components/ui/input'
 
@@ -6,16 +6,25 @@ import { Input } from '@/components/ui/input'
 export function Field({
   label,
   hint,
+  info,
   ...props
-}: { label: string; hint?: string } & ComponentProps<typeof Input>) {
+}: {
+  label: string
+  hint?: string
+  /** Room beside the label for the longer story, usually an {@link InfoHint}. */
+  info?: ReactNode | undefined
+} & ComponentProps<typeof Input>) {
   const id = useId()
   const hintId = `${id}-hint`
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-muted-foreground">
-        {label}
-      </label>
+      <div className="flex items-center gap-1">
+        <label htmlFor={id} className="block text-sm font-medium text-muted-foreground">
+          {label}
+        </label>
+        {info}
+      </div>
       <Input id={id} aria-describedby={hint ? hintId : undefined} {...props} />
       {hint && (
         <p id={hintId} className="text-xs-plus text-muted-foreground">
