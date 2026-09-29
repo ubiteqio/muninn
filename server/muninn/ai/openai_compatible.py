@@ -19,6 +19,7 @@ from muninn.ai.analysis import (
 )
 from muninn.ai.base import (
     AiError,
+    AiMachineError,
     AiUnreachableError,
     Check,
     DetectedFace,
@@ -559,7 +560,7 @@ async def post_json(
     except httpx.TimeoutException as error:
         raise AiError(f"Keine Antwort innerhalb von {timeout_seconds} Sekunden.") from error
     except httpx.HTTPError as error:
-        raise AiError(f"{url} ist nicht erreichbar: {error}") from error
+        raise AiMachineError(f"{url} ist nicht erreichbar: {error}") from error
 
     return _checked(response, url)
 
@@ -592,7 +593,7 @@ async def post_form(
     except httpx.TimeoutException as error:
         raise AiError(f"Keine Antwort innerhalb von {timeout_seconds} Sekunden.") from error
     except httpx.HTTPError as error:
-        raise AiError(f"{url} ist nicht erreichbar: {error}") from error
+        raise AiMachineError(f"{url} ist nicht erreichbar: {error}") from error
 
     return _checked(response, url)
 
@@ -610,11 +611,20 @@ def _snippet(response: httpx.Response) -> str:
     return text[:120] if text else "ohne Text"
 
 
+#: What a gateway or an overloaded service answers: the machine is busy or half up, and the
+#: medium has nothing to do with it.
+MACHINE_BUSY = {502, 503, 504}
+
+
 def _checked(response: httpx.Response, url: str) -> dict[str, Any]:
     if response.status_code == 401 or response.status_code == 403:
-        raise AiError("Der Schlüssel wird nicht angenommen.")
+        raise AiMachineError("Der Schlüssel wird nicht angenommen.")
     if response.status_code == 404:
-        raise AiError(f"{url} gibt es dort nicht. Endet die Basis-URL auf /v1?")
+        raise AiMachineError(f"{url} gibt es dort nicht. Endet die Basis-URL auf /v1?")
+    if response.status_code in MACHINE_BUSY:
+        raise AiMachineError(
+            f"Der Dienst antwortet mit {response.status_code}: {_snippet(response)}"
+        )
     if response.status_code >= 400:
         raise AiError(f"Der Dienst antwortet mit {response.status_code}: {_snippet(response)}")
 

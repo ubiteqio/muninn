@@ -9,9 +9,10 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from muninn.ai import service as ai_service
-from muninn.ai.base import AiError, AiUnreachableError
+from muninn.ai.base import AiError, AiMachineError
 from muninn.analysis import service as analysis_service
 from muninn.analysis import transcripts
 from muninn.core.config import get_settings
@@ -689,9 +690,8 @@ async def _embed_image(media_id: uuid.UUID, task_id: str) -> bool:
                 derived_root=derived_root,
             )
         except AiError as error:
-            await _pause_if_unreachable(error, outcome)
-            # The machine is away or refused. The claim goes with the task, so the clock asks
-            # again in a minute; a traceback per medium would say nothing more than this line.
+            await _failed_on(error, outcome, session, media_id)
+            # A traceback per medium would say nothing more than this line.
             logger.warning("No picture vector for %s: %s", media_id, error)
             outcome.failed = True
             return False
@@ -718,7 +718,7 @@ async def _transcribe_media(media_id: uuid.UUID, task_id: str) -> bool:
             )
         except (AiError, transcripts.SoundError) as error:
             if isinstance(error, AiError):
-                await _pause_if_unreachable(error, outcome)
+                await _failed_on(error, outcome, session, media_id)
             else:
                 # Nothing to hear in this one, and that will not change by asking again.
                 await attempts.note_failure(session, media_id, jobs.TRANSCRIPTION_STAGE, str(error))
@@ -763,7 +763,7 @@ async def _analyze_media(media_id: uuid.UUID, task_id: str) -> bool:
                     heartbeat=still_going,
                 )
             except AiError as error:
-                await _pause_if_unreachable(error, outcome)
+                await _failed_on(error, outcome, session, media_id)
                 logger.warning("No description for %s: %s", media_id, error)
                 outcome.failed = True
                 return False
@@ -795,7 +795,7 @@ async def _embed_caption(media_id: uuid.UUID, task_id: str) -> bool:
                 session, media_id, embedder=ai_service.embedder_for(profile), model=profile.model
             )
         except AiError as error:
-            await _pause_if_unreachable(error, outcome)
+            await _failed_on(error, outcome, session, media_id)
             logger.warning("No caption vector for %s: %s", media_id, error)
             outcome.failed = True
             return False
@@ -821,14 +821,7 @@ async def _detect_faces(media_id: uuid.UUID, task_id: str) -> bool:
                 derived_root=derived_root,
             )
         except AiError as error:
-            if isinstance(error, AiUnreachableError):
-                # The machine is away. Not this medium's fault, so it keeps its three tries.
-                await _pause_if_unreachable(error, outcome)
-            else:
-                # The machine answered, and the answer was no. Asking again with the same
-                # frames gets the same no, so it is counted - otherwise a picture the detector
-                # chokes on comes round again every few minutes for ever.
-                await attempts.note_failure(session, media_id, jobs.FACES_STAGE, str(error))
+            await _failed_on(error, outcome, session, media_id)
             logger.warning("No faces for %s: %s", media_id, error)
             outcome.failed = True
             return False
@@ -909,10 +902,27 @@ async def _resting(stage: str, media_id: uuid.UUID) -> bool:
         await redis.aclose()
 
 
+async def _failed_on(
+    error: AiError, outcome: "Outcome", session: AsyncSession, media_id: uuid.UUID
+) -> None:
+    """An AI stage that could not do this medium: the machine's fault, or the medium's.
+
+    A machine that is away rests its stage, and the medium keeps its three tries. A machine that
+    answered - with a refusal, something unusable, or nothing within its time - will most likely
+    answer the same again, so that is counted. Only the face stage did this; the others let the
+    clock hand the same medium out again every minute for ever, and a long video was described
+    from its first frame each time.
+    """
+    if isinstance(error, AiMachineError):
+        await _pause_if_unreachable(error, outcome)
+    elif outcome.stage is not None:
+        await attempts.note_failure(session, media_id, outcome.stage, str(error))
+
+
 async def _pause_if_unreachable(error: AiError, outcome: "Outcome") -> None:
     """The machine is away: its stages rest for a while instead of failing a thousand media a
     minute - which keeps the workers, the engine room and every open page busy for nothing."""
-    if not isinstance(error, AiUnreachableError) or outcome.stage is None:
+    if not isinstance(error, AiMachineError) or outcome.stage is None:
         return
     redis = jobs.connect()
     try:

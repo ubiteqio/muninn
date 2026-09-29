@@ -14,7 +14,13 @@ class AiError(Exception):
     """
 
 
-class AiUnreachableError(AiError):
+class AiMachineError(AiError):
+    """The machine's fault, not the medium's: a key it will not take, an address that is wrong,
+    a service that is overloaded or broke off mid-answer. Asking with the next medium gets the
+    same answer, so the stage rests - and the medium keeps its tries for when it is put right."""
+
+
+class AiUnreachableError(AiMachineError):
     """Nobody answered at all: the machine is off, or its service not running. Unlike a bad
     answer about one picture, this says nothing about the medium and everything about the
     machine - asking with the next medium is pointless."""
