@@ -385,6 +385,7 @@ async def unpublish(session: AsyncSession, publication: Publication) -> list[uui
 
     for album in albums:
         await session.delete(album)
+    await _forget_pending_below(session, publication.relative_path)
     await session.delete(publication)
     await session.flush()
 
@@ -414,6 +415,7 @@ async def exclude(
     )
     for album in albums:
         await session.delete(album)
+    await _forget_pending_below(session, path)
     # A folder switched off takes the ones already switched off below it along.
     publication.excluded_paths = sorted(
         {other for other in publication.excluded_paths if not _covers(path, other)} | {path}
@@ -494,6 +496,17 @@ async def sync_publication(
             safety.check_available, folder, expected_device=publication.device_id
         )
     except safety.RootUnavailableError:
+        if scope_path is None:
+            gone = await _when_gone(
+                session,
+                publication,
+                library_base=library_base,
+                settings=settings,
+                now=now,
+                confirm_deletions=confirm_deletions,
+            )
+            if gone is not None:
+                return gone
         return await _stop(
             session, publication, now, ScanStatus.UNAVAILABLE, f"{folder} is not reachable."
         )
@@ -507,6 +520,9 @@ async def sync_publication(
             "published. Mount the share and try again.",
         )
 
+    # There after all: whatever an earlier read made of its absence no longer holds.
+    if scope_path is None:
+        publication.gone_since = None
     # Say out loud that this is running: the admin area polls while it is, and stops when the
     # status changes - otherwise a finished sync looks like nothing happened until a reload.
     publication.last_sync_status = ScanStatus.RUNNING
@@ -1009,6 +1025,20 @@ async def _forget_unlisted(
         await _forget_observation(session, pending, path)
 
 
+async def _forget_pending_below(session: AsyncSession, relative_path: str) -> None:
+    """What waited under a folder that leaves Muninn: nobody will ever read it again."""
+    await session.execute(
+        delete(PendingFile).where(
+            or_(
+                PendingFile.relative_path.startswith(f"{relative_path}/"),
+                PendingFile.relative_path == relative_path,
+            )
+            if relative_path
+            else true()
+        )
+    )
+
+
 async def _forget_observation(
     session: AsyncSession, pending: dict[str, PendingFile], relative_path: str
 ) -> None:
@@ -1367,6 +1397,79 @@ async def _stop(
 ) -> SyncReport:
     await _finish(session, publication, now, status, message)
     return SyncReport(status=status, message=message)
+
+
+async def _when_gone(
+    session: AsyncSession,
+    publication: Publication,
+    *,
+    library_base: Path,
+    settings: AppSettings,
+    now: datetime,
+    confirm_deletions: bool,
+) -> SyncReport | None:
+    """A published folder deleted on the NAS: taken out of the albums, as a deleted file is.
+
+    Only once it is proven gone - see `safety.is_gone` - and on two reads a stability window
+    apart, so a folder caught in the middle of a move is not taken away. The pause before many
+    deletions holds here as everywhere. None when there is no proof: then it is merely out of
+    reach, and nothing is touched.
+    """
+    folder = library_base / publication.relative_path
+    proven = await asyncio.to_thread(
+        safety.is_gone,
+        folder,
+        library_root=library_base,
+        expected_device=publication.device_id,
+    )
+    if not proven:
+        publication.gone_since = None
+        return None
+
+    if publication.gone_since is None or now - publication.gone_since < timedelta(
+        seconds=settings.stability_seconds
+    ):
+        publication.gone_since = publication.gone_since or now
+        return await _stop(
+            session,
+            publication,
+            now,
+            ScanStatus.UNAVAILABLE,
+            f"{folder} was deleted on the NAS. If it is still gone at the next read, it is "
+            "taken out of the albums.",
+        )
+
+    albums = await _albums_below(session, publication.relative_path)
+    media = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(Media)
+            .where(Media.album_id.in_([album.id for album in albums]))
+        )
+        or 0
+    )
+    if not confirm_deletions and safety.deletions_are_suspicious(
+        missing=media,
+        known=media,
+        share_percent=settings.deletion_share_percent,
+        count=settings.deletion_count,
+    ):
+        publication.pending_deletions = media
+        return await _stop(
+            session,
+            publication,
+            now,
+            ScanStatus.PAUSED,
+            f"{folder} was deleted on the NAS, with {media} media in it. "
+            "Confirm the sync to take it out of the albums.",
+        )
+
+    removed = await unpublish(session, publication)
+    return SyncReport(
+        removed=len(removed),
+        removed_media=removed,
+        message=f"{folder} was deleted on the NAS and taken out of the albums.",
+    )
 
 
 async def _still_published(session: AsyncSession, publication_id: uuid.UUID) -> bool:

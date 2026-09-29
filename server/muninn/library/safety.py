@@ -9,6 +9,7 @@ file system which device the folder sits on and compares that with the device it
 A marker file does the same job for setups where the device legitimately changes.
 """
 
+import os
 from pathlib import Path
 
 #: May lie in a library root as an alternative proof: useful where the device id changes, for
@@ -54,6 +55,40 @@ def check_available(path: Path, *, expected_device: int | None = None) -> None:
 
     if expected_device is not None and device_of(path) != expected_device:
         raise NotMountedError(str(path))
+
+
+def is_gone(folder: Path, *, library_root: Path, expected_device: int | None) -> bool:
+    """True only when the folder is provably deleted, not merely out of reach.
+
+    "Not there" is also what an unmounted share looks like, so the folder's absence alone
+    proves nothing. The folder above it has to vouch for it: it exists, can be listed, sits on
+    the file system the folder was published on - or the library carries its marker - and the
+    name is not in its listing. Anything that cannot be read, or a folder that was published
+    without a recorded file system, is never proof.
+    """
+    if folder == library_root or library_root not in folder.parents:
+        return False
+    try:
+        folder.lstat()
+        # Something is there: a file in its place, or a folder that merely cannot be read.
+        return False
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return False
+
+    parent = folder.parent
+    try:
+        vouched = (library_root / MARKER_NAME).exists() or (
+            expected_device is not None and device_of(parent) == expected_device
+        )
+        if not vouched or not parent.is_dir():
+            return False
+        with os.scandir(parent) as entries:
+            names = {entry.name for entry in entries}
+    except OSError:
+        return False
+    return folder.name not in names
 
 
 def deletions_are_suspicious(*, missing: int, known: int, share_percent: int, count: int) -> bool:

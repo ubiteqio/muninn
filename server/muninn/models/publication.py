@@ -57,6 +57,9 @@ class Publication(TimestampMixin, Base):
     last_sync_message: Mapped[str | None] = mapped_column(Text)
     #: Files a paused sync would have marked as missing; above zero it waits for a confirmation.
     pending_deletions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: When a read first found the folder deleted on the NAS. A second one a stability window
+    #: later takes it out of the albums; a read that finds it again clears this.
+    gone_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     #: Subfolders switched off again: not read, and nothing of them in Muninn.
     excluded_paths: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, default=list)
 

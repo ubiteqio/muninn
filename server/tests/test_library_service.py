@@ -1019,3 +1019,157 @@ async def test_a_medium_taken_down_stays_down_under_another_name(
     await sync(session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=1))
 
     assert list(await session.scalars(select(MediaFile.relative_path))) == []
+
+
+class TestAPublishedFolderDeletedOnTheNas:
+    """Gone for good, it leaves the albums by itself - but only when that is proven, never
+    because it is merely out of reach."""
+
+    async def _published_and_read(
+        self, session: AsyncSession, library: Path, settings: AppSettings
+    ) -> Publication:
+        write(library, "Feiern/Geburtstag/torte.jpg")
+        write(library, "Feiern/Standesamt/ringe.jpg")
+        write(library, "Feiern/Standesamt/IMG_3856.MOV")
+        publication = await publish(session, library, "Feiern/Standesamt")
+        await settle(session, publication, library, settings)
+        write(library, "Feiern/Standesamt/noch-im-kopieren.jpg")
+        await sync(session, publication, library, settings, now=EVEN_LATER)
+        return publication
+
+    async def _still_published(self, session: AsyncSession) -> bool:
+        return (await session.scalar(select(Publication.id))) is not None
+
+    async def test_it_is_taken_out_of_the_albums_on_the_second_read(
+        self, session: AsyncSession, library: Path, settings: AppSettings
+    ) -> None:
+        publication = await self._published_and_read(session, library, settings)
+        assert len(await media_of(session)) == 2
+        shutil.rmtree(library / "Feiern" / "Standesamt")
+
+        # First sight: said, and nothing touched yet.
+        first = await sync(
+            session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=1)
+        )
+        assert first.status is ScanStatus.UNAVAILABLE
+        assert await self._still_published(session)
+        assert len(await media_of(session)) == 2
+
+        # Still gone a stability window later: out of the albums, waiting files and all.
+        second = await sync(
+            session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=2)
+        )
+        assert second.status is ScanStatus.OK
+        assert len(second.removed_media) == 2
+        assert not await self._still_published(session)
+        assert await media_of(session) == []
+        assert set(await session.scalars(select(PendingFile.relative_path))) == set()
+
+    async def test_a_share_that_is_not_mounted_is_never_taken_for_a_deletion(
+        self, session: AsyncSession, library: Path, settings: AppSettings
+    ) -> None:
+        """An unmounted share is an empty folder on another file system: the folder above has
+        nothing in it, and it is still no proof."""
+        publication = await self._published_and_read(session, library, settings)
+        shutil.rmtree(library / "Feiern" / "Standesamt")
+        publication.device_id = (device_of(library / "Feiern") or 0) + 1
+
+        for minutes in (1, 2, 3):
+            await sync(
+                session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=minutes)
+            )
+
+        assert await self._still_published(session)
+        assert len(await media_of(session)) == 2
+
+    async def test_a_folder_published_without_a_known_file_system_is_never_taken(
+        self, session: AsyncSession, library: Path, settings: AppSettings
+    ) -> None:
+        publication = await self._published_and_read(session, library, settings)
+        shutil.rmtree(library / "Feiern" / "Standesamt")
+        publication.device_id = None
+
+        for minutes in (1, 2):
+            await sync(
+                session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=minutes)
+            )
+
+        assert await self._still_published(session)
+
+    async def test_a_folder_above_that_cannot_be_listed_proves_nothing(
+        self, session: AsyncSession, library: Path, settings: AppSettings
+    ) -> None:
+        publication = await self._published_and_read(session, library, settings)
+        (library / "Feiern").chmod(0o000)
+        try:
+            for minutes in (1, 2):
+                await sync(
+                    session,
+                    publication,
+                    library,
+                    settings,
+                    now=EVEN_LATER + timedelta(minutes=minutes),
+                )
+        finally:
+            (library / "Feiern").chmod(0o755)
+
+        assert await self._still_published(session)
+        assert len(await media_of(session)) == 2
+
+    async def test_a_folder_that_comes_back_in_between_keeps_everything(
+        self, session: AsyncSession, library: Path, settings: AppSettings
+    ) -> None:
+        """Caught in the middle of a move and put back: the clock starts over."""
+        publication = await self._published_and_read(session, library, settings)
+        away = library / "Feiern" / "Standesamt-weg"
+        (library / "Feiern" / "Standesamt").rename(away)
+        await sync(session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=1))
+
+        away.rename(library / "Feiern" / "Standesamt")
+        await sync(session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=2))
+        assert publication.gone_since is None
+        # Back, and read: the file that was still being copied has arrived in the meantime.
+        before = len(await media_of(session))
+
+        # Gone again: the first sight of it once more, not the second.
+        shutil.rmtree(library / "Feiern" / "Standesamt")
+        await sync(session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=3))
+        assert await self._still_published(session)
+        assert len(await media_of(session)) == before
+
+    async def test_the_pause_before_many_deletions_holds_here_too(
+        self, session: AsyncSession, library: Path, settings: AppSettings
+    ) -> None:
+        publication = await self._published_and_read(session, library, settings)
+        settings.deletion_count = 2
+        shutil.rmtree(library / "Feiern" / "Standesamt")
+
+        await sync(session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=1))
+        paused = await sync(
+            session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=2)
+        )
+        assert paused.status is ScanStatus.PAUSED
+        assert await self._still_published(session)
+
+        await sync(
+            session,
+            publication,
+            library,
+            settings,
+            now=EVEN_LATER + timedelta(minutes=3),
+            confirm_deletions=True,
+        )
+        assert not await self._still_published(session)
+
+
+async def test_taking_a_folder_out_of_the_albums_forgets_what_waited_in_it(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    write(library, "Feiern/Standesamt/IMG_3856.MOV")
+    publication = await publish(session, library, "Feiern")
+    await sync(session, publication, library, settings)
+    assert await service.waiting_files(session, "Feiern") == 1
+
+    await service.unpublish(session, publication)
+
+    assert set(await session.scalars(select(PendingFile.relative_path))) == set()
