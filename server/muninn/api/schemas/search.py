@@ -23,6 +23,9 @@ class SearchRequest(BaseModel):
     #: An album and everything below it.
     album_id: UUID | None = None
     camera: str | None = Field(default=None, max_length=120)
+    #: A town, as the overview names it. Looked up the same way a town in the words would be,
+    #: so only places the library actually has photos from count.
+    place: str | None = Field(default=None, max_length=120)
     sort: Literal["relevance", "date"] = "relevance"
     cursor: str | None = None
     limit: int = Field(default=60, ge=1, le=200)
@@ -47,12 +50,31 @@ class SearchHitView(BaseModel):
     moment: float | None = None
 
 
+class FacetView(BaseModel):
+    """One thing the found media can be narrowed to, and how many of them carry it."""
+
+    value: str
+    label: str
+    count: int
+
+
+class FacetsView(BaseModel):
+    """What the found media are made of - of them, not of the library, so no choice is empty."""
+
+    years: list[FacetView] = []
+    towns: list[FacetView] = []
+    cameras: list[FacetView] = []
+    albums: list[FacetView] = []
+
+
 class SearchPage(BaseModel):
     items: list[SearchHitView]
     next_cursor: str | None = None
     understood: UnderstoodView
     #: True when the AI server did not answer: only words and names were searched this time.
     degraded: bool = False
+    #: The same on every page of one search: it describes the whole find, not the page.
+    facets: FacetsView = FacetsView()
 
 
 def encode_offset(offset: int) -> str:
@@ -78,3 +100,6 @@ class SearchAbilities(BaseModel):
     pictures: bool
     #: Descriptions are found by what they mean, not only by their words.
     meanings: bool
+    #: Whether the machine behind them answers at this moment. False while it rests after not
+    #: answering: the app then offers the plain search instead of promising more.
+    ready: bool = False

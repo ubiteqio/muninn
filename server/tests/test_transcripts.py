@@ -16,8 +16,9 @@ from muninn.ai import service as ai_service
 from muninn.ai.base import AiUnreachableError, SpokenPart, Transcript
 from muninn.ai.openai_compatible import OpenAiTranscriber
 from muninn.analysis import service, transcripts
-from muninn.huginn import jobs, tasks
+from muninn.huginn import attempts, jobs, tasks
 from muninn.models.ai import AiKind
+from muninn.models.attempt import GIVE_UP_AFTER
 from muninn.models.media import Media, MediaKind
 from muninn.models.user import UserRole
 from tests.helpers import auth_header, create_user, login
@@ -305,3 +306,21 @@ async def test_a_speech_machine_that_does_not_answer_pauses_its_stage(
     assert asked == [first]
     # Its claim is free, so the clock hands it out again once the pause is over.
     assert await jobs.claim(fake_redis_client, jobs.TRANSCRIPTION_STAGE, queued)  # type: ignore[arg-type]
+
+
+@has_ffmpeg
+@pytest.mark.usefixtures("api_client")
+async def test_a_video_nobody_can_listen_to_is_described_from_its_pictures(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    """Waiting for a transcript is right until there will never be one: a video the pipeline
+    has given up listening to would otherwise sit in "ohne Beschreibung" for ever."""
+    medium = await a_video(session, tmp_path)
+    assert await service.media_without(session, model="qwen", transcriber_model="whisper") == []
+
+    for _ in range(GIVE_UP_AFTER):
+        await attempts.note_failure(session, medium.id, jobs.TRANSCRIPTION_STAGE, "no sound")
+
+    assert await service.media_without(session, model="qwen", transcriber_model="whisper") == [
+        medium.id
+    ]

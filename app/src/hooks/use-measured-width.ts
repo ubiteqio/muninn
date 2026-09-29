@@ -12,14 +12,43 @@ export function useMeasuredWidth(element: RefObject<HTMLElement | null>): number
 
   useEffect(() => {
     const node = element.current
-    if (!node || typeof ResizeObserver === 'undefined') return
+    if (!node) return undefined
 
-    const observer = new ResizeObserver(([entry]) => {
-      setWidth(entry?.contentRect.width ?? 0)
-    })
-    observer.observe(node)
+    const measure = () => {
+      setWidth(node.getBoundingClientRect().width)
+    }
+
+    /*
+     * Turning a phone is not an ordinary resize. iOS reports the old screen while the rotation
+     * is still running, and the observer fires with it - so the grid kept the columns of the
+     * orientation it was in until something else made it measure again. It is measured once
+     * more when the turn has settled: after two frames, and a beat later for the browser whose
+     * bars are still sliding into place.
+     */
+    let again = 0
+    const turned = () => {
+      window.clearTimeout(again)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(measure)
+      })
+      again = window.setTimeout(measure, 300)
+    }
+
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(([entry]) => {
+            setWidth(entry?.contentRect.width ?? 0)
+          })
+    observer?.observe(node)
+    window.addEventListener('orientationchange', turned)
+    window.visualViewport?.addEventListener('resize', turned)
+
     return () => {
-      observer.disconnect()
+      window.clearTimeout(again)
+      observer?.disconnect()
+      window.removeEventListener('orientationchange', turned)
+      window.visualViewport?.removeEventListener('resize', turned)
     }
   }, [element])
 

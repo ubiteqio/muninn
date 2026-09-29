@@ -3,7 +3,9 @@
     "showAll": "Alle ansehen",
     "close": "Schließen",
     "cancel": "Abbrechen",
-    "done": "Fertig"
+    "done": "Fertig",
+    "loading": "Wird geladen …",
+    "explain": "Erklärung: {{name}}"
   },
   "nav": {
     "label": "Hauptnavigation",
@@ -15,7 +17,17 @@
     "admin": "Admin",
     "people": "Personen",
     "overview": "Überblick",
-    "more": "Mehr"
+    "more": "Mehr",
+    "way": {
+      "folders": "Ordner",
+      "smarts": "Smarts",
+      "photobooks": "Fotobücher"
+    },
+    "wayHint": {
+      "folders": "Die Ordner der NAS, so wie sie liegen",
+      "smarts": "Sortiert nach dem, was auf den Bildern ist",
+      "photobooks": "Alben, die man von vorn bis hinten liest"
+    }
   },
   "header": {
     "notifications_one": "Benachrichtigungen, {{count}} ungelesen",
@@ -29,6 +41,17 @@
   "search": {
     "label": "Bibliothek durchsuchen",
     "placeholder": "Suchen – z. B. „Oma am Strand 2012“",
+    "placeholderAi": "Beschreibe, was du suchst – z. B. „Oma am Strand 2012“",
+    "submit": "Suchen",
+    "filter": {
+      "label": "Einschränken",
+      "year": "Jahr",
+      "place": "Ort",
+      "camera": "Kamera",
+      "album": "Album",
+      "clear": "{{label}} nicht mehr einschränken"
+    },
+    "hintResting": "Der KI-Server antwortet gerade nicht. Gesucht wird in Alben- und Dateinamen, Orten, Zeiträumen, Beschreibungen und Gesprochenem – nicht in den Bildern selbst. Sobald er wieder da ist, sucht Muninn auch nach dem, was zu sehen ist.",
     "hint": "Beschreibe, was du suchst: „Hund am Strand“, „Geburtstag 2012“, „Schnee im Winter 2010“. Muninn sucht in den Bildern selbst, in ihren Beschreibungen, in dem, was in Videos gesagt wird, und in Alben- und Dateinamen.",
     "searching": "Wird gesucht …",
     "nothing": "Nichts gefunden. Versuche andere Wörter oder einen größeren Zeitraum.",
@@ -82,7 +105,6 @@
     "pathFolded": "Übergeordnete Alben, zu {{title}}",
     "root": "Alben",
     "description": "Jeder Ordner auf dem NAS ist ein Album. Muninn zeigt verkleinerte Kopien; die Originale bleiben unberührt.",
-    "loading": "Wird geladen …",
     "subalbums": "Unteralben",
     "media": "Medien",
     "count_one": "{{count}} Medium",
@@ -131,6 +153,81 @@
       "remove": "Entfernen"
     }
   },
+  "smarts": {
+    "title": "Smarts",
+    "description": "Die Mediathek nach dem geordnet, was zusammengehört: Reisen, Tage, Personen, Orte, Feste und Motive — quer durch alle Ordner, gefunden ohne dass jemand sortiert hat.",
+    "chapters": "Kapitel",
+    "ofMedia_one": "aus 1 Medium",
+    "ofMedia_other": "aus {{count, number}} Medien",
+    "count_one": "1 Medium",
+    "count_other": "{{count, number}} Medien",
+    "unnamed": "Ohne Namen",
+    "openChapter": "{{title}}, {{count}} Medien",
+    "dice": "Würfeln",
+    "diceHint": "Ein Kapitel nach dem Zufall, als Diashow",
+    "play": "Diashow",
+    "toAlbum": "Zum Ordner",
+    "back": "Zurück zu Smarts",
+    "faces": "Wer oft zu sehen ist",
+    "shelves": "Regale",
+    "shelf": {
+      "people": "Mit Menschen",
+      "crowd": "Gruppenbilder",
+      "video": "Videos",
+      "document": "Dokumente",
+      "screenshot": "Bildschirmfotos",
+      "text": "Text im Bild"
+    },
+    "shelfCount_one": "1 Medium",
+    "shelfCount_other": "{{count, number}} Medien",
+    "more": "Mehr Kapitel",
+    "loading": "Wird geladen …",
+    "empty": "Noch keine Kapitel",
+    "emptyNote": "Sie entstehen nachts, sobald ein Ordner genug Medien hat und beschrieben ist. Bis dahin führen die Ordner ans Ziel.",
+    "kind": {
+      "trip": "Reise",
+      "day": "Tag",
+      "motif": "Motiv",
+      "person": "Person",
+      "place": "Ort",
+      "ritual": "Fest",
+      "theme": "Thema"
+    },
+    "name": {
+      "trip_one": "Ein Tag {{place}}",
+      "trip_other": "{{count}} Tage {{place}}",
+      "place": "{{place}} · {{span}}",
+      "person": "{{name}} · {{year}}",
+      "pair": "{{first}} & {{second}}",
+      "christmas_one": "Weihnachten",
+      "christmas_other": "Weihnachten · {{count}} Jahre",
+      "newyear_one": "Silvester",
+      "newyear_other": "Silvester · {{count}} Jahre"
+    },
+    "fromAlbums_one": "aus 1 Album",
+    "fromAlbums_other": "aus {{count, number}} Alben",
+    "days_one": "1 Tag",
+    "days_other": "{{count}} Tage",
+    "theme": {
+      "water": "Am Wasser",
+      "green": "Ins Grüne",
+      "sport": "Auf dem Platz",
+      "city": "In der Stadt",
+      "animals": "Tierisch",
+      "table": "Zu Tisch",
+      "wheels": "Auf Rädern",
+      "flowers": "Blüten",
+      "snow": "Im Schnee",
+      "beach": "Am Strand",
+      "stage": "Bühne & Musik",
+      "paper": "Papier & Bildschirme",
+      "sundown": "Abendrot",
+      "playground": "Auf dem Spielplatz",
+      "fireworks": "Feuerwerk"
+    },
+    "overYears_one": "aus einem Jahr",
+    "overYears_other": "über {{count}} Jahre"
+  },
   "timeline": {
     "title": "Zeitleiste",
     "summary": "{{count, number}} Medien · {{from}} – {{to}}",
@@ -138,7 +235,6 @@
     "empty": "Noch keine Medien in der Bibliothek.",
     "undated": "Ohne Datum",
     "years": "Jahre",
-    "loading": "Wird geladen …",
     "openPeriod": "{{period}} öffnen, {{count}} Medien",
     "periodCount_one": "1 Medium",
     "periodCount_other": "{{count, number}} Medien",
@@ -233,7 +329,8 @@
       "jobs": "Aufträge",
       "users": "Benutzer",
       "ai": "KI",
-      "duplicates": "Doppelgänger"
+      "duplicates": "Doppelgänger",
+      "photobooks": "Fotobücher"
     },
     "settings": {
       "title": "Einstellungen",
@@ -266,43 +363,111 @@
       "field": {
         "thumbnail_size": {
           "label": "Vorschaubild im Raster",
-          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}."
+          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}.",
+          "info": [
+            "Die längste Kante des kleinen Bildes, das im Raster, in der Suche und auf der Startseite steht. Alles, was man scrollt, ist dieses Bild.",
+            "Größer heißt schärfer auf dichten Bildschirmen, aber mehr Platz auf der SSD und mehr Rechenzeit beim Ableiten. 400 reicht für Handy und Rechner; darüber lohnt es sich nur, wenn du das Raster sehr groß stellst.",
+            "Der Wert gilt für alles, was ab jetzt abgeleitet wird. Vorhandene Vorschaubilder bleiben, wie sie sind, bis ein Medium neu abgeleitet wird — einzeln über das ⋯-Menü in der Vollansicht."
+          ]
         },
         "preview_size": {
           "label": "Große Vorschau",
-          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}. Muss größer sein als das Vorschaubild."
+          "hint": "Längste Kante in Pixeln, {{min}} bis {{max}}. Muss größer sein als das Vorschaubild.",
+          "info": [
+            "Die längste Kante des großen Bildes in der Vollansicht. Es wird nie größer gerechnet als das Original: ein kleines Bild bleibt klein, statt unscharf aufgeblasen zu werden.",
+            "Größer heißt, dass man beim Hineinzoomen länger etwas sieht, kostet aber Platz und Ladezeit. 2000 bis 2560 ist für Bildschirme richtig, 4000 nur, wenn regelmäßig jemand ins Detail zoomt.",
+            "Muss größer sein als das Vorschaubild im Raster, sonst wird nicht gespeichert. Gilt ebenfalls erst für neu abgeleitete Medien."
+          ]
         },
         "image_quality": {
           "label": "Bildqualität",
-          "hint": "WebP-Qualität, {{min}} bis {{max}}. Höher heißt schöner und größer."
+          "hint": "WebP-Qualität, {{min}} bis {{max}}. Höher heißt schöner und größer.",
+          "info": [
+            "Wie stark die abgeleiteten Bilder komprimiert werden. Sie sind WebP; die Originale auf dem NAS werden nie angefasst, hier geht nichts unwiederbringlich verloren.",
+            "82 bis 88 ist der Bereich, in dem man keinen Unterschied mehr sieht und die Dateien halb so groß sind. Über 92 wachsen die Dateien stark, ohne dass das Auge etwas davon hat.",
+            "Gilt für Vorschaubild, große Vorschau und das Standbild eines Videos gleichermaßen."
+          ]
         },
         "video_height": {
           "label": "Höhe der Videovorschau",
-          "hint": "In Pixeln, {{min}} bis {{max}}. Die Breite ergibt sich aus dem Seitenverhältnis."
+          "hint": "In Pixeln, {{min}} bis {{max}}. Die Breite ergibt sich aus dem Seitenverhältnis.",
+          "info": [
+            "Die Höhe der abgespielten Fassung eines Videos. Browser spielen weder AVI noch MTS noch WMV, deshalb macht Muninn daraus eine MP4-Fassung (H.264, AAC-Ton) — das Original bleibt unberührt.",
+            "Die Breite ergibt sich aus dem Seitenverhältnis, und es wird nie hochgerechnet: ein 480p-Video aus der Videokamera bleibt 480p.",
+            "1080 ist ein guter Wert. 1440 oder 2160 vervielfachen Rechenzeit und Platz, und auf dem Sofa sieht niemand den Unterschied."
+          ]
         },
         "quick_sync_seconds": {
           "label": "Schnell-Abgleich",
-          "hint": "Abstand in Sekunden, {{min}} bis {{max}}. Vergleicht je Ordner die Signatur und liest nur Geändertes."
+          "hint": "Abstand in Sekunden, {{min}} bis {{max}}. Vergleicht je Ordner die Signatur und liest nur Geändertes.",
+          "info": [
+            "Wie oft Muninn nachsieht, ob sich auf dem NAS etwas getan hat. Über SMB gibt es keine Benachrichtigungen — ohne Nachsehen erfährt Muninn nichts.",
+            "Der Schnell-Abgleich bildet je Ordner einen Fingerabdruck aus Namen, Größen und Zeiten der Dateien und liest nur die Ordner, deren Fingerabdruck sich geändert hat. Ein unveränderter Ordner kostet also eine einzige Anfrage.",
+            "Kleiner heißt, dass neue Bilder schneller auftauchen, und mehr Last auf dem NAS. 60 bis 300 Sekunden sind üblich."
+          ]
         },
         "full_sync_hour": {
           "label": "Voll-Abgleich um",
-          "hint": "Stunde der Nacht, {{min}} bis {{max}}. Liest jede Datei einzeln."
+          "hint": "Stunde der Nacht, {{min}} bis {{max}}. Liest jede Datei einzeln.",
+          "info": [
+            "Die Stunde der Nacht, in der Muninn jede Datei einzeln ansieht, statt sich auf die Fingerabdrücke der Ordner zu verlassen. Damit findet er auch, was ein Fingerabdruck nicht verrät.",
+            "In derselben Nacht wird auch aufgeräumt: abgeleitete Ordner, zu denen es kein Medium mehr gibt, werden gelöscht — nur solche, die älter als eine Stunde sind, damit nie etwas weggeräumt wird, das gerade entsteht.",
+            "Leg die Stunde so, dass das NAS sonst nichts zu tun hat. 1 bis 4 Uhr ist richtig."
+          ]
         },
         "stability_seconds": {
           "label": "Stabilitätsfenster",
-          "hint": "Sekunden, {{min}} bis {{max}}. So lange muss eine Datei unverändert bleiben, bevor Muninn sie anfasst."
+          "hint": "Sekunden, {{min}} bis {{max}}. So lange muss eine Datei unverändert bleiben, bevor Muninn sie anfasst.",
+          "info": [
+            "So lange muss eine Datei unverändert auf dem NAS liegen, bevor Muninn sie anfasst. Das schützt vor halb kopierten Dateien: eine Übertragung, die noch läuft, würde sonst als kaputtes Bild im Album landen.",
+            "Muninn merkt sich solche Dateien und sieht später noch einmal nach, statt sie zu verwerfen.",
+            "Größer bei langsamen Übertragungen über WLAN, kleiner, wenn Bilder sofort erscheinen sollen. 30 bis 60 Sekunden passen fast immer."
+          ]
         },
         "missing_grace_days": {
           "label": "Schonfrist für Fehlendes",
-          "hint": "Tage, {{min}} bis {{max}}. 0 entfernt sofort. Fehlende Medien sind sofort unsichtbar, die Frist gilt fürs endgültige Löschen."
+          "hint": "Tage, {{min}} bis {{max}}. 0 entfernt sofort. Fehlende Medien sind sofort unsichtbar, die Frist gilt fürs endgültige Löschen.",
+          "info": [
+            "Was passiert, wenn eine Datei auf dem NAS gelöscht wird: Das Medium verschwindet beim nächsten Abgleich sofort aus Alben, Suche, Karte und Smart-Alben. Nur die Zeile in der Datenbank bleibt noch so viele Tage stehen.",
+            "In dieser Zeit lässt sich alles zurückholen, indem die Datei wieder an ihren Platz kommt — mit Reaktionen, Kommentaren, Gesichtern und vergebenen Namen. Danach wird die Zeile gelöscht, und mit ihr Vorschauen, Videofassung und Gesichtsausschnitte auf der SSD.",
+            "0 heißt: beim nächsten Abgleich über diesen Ordner ist alles davon endgültig weg. Zwei bis sieben Tage fangen einen Aussetzer der Freigabe oder eine versehentlich verschobene Datei noch auf."
+          ]
         },
         "deletion_share_percent": {
           "label": "Löschpause: Anteil",
-          "hint": "Prozent, {{min}} bis {{max}}. Verschwinden mehr Dateien auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab: Gelöschtes verschwindet sofort aus den Alben."
+          "hint": "Prozent, {{min}} bis {{max}}. Verschwinden mehr Dateien auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab: Gelöschtes verschwindet sofort aus den Alben.",
+          "info": [
+            "Das Sicherheitsnetz gegen Unfälle: Verschwindet auf einmal mehr als dieser Anteil der Dateien, die der Abgleich gerade beurteilt, markiert er nichts, sondern hält an und wartet auf deine Bestätigung im Bereich „Ordner\".",
+            "Gedacht ist es gegen den Fall, dass eine Freigabe leer wirkt, obwohl die Bilder noch da sind. Den eigentlichen Ausfall fangen andere Prüfungen schon vorher ab: eine Freigabe, die nicht eingehängt ist, liegt auf einem anderen Dateisystem, und ein Ordner, der sich nicht auflisten lässt, löscht grundsätzlich nichts.",
+            "0 schaltet die Pause ab — dann verschwindet Gelöschtes sofort aus den Alben. 10 Prozent sind ein vorsichtiger Wert."
+          ]
         },
         "deletion_count": {
           "label": "Löschpause: Anzahl",
-          "hint": "Dateien, {{min}} bis {{max}}. Verschwinden mehr auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab."
+          "hint": "Dateien, {{min}} bis {{max}}. Verschwinden mehr auf einmal, wartet der Abgleich auf eine Bestätigung. 0 schaltet das ab.",
+          "info": [
+            "Dasselbe Sicherheitsnetz, nur als feste Zahl statt als Anteil: Verschwinden mehr Dateien auf einmal, hält der Abgleich an und wartet auf eine Bestätigung.",
+            "Beide Regeln gelten nebeneinander; es reicht, wenn eine davon anschlägt. Als Anzahl ist sie bei kleinen Ordnern die verlässlichere, weil dort schon drei Dateien ein großer Anteil sind.",
+            "0 schaltet sie ab. 500 ist ein Wert, bei dem einzelne Aufräumarbeiten durchgehen und ein Unfall auffällt."
+          ]
+        },
+        "smart_max_media": {
+          "label": "Medien je Smart-Album",
+          "hint": "{{min}} bis {{max}}",
+          "info": [
+            "Wie viele Aufnahmen ein einzelnes Smart-Album höchstens zeigt. Eine Reise mit viertausend Bildern wird damit auf eine Auswahl gebracht, durch die man tatsächlich scrollen mag.",
+            "Die Auswahl wird bei jedem Lauf neu gezogen, also zeigt dieselbe Reise beim nächsten Mal andere Bilder.",
+            "Mehr heißt vollständiger und langsamer beim Öffnen; 300 bis 800 sind ein guter Bereich."
+          ]
+        },
+        "smart_max_chapters": {
+          "label": "Anzahl Smart-Alben",
+          "hint": "{{min}} bis {{max}}",
+          "info": [
+            "Wie viele Smart-Alben höchstens auf der Übersicht stehen — Reisen, Tage, Themen, Personen, Orte und Feste zusammengenommen.",
+            "Es sind nicht einfach die größten: Von jeder Art wird der Reihe nach gezogen, damit die Wand gemischt bleibt und nicht nur aus Motiven besteht. Welche es werden, wird bei jedem Lauf neu gelost — dieselbe Bibliothek gibt zweimal hintereinander eine andere Wand.",
+            "Mehr heißt mehr zu stöbern und einen längeren Lauf in der Nacht."
+          ]
         }
       },
       "faces": {
@@ -413,6 +578,7 @@
         "waiting": "Kein Durchgang läuft – es wartet aber noch Arbeit.",
         "lastRead": "Zuletzt gelesen {{when}} · {{media, number}} Medien in {{albums}} Alben",
         "neverRead": "Noch nie gelesen. Veröffentliche einen Ordner, dann geht es los.",
+        "kinds": "(Bilder: {{photos, number}}, Videos: {{videos, number}})",
         "next": "nächster Durchgang {{when}}",
         "lastMinute": "In der letzten Minute:"
       },
@@ -469,10 +635,17 @@
         "queue": {
           "scan": "Lesen",
           "derive": "Vorschauen",
-          "ai": "KI"
+          "ai": "KI",
+          "people": "Personen"
         },
         "nothing": "Alles erledigt, nichts wartet.",
-        "faces": "Medien ohne Gesichtersuche"
+        "faces": "Medien ohne Gesichtersuche",
+        "unreadable": "Dateien, die nicht gelesen werden konnten",
+        "loading": "Wird geladen …",
+        "gone": "Nichts mehr offen – die Zahl ist schon älter.",
+        "attempts_one": "1 Versuch",
+        "attempts_other": "{{count, number}} Versuche",
+        "waitsForAi": "wartet auf die KI-Maschine"
       },
       "schedule": {
         "title": "Zeitplan",
@@ -529,6 +702,9 @@
           "off": "nicht eingerichtet"
         },
         "resumeShort": "Jetzt versuchen",
+        "retry": "Jetzt versuchen",
+        "retryHint": "Beendet alle Pausen und fragt jeden Dienst sofort neu.",
+        "whenThereIsWork": "wird beim nächsten Auftrag versucht",
         "resumeHint": "Klicken, wenn der KI-Rechner wieder läuft: die Pause endet sofort."
       },
       "failedStage": {
@@ -538,7 +714,23 @@
         "transcription": "Video nicht abgehört",
         "analysis": "Nicht beschrieben",
         "caption_vector": "Textvektor nicht berechnet",
-        "faces": "Gesichter nicht gesucht"
+        "faces": "Gesichter nicht gesucht",
+        "derive_video": "Video nicht umgewandelt",
+        "analysis_video": "Video nicht beschrieben",
+        "image_vector_video": "Bildvektor des Videos nicht berechnet",
+        "read": "Ordner nicht gelesen"
+      }
+    },
+    "smarts": {
+      "title": "Smart-Alben",
+      "description": "Jetzt neu suchen, mit den Zahlen von oben. Sonst geschieht es jede Nacht um 3:30 Uhr.",
+      "holds": "Zurzeit {{chapters, number}} Smart-Alben mit {{media, number}} Medien",
+      "build": "Neu erstellen",
+      "building": "Wird erstellt …",
+      "built": "{{chapters, number}} Smart-Alben mit {{media, number}} Medien neu erstellt.",
+      "section": {
+        "title": "Smart-Alben",
+        "description": "Reisen, Tage, Themen, Personen, Orte und Feste — quer durch die ganze Mediathek. Themen wie „Am Wasser“ oder „Ins Grüne“ ziehen sich durch alle Jahre; „Motive“ sind Bilder, die einander ähneln und für die es keinen Namen gibt."
       }
     },
     "users": {
@@ -606,6 +798,13 @@
       "inUse": "in Benutzung",
       "use": "Benutzen",
       "edit": "Ändern",
+      "remove": "Löschen",
+      "delete": {
+        "title": "{{name}} löschen?",
+        "description": "Das Profil wird entfernt. Eingerichtet werden kann es jederzeit wieder.",
+        "inUse": "Dieses Profil ist in Benutzung. Wird es entfernt, wartet die Stufe, bis eine andere Maschine benutzt wird.",
+        "confirm": "Löschen"
+      },
       "closeEdit": "Schließen",
       "test": "Verbindung testen",
       "testing": "Frage läuft …",
@@ -659,6 +858,10 @@
       "open_one": "Offen · 1 Gruppe",
       "open_other": "Offen · {{count}} Gruppen",
       "all": "Alle",
+      "sort": {
+        "newest": "Neueste zuerst",
+        "size": "Größte zuerst"
+      },
       "loading": "Wird geladen …",
       "more": "Weitere laden",
       "none": "Keine Doppelgänger gefunden.",
@@ -676,6 +879,44 @@
       "show": "{{name}} ansehen",
       "showAgain": "Wieder zeigen",
       "failed": "Das hat nicht geklappt. Die Gruppen werden alle 15 Minuten neu gebildet – lade die Seite neu."
+    },
+    "photobooks": {
+      "title": "Fotobücher",
+      "description": "Aus einem veröffentlichten Album ein Buch machen: ausgewählte Bilder, Seite für Seite erzählt.",
+      "album": "Ordner",
+      "albumHint": "Ein Ordner bringt alles mit, was in ihm liegt. Mehrere Ordner ergeben ein Buch; der erste bestimmt, wo es im Baum hängt.",
+      "chooseAlbum": "Album wählen",
+      "size": "Umfang",
+      "sizeHint": "Anteil der Bilder des Albums: klein 15 %, mittel 30 %, groß 60 %.",
+      "small": "Klein",
+      "medium": "Mittel",
+      "large": "Groß",
+      "maxMedia": "Höchstzahl Bilder",
+      "maxMediaHint": "Die Obergrenze, egal wie groß das Album ist.",
+      "count": "Anzahl Bücher",
+      "countHint": "Jedes Buch wählt andere Bilder und findet andere Worte.",
+      "bookTitle": "Titel",
+      "titleHint": "Leer lassen: dann steht der Name des Albums auf dem Buch.",
+      "make": "Fotobuch erstellen",
+      "making": "wird erstellt …",
+      "existing": "Vorhandene Bücher",
+      "nothing": "Noch kein Fotobuch.",
+      "pagesAndMedia": "{{pages}} Seiten · {{media}} Bilder",
+      "written": "mit Texten",
+      "plain": "ohne Texte – die KI-Maschine war nicht da",
+      "rebuild": "Neu bauen",
+      "remove": "Löschen",
+      "removeTitle": "Fotobuch löschen?",
+      "removeBody": "„{{title}}“ wird entfernt. Die Bilder im Album bleiben unberührt.",
+      "needsAlbum": "Bitte zuerst ein Album wählen.",
+      "made_one": "{{count}} Buch in Arbeit. Der Worker baut die Seiten.",
+      "made_other": "{{count}} Bücher in Arbeit. Der Worker baut die Seiten.",
+      "library": "Bibliothek",
+      "noFolders": "Hier liegen keine Ordner.",
+      "open": "{{name}} öffnen",
+      "unpick": "{{name}} wieder abwählen",
+      "chosenCount_one": "{{count}} Ordner · {{pictures}} Aufnahmen",
+      "chosenCount_other": "{{count}} Ordner · {{pictures}} Aufnahmen"
     }
   },
   "media": {
@@ -717,7 +958,43 @@
       "said_one": "Alles Gesagte · 1 Satz",
       "said_other": "Alles Gesagte · {{count, number}} Sätze"
     },
-    "similar": "Ähnliche Bilder"
+    "similar": "Ähnliche Bilder",
+    "back": "Zurück zum Album",
+    "more": "mehr",
+    "share": "Teilen",
+    "save": "In Fotos sichern",
+    "saved": "In Fotos gesichert",
+    "saveFailed": "Konnte nicht gesichert werden.",
+    "photosDenied": "Muninn darf keine Fotos sichern. Das lässt sich in den Einstellungen erlauben.",
+    "shareFailed": "Konnte nicht geteilt werden.",
+    "play": "Abspielen",
+    "pause": "Anhalten",
+    "speed": "Geschwindigkeit",
+    "mute": "Ton aus",
+    "unmute": "Ton an",
+    "previous": "Vorheriges Medium",
+    "next": "Nächstes Medium",
+    "withdraw": {
+      "action": "Medium entfernen",
+      "title": "Medium wirklich entfernen?",
+      "text": "Das Medium verschwindet sofort aus allen Alben, der Suche und der Karte. Vorschauen, Vektoren, Gesichter, Beschreibung, Reaktionen und Kommentare werden gelöscht. Die Originaldatei auf dem NAS bleibt unberührt, wird aber nicht wieder aufgenommen. Das lässt sich nicht rückgängig machen.",
+      "confirm": "Endgültig entfernen"
+    },
+    "stages": {
+      "title": "KI-Werkzeuge",
+      "metadata": "Metadaten lesen",
+      "derive": "Vorschau erzeugen",
+      "image_vector": "Bild-Vektor berechnen",
+      "transcription": "Transkribieren",
+      "analysis": "Beschreiben",
+      "caption_vector": "Text-Vektor berechnen",
+      "faces": "Gesichter suchen",
+      "gaveUp": "Aufgegeben nach {{count}} Versuchen",
+      "state": {
+        "done": "Fertig – neu ausführen",
+        "open": "Steht noch aus – jetzt ausführen"
+      }
+    }
   },
   "social": {
     "like": "Gefällt mir",
@@ -744,7 +1021,9 @@
     "albums": "Alben",
     "media": "Bilder und Videos",
     "all": "Alle ansehen",
-    "open": "In den Favoriten öffnen"
+    "open": "In den Favoriten öffnen",
+    "keep": "Zu Favoriten",
+    "remove": "Aus Favoriten entfernen"
   },
   "comments": {
     "title": "Kommentare",
@@ -785,7 +1064,8 @@
       "comment_one": "{{who}} hat kommentiert",
       "comment_other": "{{who}} haben kommentiert",
       "new_media_one": "1 neues Medium in {{album}}",
-      "new_media_other": "{{count, number}} neue Medien in {{album}}"
+      "new_media_other": "{{count, number}} neue Medien in {{album}}",
+      "stage_failed": "{{stage}} – nach drei Versuchen aufgegeben"
     }
   },
   "map": {
@@ -803,9 +1083,23 @@
     "suggestions_one": "Ein Vorschlag",
     "suggestions_other": "{{count}} Vorschläge",
     "isThis": "Ist das {{name}}?",
+    "inAlbum": "Im Album",
+    "alike": {
+      "titleYes": "Diese auch als {{name}}?",
+      "titleNo": "Diese auch ablehnen?",
+      "hint": "Gesichter, die dem eben beantworteten ähneln. Mit dem Regler bestimmst du, ab welcher Ähnlichkeit sie dazugehören.",
+      "threshold": "Ab {{percent}} % Ähnlichkeit",
+      "toggle": "{{percent}} % ähnlich – dazunehmen oder weglassen",
+      "count_one": "1 Gesicht wird übernommen",
+      "count_other": "{{count}} Gesichter werden übernommen",
+      "apply_one": "1 übernehmen",
+      "apply_other": "{{count}} übernehmen",
+      "later": "Nur dieses"
+    },
     "yes": "Ja, das ist {{name}}",
     "no": "Nein, das ist nicht {{name}}",
     "persons": "Personen",
+    "suggestionsTitle": "Vorschläge",
     "hiddenTitle": "Ausgeblendete Personen",
     "noneHidden": "Niemand ist ausgeblendet.",
     "groups": "Wer ist das?",
@@ -840,6 +1134,11 @@
       "all": "Alle",
       "auto": "Von Muninn zugeordnet",
       "twice": "Doppelt im selben Foto"
+    },
+    "standBy": {
+      "hint": "Diese hat Muninn selbst zugeordnet. Nimm falsche mit dem Kreuz heraus – die übrigen bestätigst du hier, damit Muninn {{name}} künftig besser erkennt.",
+      "button_one": "1 Gesicht bestätigen",
+      "button_other": "{{count, number}} Gesichter bestätigen"
     },
     "noneToCheck": "Hier gibt es nichts zu prüfen.",
     "checkFace": "Im ganzen Foto ansehen, ob das {{name}} ist",
@@ -968,5 +1267,20 @@
     "next": "Nächste Seite",
     "page": "Seite {{page}}",
     "of": "{{page}} / {{pages}}"
+  },
+  "photobooks": {
+    "title": "Fotobücher",
+    "description": "Alben als Buch: ausgewählte Bilder, Seite für Seite erzählt.",
+    "none": "Noch kein Fotobuch. Im Admin-Bereich entsteht das erste.",
+    "open": "{{title}} aufschlagen",
+    "close": "Buch schließen",
+    "back": "Eine Seite zurück",
+    "on": "Eine Seite weiter",
+    "print": "Drucken oder als PDF sichern",
+    "building": "wird gebaut",
+    "failed": "nicht entstanden",
+    "notReadable": "Dieses Buch lässt sich nicht aufschlagen.",
+    "pages_one": "{{count}} Seite",
+    "pages_other": "{{count}} Seiten"
   }
 }

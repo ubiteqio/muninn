@@ -1,7 +1,8 @@
 """Talking to an OpenAI-compatible server: the API vLLM, Ollama and the others all speak."""
 
+import json
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import httpx
@@ -265,6 +266,14 @@ class OpenAiTranscriber:
         return Check(ok=True, detail=f"{self._model} hört zu.", milliseconds=_since(started))
 
 
+#: How many pictures go to the face model in one request.
+#:
+#: The machine names its own limit and refuses more with a 413. Ours defaults to 64 and is set
+#: to less in places, so this stays under any of them: a minute of video is a dozen frames, and
+#: a request per dozen costs nothing next to what the model itself takes.
+FACES_AT_ONCE = 16
+
+
 class OpenAiFaceDetector:
     """Faces from Muninn's embedding service at /v1/faces - shaped like the OpenAI endpoints,
     though OpenAI has no such thing."""
@@ -285,8 +294,20 @@ class OpenAiFaceDetector:
         self._client = client
 
     async def detect(self, images: Sequence[str]) -> list[list[DetectedFace]]:
+        """The faces in these pictures, one list each, in the order they were given.
+
+        A long video is a lot of frames at once, and the machine says how many it will take in
+        one request - the answer was a 413 and a whole video without faces. They go in parts
+        small enough for any setting of it, and the parts are put back together here.
+        """
         if not images:
             return []
+        if len(images) > FACES_AT_ONCE:
+            parts = [
+                await self.detect(images[start : start + FACES_AT_ONCE])
+                for start in range(0, len(images), FACES_AT_ONCE)
+            ]
+            return [faces for part in parts for faces in part]
         payload = await post_json(
             f"{self._base_url}/faces",
             {"model": self._model, "input": list(images)},
@@ -426,6 +447,89 @@ CONNECT_SECONDS = 5
 def _timeout(seconds: int) -> httpx.Timeout:
     """The profile's time for the answer, but a short one for getting through at all."""
     return httpx.Timeout(seconds, connect=min(CONNECT_SECONDS, seconds))
+
+
+class OpenAiWriter:
+    """Prose from a chat model behind /v1/chat/completions, answered as JSON.
+
+    Nothing here knows what it is writing about: the rules and the facts come from the domain
+    that wants the text, and the model, the address and the key come from the profile.
+    """
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: str = "",
+        timeout_seconds: int = 120,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+        self._api_key = api_key
+        self._timeout = timeout_seconds
+        self._client = client
+
+    async def write(
+        self,
+        facts: Mapping[str, Any],
+        *,
+        rules: str,
+        temperature: float = 0.8,
+        most: int = 500,
+    ) -> dict[str, Any]:
+        answer = _message_of(
+            await post_json(
+                f"{self._base_url}/chat/completions",
+                {
+                    "model": self._model,
+                    "messages": [
+                        {"role": "system", "content": rules},
+                        {"role": "user", "content": json.dumps(facts, ensure_ascii=False)},
+                    ],
+                    "temperature": temperature,
+                    "max_tokens": most,
+                    "response_format": {"type": "json_object"},
+                },
+                api_key=self._api_key,
+                timeout_seconds=self._timeout,
+                client=self._client,
+            )
+        )
+        return _object_in(answer, self._model)
+
+    async def check(self) -> Check:
+        started = time.perf_counter()
+        try:
+            written = await self.write(
+                {"probe": "Sag Hallo."},
+                rules='Antworte nur mit JSON: {"hallo": "..."}',
+                temperature=0,
+                most=30,
+            )
+        except AiError as error:
+            return Check(ok=False, detail=str(error), milliseconds=_since(started))
+        return Check(
+            ok=bool(written),
+            detail=f"{self._model} antwortet in JSON.",
+            milliseconds=_since(started),
+        )
+
+
+def _object_in(answer: str, model: str) -> dict[str, Any]:
+    """The JSON object in an answer that may carry a sentence or a fence around it."""
+    text = _without_fences(answer)
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end < start:
+        raise AiError(f"{model} antwortet nicht in JSON.")
+    try:
+        written = json.loads(text[start : end + 1])
+    except json.JSONDecodeError as error:
+        raise AiError(f"{model} antwortet mit unlesbarem JSON: {error}") from error
+    if not isinstance(written, dict):
+        raise AiError(f"{model} antwortet mit {type(written).__name__} statt einem Objekt.")
+    return written
 
 
 async def post_json(

@@ -7,9 +7,11 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from muninn.huginn import attempts
+from muninn.models.attempt import GIVE_UP_AFTER
 from muninn.models.change_log import ChangeKind, ChangeLogEntry, SyncTrigger
 from muninn.models.notification import NotificationKind
-from muninn.models.user import User
+from muninn.models.user import User, UserRole
 from muninn.notify import service
 from tests.test_comments import person, say
 from tests.test_social import a_picture
@@ -179,3 +181,61 @@ async def test_nobody_else_sees_my_bell(
     assert await bell(api_client, lena) == []
     owners = await session.scalars(select(User.username))
     assert "lena" in list(owners)
+
+
+async def test_a_stage_that_gives_up_tells_the_admins_what_went_wrong(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A medium nothing can be done with used to be an entry in the engine room and nowhere
+    else. The admins hear of it, with the machine's own words."""
+    admin = await person(api_client, session_factory, "chef", "Chef", UserRole.ADMIN)
+    family = await person(api_client, session_factory, "oma", "Oma")
+    medium = await a_picture(session)
+
+    for _ in range(GIVE_UP_AFTER):
+        await attempts.note_failure(session, medium.id, "faces", "ffmpeg: no frame to read")
+
+    (entry,) = await bell(api_client, admin)
+    assert entry["kind"] == "stage_failed"
+    assert entry["stage"] == "faces"
+    assert entry["detail"] == "ffmpeg: no frame to read"
+    assert entry["media"] is not None
+    # Not the family's business: they cannot act on it and would only be worried by it.
+    assert await bell(api_client, family) == []
+
+
+async def test_nothing_is_said_before_the_stage_gives_up(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The first tries are the pipeline's own business: it will try again by itself."""
+    admin = await person(api_client, session_factory, "chef", "Chef", UserRole.ADMIN)
+    medium = await a_picture(session)
+
+    for _ in range(GIVE_UP_AFTER - 1):
+        await attempts.note_failure(session, medium.id, "faces", "ffmpeg: no frame to read")
+
+    assert await bell(api_client, admin) == []
+
+
+async def test_two_stages_on_one_medium_are_two_entries(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Different problems with different answers: bundling them would hide one of the two."""
+    admin = await person(api_client, session_factory, "chef", "Chef", UserRole.ADMIN)
+    medium = await a_picture(session)
+
+    for stage, said in (("faces", "no frame"), ("analysis", "model refused")):
+        for _ in range(GIVE_UP_AFTER):
+            await attempts.note_failure(session, medium.id, stage, said)
+
+    entries = await bell(api_client, admin)
+    assert {(one["stage"], one["detail"]) for one in entries} == {
+        ("faces", "no frame"),
+        ("analysis", "model refused"),
+    }

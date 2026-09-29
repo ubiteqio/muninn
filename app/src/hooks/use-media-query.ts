@@ -28,3 +28,12 @@ export const WIDE_QUERY = '(min-width: 768px)'
 
 /** From 1024 px the design shows the sidebar plus a second content column. */
 export const DESKTOP_QUERY = '(min-width: 1024px)'
+
+/**
+ * A screen with little height: a phone held sideways, or a small window.
+ *
+ * Width says how much room there is beside things; this says how much there is above and
+ * below them. The rail of destinations is tall by nature, and a phone in landscape is 390 px
+ * from edge to edge before the browser has taken its share.
+ */
+export const SHORT_QUERY = '(max-height: 560px)'

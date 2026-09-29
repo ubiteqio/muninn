@@ -4,6 +4,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,11 +22,13 @@ from muninn.api.v1.memories import router as memories_router
 from muninn.api.v1.notify import router as notify_router
 from muninn.api.v1.people import admin_router as admin_faces_router
 from muninn.api.v1.people import router as people_router
+from muninn.api.v1.photobooks import router as photobooks_router
 from muninn.api.v1.places import places_router
 from muninn.api.v1.places import router as map_router
 from muninn.api.v1.report import router as report_router
 from muninn.api.v1.search import router as search_router
 from muninn.api.v1.settings import router as admin_settings_router
+from muninn.api.v1.smarts import router as smarts_router
 from muninn.api.v1.social import router as social_router
 from muninn.api.v1.users import admin_router as admin_users_router
 from muninn.api.v1.users import me_router
@@ -46,10 +49,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
     app.state.redis = create_redis(settings.redis_url)
+    # One client for the AI machine, kept open. A search asks it twice, and building a client
+    # for each of those threw the connection away every time: a handshake before every word
+    # that is looked up. The workers keep their own; this one belongs to the API.
+    app.state.ai_client = httpx.AsyncClient()
 
     try:
         yield
     finally:
+        await app.state.ai_client.aclose()
         await app.state.redis.aclose()
         await engine.dispose()
 
@@ -96,6 +104,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(map_router, prefix=API_PREFIX)
     app.include_router(places_router, prefix=API_PREFIX)
     app.include_router(memories_router, prefix=API_PREFIX)
+    app.include_router(smarts_router, prefix=API_PREFIX)
+    app.include_router(photobooks_router, prefix=API_PREFIX)
     app.include_router(social_router, prefix=API_PREFIX)
     # After social: /people/mentionable is one of its paths, not a person's id.
     app.include_router(people_router, prefix=API_PREFIX)

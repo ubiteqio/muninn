@@ -23,6 +23,8 @@ const settings = {
   deletion_share_percent: 5,
   deletion_count: 500,
   nas_agent_enabled: false,
+  smart_max_chapters: 60,
+  smart_max_media: 500,
   updated_at: '2026-09-20T08:00:00Z',
 }
 
@@ -49,14 +51,28 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe('the Smarts in the settings', () => {
+  it('offers both numbers and the button, among the things an admin sets', async () => {
+    stubApi({ [READ]: { body: settings } })
+
+    await renderScreen(<AdminSettingsPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Smart-Alben' })).toBeInTheDocument()
+    // Both numbers an admin sets, and the button that builds with them, in one card.
+    expect(screen.getByRole('spinbutton', { name: /Anzahl Smart-Alben/ })).toHaveValue(60)
+    expect(screen.getByRole('spinbutton', { name: /Medien je Smart-Album/ })).toHaveValue(500)
+    expect(screen.getByRole('button', { name: 'Neu erstellen' })).toBeInTheDocument()
+  })
+})
+
 describe('settings', () => {
   it('shows the stored values', async () => {
     stubApi({ [READ]: { body: settings } })
 
     await renderScreen(<AdminSettingsPage />)
 
-    expect(await screen.findByLabelText(/Vorschaubild im Raster/)).toHaveValue(400)
-    expect(screen.getByLabelText(/Große Vorschau/)).toHaveValue(2048)
+    expect(await screen.findByRole('spinbutton', { name: /Vorschaubild im Raster/ })).toHaveValue(400)
+    expect(screen.getByRole('spinbutton', { name: /Große Vorschau/ })).toHaveValue(2048)
     expect(screen.getByText('@eaDir')).toBeInTheDocument()
   })
 
@@ -68,7 +84,7 @@ describe('settings', () => {
     await renderScreen(<AdminSettingsPage />)
     const user = userEvent.setup()
 
-    const thumbnail = await screen.findByLabelText(/Vorschaubild im Raster/)
+    const thumbnail = await screen.findByRole('spinbutton', { name: /Vorschaubild im Raster/ })
     await user.clear(thumbnail)
     await user.type(thumbnail, '320')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
@@ -84,10 +100,10 @@ describe('settings', () => {
     await renderScreen(<AdminSettingsPage />)
     const user = userEvent.setup()
 
-    const thumbnail = await screen.findByLabelText(/Vorschaubild im Raster/)
+    const thumbnail = await screen.findByRole('spinbutton', { name: /Vorschaubild im Raster/ })
     await user.clear(thumbnail)
     await user.type(thumbnail, '900')
-    const preview = screen.getByLabelText(/Große Vorschau/)
+    const preview = screen.getByRole('spinbutton', { name: /Große Vorschau/ })
     await user.clear(preview)
     await user.type(preview, '850')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
@@ -100,7 +116,7 @@ describe('settings', () => {
     await renderScreen(<AdminSettingsPage />)
     const user = userEvent.setup()
 
-    const thumbnail = await screen.findByLabelText(/Vorschaubild im Raster/)
+    const thumbnail = await screen.findByRole('spinbutton', { name: /Vorschaubild im Raster/ })
     await user.clear(thumbnail)
     await user.type(thumbnail, '20')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
@@ -166,9 +182,9 @@ describe('the settings of the sync', () => {
 
     await renderScreen(<AdminSettingsPage />)
 
-    expect(await screen.findByLabelText(/Schnell-Abgleich/)).toHaveValue(300)
-    expect(screen.getByLabelText(/Schonfrist/)).toHaveValue(30)
-    expect(screen.getByLabelText(/Löschpause: Anteil/)).toHaveValue(5)
+    expect(await screen.findByRole('spinbutton', { name: /Schnell-Abgleich/ })).toHaveValue(300)
+    expect(screen.getByRole('spinbutton', { name: /Schonfrist/ })).toHaveValue(30)
+    expect(screen.getByRole('spinbutton', { name: /Löschpause: Anteil/ })).toHaveValue(5)
   })
 
   it('lets the grace period be set to nothing', async () => {
@@ -179,7 +195,7 @@ describe('the settings of the sync', () => {
     await renderScreen(<AdminSettingsPage />)
     const user = userEvent.setup()
 
-    const grace = await screen.findByLabelText(/Schonfrist/)
+    const grace = await screen.findByRole('spinbutton', { name: /Schonfrist/ })
     await user.clear(grace)
     await user.type(grace, '0')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
@@ -198,7 +214,7 @@ describe('the settings of the sync', () => {
     await renderScreen(<AdminSettingsPage />)
     const user = userEvent.setup()
 
-    const share = await screen.findByLabelText(/Löschpause: Anteil/)
+    const share = await screen.findByRole('spinbutton', { name: /Löschpause: Anteil/ })
     await user.clear(share)
     await user.type(share, '0')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
@@ -215,11 +231,38 @@ describe('the settings of the sync', () => {
     await renderScreen(<AdminSettingsPage />)
     const user = userEvent.setup()
 
-    const share = await screen.findByLabelText(/Löschpause: Anteil/)
+    const share = await screen.findByRole('spinbutton', { name: /Löschpause: Anteil/ })
     await user.clear(share)
     await user.type(share, '80')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('zwischen 0 und 50')
+  })
+})
+
+describe('die Erklärungen hinter dem ⓘ', () => {
+  it('says in detail what a setting does, one field at a time', async () => {
+    // The line under a field has room for the bounds and nothing else. What a value actually
+    // changes - and what happens to what is already derived - belongs behind the icon.
+    stubApi({ [READ]: { body: settings } })
+
+    await renderScreen(<AdminSettingsPage />)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Erklärung: Schonfrist für Fehlendes' }),
+    )
+
+    const bubble = await screen.findByText(/verschwindet beim nächsten Abgleich sofort/)
+    expect(bubble).toBeInTheDocument()
+    expect(screen.getByText(/0 heißt: beim nächsten Abgleich/)).toBeInTheDocument()
+  })
+
+  it('gives every number on the page its own explanation', async () => {
+    stubApi({ [READ]: { body: settings } })
+
+    await renderScreen(<AdminSettingsPage />)
+
+    await screen.findByRole('heading', { name: 'Smart-Alben' })
+    expect(screen.getAllByRole('button', { name: /^Erklärung: / })).toHaveLength(12)
   })
 })

@@ -2,12 +2,13 @@
 
 import math
 import uuid
+from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from muninn.faces import people
+from muninn.faces import listing, people
 from muninn.models.face import Face, Person
 from muninn.models.user import User
 from muninn.search.service import FaceToStore, store_faces
@@ -25,7 +26,9 @@ def at(similarity: float, towards: int = 1) -> list[float]:
     return vector
 
 
-async def faces_in_a_photo(session: AsyncSession, *vectors: list[float]) -> list[uuid.UUID]:
+async def faces_in_a_photo(
+    session: AsyncSession, *vectors: list[float], pixels: int = 100, score: float = 0.9
+) -> list[uuid.UUID]:
     medium = await a_medium(
         session,
         await an_album(session, f"Fest-{uuid.uuid4().hex[:6]}"),
@@ -39,8 +42,8 @@ async def faces_in_a_photo(session: AsyncSession, *vectors: list[float]) -> list
         faces=[
             FaceToStore(
                 box=(0.1 + 0.2 * index, 0.1, 0.25 + 0.2 * index, 0.3),
-                score=0.9,
-                pixels=100,
+                score=score,
+                pixels=pixels,
                 second=None,
                 embedding=vector,
             )
@@ -77,7 +80,11 @@ async def test_alike_faces_form_a_group_and_others_stay_apart(session: AsyncSess
     assert other.cluster is None
 
 
-async def test_a_face_joins_two_groups_it_links(session: AsyncSession) -> None:
+async def test_a_face_between_two_groups_does_not_tie_them_together(
+    session: AsyncSession,
+) -> None:
+    """One face near two groups used to weld them into one, and a chain of such faces welded
+    hundreds of different people into a group nobody could name. It joins the nearer middle."""
     (left,) = await faces_in_a_photo(session, at(1.0))
     (left_too,) = await faces_in_a_photo(session, at(0.97, towards=1))
     (right,) = await faces_in_a_photo(session, at(0.0, towards=2))
@@ -85,11 +92,13 @@ async def test_a_face_joins_two_groups_it_links(session: AsyncSession) -> None:
     before = {(await face(session, i)).cluster for i in (left, left_too, right, right_too)}
     assert len(before) == 2
 
-    # Close to both: now they are one group.
-    (bridge,) = await faces_in_a_photo(session, [0.707, 0.0, 0.707] + [0.0] * 5)
+    # Near enough to a face in either group to have merged them before, but clearly nearer the
+    # middle of the left one.
+    (bridge,) = await faces_in_a_photo(session, [0.75, 0.0, 0.661] + [0.0] * 5)
 
     after = {(await face(session, i)).cluster for i in (left, left_too, right, right_too, bridge)}
-    assert len(after) == 1
+    assert len(after) == 2
+    assert (await face(session, bridge)).cluster == (await face(session, left)).cluster
 
 
 async def test_a_named_group_takes_new_faces_or_suggests_them(
@@ -115,6 +124,30 @@ async def test_a_named_group_takes_new_faces_or_suggests_them(
     # How alike: the distance to Lena's nearest face, kept for the app to show.
     assert unsure_face.suggested_distance == pytest.approx(0.5, abs=0.03)
     assert (await face(session, nobody)).suggested_person_id is None
+
+
+async def test_a_no_only_writes_the_decision_and_leaves_the_sorting_to_the_worker(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """A "Nein" answers at once. Finding the face's new group takes the lock the worker holds
+    while it reassesses, and nobody should wait in front of a dialog for that."""
+    anna = await a_user(session_factory, session)
+    named = await faces_in_a_photo(session, at(1.0), at(0.96))
+    lena = await people.name_group(
+        session, (await face(session, named[0])).cluster or 0, "Lena", anna
+    )
+    (mistaken,) = await faces_in_a_photo(session, at(0.9, towards=3))
+    assert (await face(session, mistaken)).person_id == lena.id
+
+    await people.reject(session, mistaken)
+
+    after = await face(session, mistaken)
+    assert (after.person_id, after.suggested_person_id, after.cluster) == (None, None, None)
+
+    # What the worker does with it afterwards: a group, and never Lena again.
+    await people.sort_faces(session, [mistaken])
+    sorted_face = await face(session, mistaken)
+    assert (sorted_face.person_id, sorted_face.suggested_person_id) == (None, None)
 
 
 async def test_the_same_name_in_another_case_is_the_same_person(
@@ -203,15 +236,17 @@ async def lena_confirmed(
     return await people.name_group(session, group, "Lena", anna)
 
 
-async def test_only_a_confirmed_face_vouches_for_an_automatic_one(
+async def test_a_face_muninn_was_not_sure_of_vouches_for_nobody(
     session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     lena = await lena_confirmed(session, session_factory)
-    (auto,) = await faces_in_a_photo(session, at(0.8, towards=2))
-    assert (await face(session, auto)).assigned_by == "auto"
+    # 0.38 from a confirmed face: close enough to take Lena's name, too far to hand it on.
+    (auto,) = await faces_in_a_photo(session, at(0.62, towards=2))
+    holder = await face(session, auto)
+    assert (holder.assigned_by, holder.trusted) == ("auto", False)
 
-    # Very close to the automatic face, but only half like the confirmed ones: before, the
-    # automatic face handed Lena on. Now it is a question.
+    # Very close to the automatic face, but only half like the confirmed ones: before the rule,
+    # the automatic face handed Lena on. Now it is a question.
     (look_alike,) = await faces_in_a_photo(session, at(0.5, towards=2))
 
     found = await face(session, look_alike)
@@ -280,3 +315,243 @@ async def test_copies_given_by_muninn_do_not_hide_the_confirmed_face(
 
     found = await face(session, twelfth)
     assert (found.person_id, found.assigned_by) == (lena.id, "auto")
+
+
+async def test_a_face_muninn_was_sure_of_vouches_for_the_next_one(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """Muninn may build on its own work, as long as every step is a short one.
+
+    Lena is named once. The second face lies 0.15 away and is assigned automatically - close
+    enough to speak for her from then on. The third lies 0.5 from the face that was named, too
+    far to be given her name by it, but 0.12 from the second.
+    """
+    lena = await lena_confirmed(session, session_factory)
+
+    (close,) = await faces_in_a_photo(session, at(0.85))
+    (further,) = await faces_in_a_photo(session, at(0.5))
+
+    vouching = await face(session, close)
+    assert (vouching.person_id, vouching.assigned_by, vouching.trusted) == (lena.id, "auto", True)
+    carried = await face(session, further)
+    assert (carried.person_id, carried.assigned_by) == (lena.id, "auto")
+
+
+async def test_a_small_face_stays_out_of_the_groups(session: AsyncSession) -> None:
+    """Below the bar a face says more about focus than about who it is, and such faces are what
+    tie the groups of different people together."""
+    (clear,) = await faces_in_a_photo(session, at(1.0))
+    (clear_too,) = await faces_in_a_photo(session, at(0.95))
+    (small,) = await faces_in_a_photo(session, at(0.97), pixels=40)
+    (unsure,) = await faces_in_a_photo(session, at(0.97), score=0.65)
+
+    together = await face(session, clear), await face(session, clear_too)
+    assert together[0].cluster is not None
+    assert together[0].cluster == together[1].cluster
+    assert (await face(session, small)).cluster is None
+    assert (await face(session, unsure)).cluster is None
+
+
+async def test_a_no_takes_the_vouching_with_it(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    lena = await lena_confirmed(session, session_factory)
+    (close,) = await faces_in_a_photo(session, at(0.85))
+    assert (await face(session, close)).trusted is True
+
+    await people.reject(session, close)
+
+    rejected = await face(session, close)
+    assert (rejected.person_id, rejected.trusted) == (None, False)
+    assert lena.id is not None
+
+
+async def test_regrouping_takes_apart_what_an_older_rule_ran_together(
+    session: AsyncSession,
+) -> None:
+    """A face is only put into a group when it is new, so a group an older rule ran together
+    stays as it was. Building them again is what takes such a group apart."""
+    left = await faces_in_a_photo(session, at(1.0))
+    left_too = await faces_in_a_photo(session, at(0.97, towards=1))
+    right = await faces_in_a_photo(session, at(0.0, towards=2))
+    right_too = await faces_in_a_photo(session, [0.0, 0.24, 0.97, 0, 0, 0, 0, 0])
+    every = [*left, *left_too, *right, *right_too]
+
+    # As the old rule left it: two different people in one group.
+    await session.execute(update(Face).where(Face.id.in_(every)).values(cluster=1))
+    await session.commit()
+
+    found = await people.regroup(session)
+
+    assert (found.groups, found.faces, found.largest) == (2, len(every), 2)
+    assert len({(await face(session, one)).cluster for one in every}) == 2
+
+
+def test_middles_finds_one_for_each_way_somebody_looked() -> None:
+    """Sixteen faces in two clearly different directions are two middles, not one average of
+    both - which would be a face nobody ever had."""
+    young = [at(0.99 - index / 1000, towards=1) for index in range(8)]
+    older = [at(0.02 * index, towards=2) for index in range(8)]
+
+    found = people.middles(young + older)
+
+    assert len(found) == 2
+    assert sorted(count for _, count in found) == [8, 8]
+
+
+def test_a_person_with_few_faces_has_one_middle() -> None:
+    assert len(people.middles([at(1.0), at(0.9), at(0.8)])) == 1
+
+
+async def test_a_person_is_known_by_their_middle_when_no_face_is_near_enough(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """Seven confirmed faces, each 0.5 away from the new one - too far for any of them to give
+    their name. Their middle lies 0.16 away, because they surround it."""
+    anna = await a_user(session_factory, session)
+    lena = await people.person_named(session, "Lena", anna)
+    for towards in range(1, 8):
+        (one,) = await faces_in_a_photo(session, at(0.5, towards=towards))
+        await people.assign(session, one, lena)
+    await people.rebuild_prototypes(session)
+
+    (fresh,) = await faces_in_a_photo(session, at(1.0))
+
+    found = await face(session, fresh)
+    assert (found.person_id, found.assigned_by) == (lena.id, "auto")
+    # A middle already speaks for several faces; what it names does not get to speak again.
+    assert found.trusted is False
+
+
+def test_many_faces_are_sampled_so_the_middles_stay_quick() -> None:
+    """Gathering the middles is plain Python. A person with thousands of faces must not hold up
+    every other person waiting behind them."""
+    many = [at(0.99 - (index % 50) / 500, towards=1 + index % 6) for index in range(2000)]
+
+    found = people.middles(many)
+
+    assert 1 <= len(found) <= people.PROTOTYPES_MAX
+    assert sum(count for _, count in found) == people.PROTOTYPE_SAMPLE
+
+
+async def three_questions_about(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> tuple[Person, list[uuid.UUID]]:
+    """Lena, and three faces alike enough to be asked about her but not to be given her."""
+    lena = await lena_confirmed(session, session_factory)
+    asked = [
+        (await faces_in_a_photo(session, at(0.5 + index / 100, towards=2)))[0] for index in range(3)
+    ]
+    for one in asked:
+        assert (await face(session, one)).suggested_person_id == lena.id
+    return lena, asked
+
+
+async def test_the_open_questions_that_look_like_the_one_just_answered(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    lena, asked = await three_questions_about(session, session_factory)
+    (nobody,) = await faces_in_a_photo(session, at(0.05, towards=5))
+
+    found = await people.alike_suggestions(session, asked[0], lena.id)
+
+    assert [one.id for one, _ in found] == asked[1:]
+    assert all(similarity > 0.9 for _, similarity in found)
+    assert nobody not in [one.id for one, _ in found]
+
+
+async def test_the_same_answer_for_several_faces_at_once(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    lena, asked = await three_questions_about(session, session_factory)
+
+    answered = await people.decide_many(session, asked, lena, confirm=True)
+
+    assert answered == len(asked)
+    for one in asked:
+        named = await face(session, one)
+        assert (named.person_id, named.assigned_by) == (lena.id, "user")
+
+
+async def test_a_no_for_several_faces_at_once_and_none_of_them_asked_again(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    lena, asked = await three_questions_about(session, session_factory)
+
+    answered = await people.decide_many(session, asked, lena, confirm=False)
+
+    assert answered == len(asked)
+    for one in asked:
+        said_no = await face(session, one)
+        assert (said_no.person_id, said_no.suggested_person_id) == (None, None)
+
+    # A list somebody answered may have moved on between seeing it and sending it back. What is
+    # no longer an open question about Lena is skipped, not refused.
+    assert await people.decide_many(session, asked, lena, confirm=True) == 0
+
+
+async def test_a_face_as_far_off_as_a_question_is_offered_too(
+    session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """The offer reaches as far as a suggestion does. At 0.40 there was often one face below
+    the line and no way to move the slider far enough to find the others."""
+    lena, asked = await three_questions_about(session, session_factory)
+
+    # Half alike to Lena, so she is suggested for it - and only half alike to the face just
+    # answered, which is further than the old 0.40 and nearer than a suggestion's 0.62.
+    (distant,) = await faces_in_a_photo(session, [0.5, 0.0, 0.2887, 0.8165, 0.0, 0.0, 0.0, 0.0])
+    assert (await face(session, distant)).suggested_person_id == lena.id
+
+    found = await people.alike_suggestions(session, asked[0], lena.id)
+
+    offered = {one.id: similarity for one, similarity in found}
+    assert distant in offered
+    assert 0.4 < offered[distant] < 0.62
+
+
+async def test_muninns_own_faces_are_dealt_out_a_year_at_a_time(session: AsyncSession) -> None:
+    """A person of twenty-six years has thousands of them, and at most five middles stand for
+    them. Five middles of one afternoon are one middle - so a page must span the years."""
+    lena = Person(name="Lena")
+    session.add(lena)
+    await session.flush()
+    album = await an_album(session, "Jahre")
+    for year in (2011, 2012, 2013):
+        for index in range(4):
+            medium = await a_medium(
+                session,
+                album,
+                taken_at=datetime(year, 7, 1 + index, tzinfo=UTC),
+                name=f"{year}-{index}.jpg",
+            )
+            (face_id,) = await store_faces(
+                session,
+                medium.id,
+                model="buffalo_l",
+                faces=[
+                    FaceToStore(
+                        box=(0.1, 0.1, 0.3, 0.4),
+                        score=0.9,
+                        pixels=120,
+                        second=None,
+                        embedding=at(0.99),
+                    )
+                ],
+            )
+            face = await session.get(Face, face_id)
+            assert face is not None
+            face.person_id = lena.id
+            face.assigned_by = "auto"
+    await session.commit()
+
+    spread, _ = await listing.faces_of(
+        session, lena.id, offset=0, limit=3, only=listing.FaceFilter.AUTO
+    )
+    newest, _ = await listing.faces_of(session, lena.id, offset=0, limit=3)
+
+    def years(found: list[listing.FaceShown]) -> set[int]:
+        return {(one.media.taken_at or one.media.created_at).year for one in found}
+
+    # Three faces, three years - where sorting by date would give three of the newest.
+    assert years(spread) == {2011, 2012, 2013}
+    assert years(newest) == {2013}

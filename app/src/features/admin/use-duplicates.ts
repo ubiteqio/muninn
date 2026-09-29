@@ -5,18 +5,22 @@ import type { components } from '@/api/generated/schema'
 
 export type DuplicateGroup = components['schemas']['DuplicateGroupView']
 export type DuplicateState = 'open' | 'all'
+/** Newest first, or the groups that hold the most disk first. */
+export type DuplicateSort = 'newest' | 'size'
 
 const KEY = ['admin', 'duplicates'] as const
 
-/** The groups of copies, newest first, page by page. */
-export function useDuplicates(state: DuplicateState) {
+/** The groups of copies, page by page: newest first, or heaviest first. */
+export function useDuplicates(state: DuplicateState, sort: DuplicateSort = 'newest') {
   return useInfiniteQuery({
-    queryKey: [...KEY, state],
+    queryKey: [...KEY, state, sort],
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam }) =>
       unwrap(
         await api.GET('/api/v1/admin/duplicates', {
-          params: { query: { state, ...(pageParam === null ? {} : { cursor: pageParam }) } },
+          params: {
+            query: { state, sort, ...(pageParam === null ? {} : { cursor: pageParam }) },
+          },
         }),
       ),
     getNextPageParam: (page) => page.next_cursor ?? null,

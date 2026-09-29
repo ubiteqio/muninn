@@ -11,12 +11,13 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from muninn.ai.base import Analyzer, Check, Embedder
+from muninn.ai.base import Analyzer, Check, Embedder, Writer
 from muninn.ai.openai_compatible import (
     OpenAiAnalyzer,
     OpenAiEmbedder,
     OpenAiFaceDetector,
     OpenAiTranscriber,
+    OpenAiWriter,
     probe_chat_model,
 )
 from muninn.models.ai import (
@@ -141,6 +142,17 @@ def embedder_for(
 def analyzer_for(profile: AiProfile, *, client: httpx.AsyncClient | None = None) -> Analyzer:
     """The client for a describing profile."""
     return OpenAiAnalyzer(
+        base_url=profile.base_url,
+        model=profile.model,
+        api_key=profile.api_key,
+        timeout_seconds=profile.timeout_seconds,
+        client=client,
+    )
+
+
+def writer_for(profile: AiProfile, *, client: httpx.AsyncClient | None = None) -> Writer:
+    """The client that writes prose, on the machine that also describes the pictures."""
+    return OpenAiWriter(
         base_url=profile.base_url,
         model=profile.model,
         api_key=profile.api_key,

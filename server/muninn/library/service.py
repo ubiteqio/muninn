@@ -9,17 +9,20 @@ reader below it are pure; what they find is turned into rows here.
 """
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import NamedTuple
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from muninn.huginn import attempts
 from muninn.huginn.derive import DERIVE_VERSION
 from muninn.library import safety
 from muninn.library.formats import kind_of
@@ -27,12 +30,21 @@ from muninn.library.grouping import MediaGroup, group_files
 from muninn.library.hashing import hash_file, quick_hash_file
 from muninn.library.metadata import METADATA_VERSION, read_metadata
 from muninn.library.scanner import ScannedFile, ScannedFolder, is_ignored, walk
+from muninn.media import service as media_service
 from muninn.models.album import Album
 from muninn.models.change_log import RETENTION_DAYS, ChangeKind, ChangeLogEntry, SyncTrigger
-from muninn.models.media import Media, MediaFile, MediaFileRole, MediaStatus
+from muninn.models.media import (
+    Media,
+    MediaFile,
+    MediaFileRole,
+    MediaKind,
+    MediaStatus,
+    shown,
+)
 from muninn.models.pending_file import PendingFile
 from muninn.models.publication import Publication, ScanStatus
 from muninn.models.settings import AppSettings
+from muninn.models.unreadable import UnreadableFile
 
 
 class PublicationNotFoundError(Exception):
@@ -74,6 +86,15 @@ ProgressCallback = Callable[[SyncProgress], Awaitable[None]]
 #: Asked between folders. True means an admin wants this read to stop.
 StopCheck = Callable[[], Awaitable[bool]]
 
+_logger = logging.getLogger(__name__)
+
+
+class Unreadable(NamedTuple):
+    """A file the reading could not open, and what the operating system said about it."""
+
+    relative_path: str
+    reason: str
+
 
 @dataclass(slots=True)
 class SyncReport:
@@ -95,6 +116,8 @@ class SyncReport:
     unchanged_folders: int = 0
     #: Folders that could not be listed. They prove nothing and are left as they are.
     failed_folders: int = 0
+    #: Files that could not be read. Skipped, never treated as gone, and reported.
+    unreadable: list["Unreadable"] = field(default_factory=list)
     #: Media whose metadata still have to be read; the caller queues them.
     pending_metadata: list[uuid.UUID] = field(default_factory=list)
     #: Media whose previews still have to be made.
@@ -272,6 +295,31 @@ async def waiting_for_a_second_look(
         for publication in await list_publications(session)
         if publication.enabled and any(_covers(publication.relative_path, path) for path in paths)
     ]
+
+
+async def files_waiting(session: AsyncSession, *, limit: int = 200) -> list[PendingFile]:
+    """The files seen once and waiting for the listing that confirms them, oldest first.
+
+    A number alone ("33 Dateien warten") cannot be acted on. Named, they can: they were all in
+    one folder the day a permission stopped the scan from reading it.
+    """
+    rows = await session.scalars(
+        select(PendingFile).order_by(PendingFile.first_seen_at).limit(limit)
+    )
+    return list(rows)
+
+
+async def unreadable_files(session: AsyncSession, *, limit: int = 200) -> list[UnreadableFile]:
+    """The files the reading had to walk past, worst first by nothing but age."""
+    rows = await session.scalars(
+        select(UnreadableFile).order_by(UnreadableFile.relative_path).limit(limit)
+    )
+    return list(rows)
+
+
+async def count_unreadable(session: AsyncSession) -> int:
+    found = await session.scalar(select(func.count()).select_from(UnreadableFile))
+    return int(found or 0)
 
 
 async def covering_publication(session: AsyncSession, relative_path: str) -> Publication | None:
@@ -507,6 +555,7 @@ async def sync_publication(
 
     files = await _load_files(session, base)
     pending = await _load_pending(session, base)
+    withdrawn = await media_service.withdrawn_paths(session, base)
     by_quick: dict[tuple[int, str], MediaFile] = {
         (file.byte_size, file.quick_hash): file
         for file in files.values()
@@ -558,6 +607,11 @@ async def sync_publication(
             continue
 
         judged_folders.add(scanned.relative_path)
+        # A file that was waiting and is no longer in the folder was deleted before it ever
+        # settled. Nothing else would ever look at it again - the waiting are only compared
+        # against what a listing contains - so the observation would wait for ever, and the
+        # engine room would go on counting a file that is not there.
+        await _forget_vanished(session, pending, folder=scanned.relative_path, listed=scanned.files)
         ready, waiting = await _split_by_stability(
             session, scanned.files, known=files, pending=pending, settings=settings, now=now
         )
@@ -566,18 +620,38 @@ async def sync_publication(
         seen |= waiting
 
         for group in group_files(ready):
-            await _sync_group(
-                session,
-                library_base=library_base,
-                album=album,
-                group=group,
-                known=files,
-                by_quick=by_quick,
-                seen=seen,
-                trigger=trigger,
-                now=now,
-                report=report,
-            )
+            if group.primary.relative_path in withdrawn:
+                # Taken down by an admin. The file is still on the NAS - originals are never
+                # written to - so it counts as seen and nothing treats it as gone; it simply
+                # never becomes a medium again.
+                seen |= {file.relative_path for _, file in group.files}
+                continue
+            try:
+                await _sync_group(
+                    session,
+                    library_base=library_base,
+                    album=album,
+                    group=group,
+                    known=files,
+                    by_quick=by_quick,
+                    seen=seen,
+                    trigger=trigger,
+                    now=now,
+                    report=report,
+                )
+            except WithdrawnError:
+                seen |= {file.relative_path for _, file in group.files}
+                continue
+            except OSError as error:
+                # One file nobody may read must not take the whole library's reading down with
+                # it. A permission that came with a copy did exactly that: every pass died on
+                # the same file, and no other file anywhere was ever confirmed again.
+                #
+                # It is left exactly as it is - the file counts as seen, so nothing treats it
+                # as gone - and the reason is written down where the engine room can show it.
+                seen |= {file.relative_path for _, file in group.files}
+                report.unreadable.append(Unreadable(str(group.primary.relative_path), str(error)))
+                _logger.warning("Skipped %s: %s", group.primary.relative_path, error)
             files_done += len(group.files)
 
             # Hashing a thousand pictures takes minutes; say so while it happens rather than
@@ -611,6 +685,8 @@ async def sync_publication(
                 )
             )
 
+    if with_children:
+        await _forget_unlisted(session, pending, folders)
     await session.flush()
 
     vanished = [
@@ -653,8 +729,39 @@ async def sync_publication(
 
     report.pending_metadata = await _media_without_metadata(session, albums)
     report.pending_derivatives = await _media_without_derivatives(session, albums)
+    await _note_unreadable(session, publication, report.unreadable, now)
     await _finish(session, publication, now, ScanStatus.OK)
     return report
+
+
+async def _note_unreadable(
+    session: AsyncSession,
+    publication: Publication,
+    found: Sequence[Unreadable],
+    now: datetime,
+) -> None:
+    """What this reading of the folder had to walk past, in place of what the last one did.
+
+    Replaced rather than added to, and only under this published folder: a permission put right
+    is read on the next pass, is not among the findings, and so leaves the engine room by
+    itself. Nobody has to remember to clear it.
+    """
+    under = publication.relative_path
+    await session.execute(
+        delete(UnreadableFile).where(
+            or_(
+                UnreadableFile.relative_path == under,
+                UnreadableFile.relative_path.startswith(f"{under}/"),
+            )
+            if under
+            else true()
+        )
+    )
+    for one in found:
+        session.add(
+            UnreadableFile(relative_path=one.relative_path, reason=one.reason[:500], last_at=now)
+        )
+    await session.flush()
 
 
 def _files_in(files: dict[str, MediaFile], folder: str) -> set[str]:
@@ -853,6 +960,55 @@ async def _split_by_stability(
     return ready, waiting
 
 
+async def _forget_vanished(
+    session: AsyncSession,
+    pending: dict[str, PendingFile],
+    *,
+    folder: str,
+    listed: Iterable[ScannedFile],
+) -> None:
+    """Forget what was waiting in this folder and is not in it any more.
+
+    Only for a folder that was listed, and only for that folder: a listing that failed proves
+    nothing, and the safety net turns on exactly this distinction. A file deleted while it was
+    still waiting has no medium, nothing derived and nothing to delete - only the note that it
+    was once seen.
+    """
+    there = {file.relative_path for file in listed}
+    gone = [path for path in list(pending) if _folder_of(path) == folder and path not in there]
+    for path in gone:
+        await _forget_observation(session, pending, path)
+
+
+async def _forget_unlisted(
+    session: AsyncSession, pending: dict[str, PendingFile], folders: Iterable[ScannedFolder]
+) -> None:
+    """Forget what was waiting in a folder this whole read did not come across.
+
+    A folder deleted or moved away is never listed again, so what waited in it was never
+    compared with anything: the note stayed for ever, and the clock, seeing a file overdue for
+    its second look, started a read every minute to give it one.
+
+    Only for a read that went through every folder below, and never below a folder that could
+    not be listed - that proves nothing. Even a mistake here costs little: a waiting file has no
+    medium and nothing hangs on it, and one forgotten too soon is simply seen for the first time
+    by the next listing.
+    """
+    listed: set[str] = set()
+    failed: list[str] = []
+    for scanned in folders:
+        if scanned.listing_failed:
+            failed.append(scanned.relative_path)
+        else:
+            listed.add(scanned.relative_path)
+
+    for path in list(pending):
+        folder = _folder_of(path)
+        if folder in listed or any(_covers(unread, folder) for unread in failed):
+            continue
+        await _forget_observation(session, pending, path)
+
+
 async def _forget_observation(
     session: AsyncSession, pending: dict[str, PendingFile], relative_path: str
 ) -> None:
@@ -983,6 +1139,10 @@ async def _compare_file(
     _log(session, now, ChangeKind.MEDIA_CHANGED, trigger, media=media, path=row.relative_path)
 
 
+class WithdrawnError(Exception):
+    """This picture was taken down. It does not become a medium again, whatever it is called."""
+
+
 async def _resolve_media(
     session: AsyncSession,
     *,
@@ -1027,11 +1187,17 @@ async def _resolve_media(
             known[candidate.relative_path] = candidate
             return candidate.media
 
+    content_hash = await _hash(library_base, group.primary)
+    if await media_service.is_withdrawn(session, content_hash=content_hash):
+        # The same picture an admin took down, under another name or in another folder. A
+        # medium is what its content is, so it stays down.
+        raise WithdrawnError
+
     media = Media(
         album_id=album.id,
         kind=group.kind,
         status=MediaStatus.ACTIVE,
-        content_hash=await _hash(library_base, group.primary),
+        content_hash=content_hash,
         quick_hash=quick,
         metadata_version=0,
         derive_version=0,
@@ -1127,6 +1293,7 @@ async def _media_without_derivatives(
         Media.status == MediaStatus.ACTIVE,
         Media.derive_version < DERIVE_VERSION,
         Media.album_id.in_([album.id for album in albums.values()]),
+        attempts.still_open("derive", Media.id),
     )
     return list(await session.scalars(query))
 
@@ -1273,6 +1440,9 @@ async def apply_metadata(session: AsyncSession, media_id: uuid.UUID, *, library_
 class IndexCounts:
     albums: int
     media: int
+    #: Of those media, how many are pictures and how many are films.
+    photos: int
+    videos: int
     missing: int
     pending_metadata: int
     pending_derivatives: int
@@ -1283,9 +1453,14 @@ async def index_counts(session: AsyncSession) -> IndexCounts:
     albums = await session.scalar(
         select(func.count()).select_from(Album).where(Album.is_source.is_(True))
     )
-    media = await session.scalar(
-        select(func.count()).select_from(Media).where(Media.status == MediaStatus.ACTIVE)
-    )
+    # The same media the albums, the timeline and the Überblick count: a copy of another file
+    # is not a second picture in the library, and the engine room saying it is left the two
+    # screens disagreeing by exactly the number of duplicates.
+    kinds = (
+        await session.execute(select(Media.kind, func.count()).where(shown()).group_by(Media.kind))
+    ).all()
+    by_kind = {kind: int(count) for kind, count in kinds}
+    media = sum(by_kind.values())
     missing = await session.scalar(
         select(func.count()).select_from(Media).where(Media.status == MediaStatus.MISSING)
     )
@@ -1301,7 +1476,9 @@ async def index_counts(session: AsyncSession) -> IndexCounts:
     )
     return IndexCounts(
         albums=int(albums or 0),
-        media=int(media or 0),
+        media=media,
+        photos=by_kind.get(MediaKind.IMAGE, 0),
+        videos=by_kind.get(MediaKind.VIDEO, 0),
         missing=int(missing or 0),
         pending_metadata=int(pending or 0),
         pending_derivatives=int(undrawn or 0),

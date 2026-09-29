@@ -1,0 +1,402 @@
+/*
+ * The scrapbook: paper, tape and a crooked photograph.
+ *
+ * The only stylesheet of its own in the app, and deliberately so. A book is not built from the
+ * same parts as a screen - it has a spine, a fold, a page number and pictures that sit slightly
+ * askew - and expressing that in utility classes would spread one look over a dozen files.
+ * Everything here is scoped under .book, so nothing leaks into the rest of the app.
+ */
+
+.book {
+  --paper: #f4efe3;
+  --edge: #e4dbc7;
+  --book-ink: #191b21;
+  --book-muted: #6d6555;
+  --amber: #b7791f;
+  --tape: rgba(183, 121, 31, 0.24);
+  --pad: clamp(20px, 3vmin, 54px);
+
+  display: flex;
+  height: 100dvh;
+  width: 100vw;
+  background: #1b1a17;
+  color: var(--book-ink);
+  overflow: hidden;
+  font-family: 'Iowan Old Style', Palatino, Georgia, serif;
+}
+
+.book * {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.book .page {
+  flex: 1 1 50%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  padding: var(--pad);
+  background: var(--paper);
+  background-image:
+    radial-gradient(circle at 22% 12%, rgba(255, 255, 255, 0.6), transparent 55%),
+    repeating-linear-gradient(115deg, rgba(0, 0, 0, 0.013) 0 2px, transparent 2px 5px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 1.6vmin, 20px);
+}
+.book .page.left {
+  box-shadow: inset -22px 0 30px -26px rgba(0, 0, 0, 0.7);
+  border-right: 1px solid var(--edge);
+}
+.book .page.right {
+  box-shadow: inset 22px 0 30px -26px rgba(0, 0, 0, 0.7);
+}
+.book .page.single {
+  flex: 1 1 100%;
+  border: 0;
+  box-shadow: none;
+}
+
+.book .headline {
+  font-size: clamp(24px, 3.4vmin, 42px);
+  line-height: 1.08;
+  font-weight: 600;
+}
+.book .kicker {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(10px, 1.25vmin, 13px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--book-muted);
+}
+.book .story {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(12.5px, 1.5vmin, 16px);
+  line-height: 1.6;
+  color: #3b3a35;
+  max-width: 46ch;
+}
+.book .card {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(11px, 1.3vmin, 13px);
+  color: var(--book-muted);
+  border-left: 2px solid var(--amber);
+  padding-left: 10px;
+  line-height: 1.5;
+}
+.book .caption {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(10.5px, 1.25vmin, 13px);
+  color: var(--book-muted);
+  line-height: 1.45;
+}
+.book .rule {
+  height: 1px;
+  background: linear-gradient(90deg, var(--amber), transparent);
+}
+
+.book .photo {
+  position: relative;
+  background: #fff;
+  padding: clamp(4px, 0.7vmin, 9px);
+  box-shadow: 0 10px 22px -12px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+.book .photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.book .photo.fill {
+  height: 100%;
+}
+.book .photo::before,
+.book .photo::after {
+  content: '';
+  position: absolute;
+}
+.book .tape-washi::before {
+  width: 22%;
+  height: 18px;
+  background: var(--tape);
+  left: 39%;
+  top: -9px;
+  transform: rotate(-2deg);
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.4) 0 4px,
+    transparent 4px 8px
+  );
+}
+.book .tape-strip::before {
+  width: 68px;
+  height: 17px;
+  background: rgba(28, 39, 64, 0.16);
+  left: -18px;
+  top: 16px;
+  transform: rotate(-38deg);
+}
+.book .tape-corners::before,
+.book .tape-corners::after {
+  width: 24px;
+  height: 24px;
+  background: rgba(25, 27, 33, 0.13);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.book .tape-corners::before {
+  left: 0;
+  top: 0;
+}
+.book .tape-corners::after {
+  right: 0;
+  bottom: 0;
+  transform: rotate(180deg);
+}
+.book .is-video::after {
+  content: '▶';
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  color: #fff;
+  font-size: 15px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+  background: none;
+  width: auto;
+  height: auto;
+}
+
+.book .head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.book .body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: clamp(8px, 1.4vmin, 16px);
+}
+.book .column {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.2vmin, 12px);
+  width: 28%;
+}
+.book .column .photo {
+  flex: 1;
+  min-height: 0;
+}
+.book .grow {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.book .full {
+  position: absolute;
+  inset: 0;
+}
+.book .full img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.book .full .over {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: var(--pad);
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
+  color: #f6efe1;
+}
+.book .full .over .story,
+.book .full .over .kicker,
+.book .full .over .caption {
+  color: #e6ddca;
+  max-width: 52ch;
+}
+
+.book .behind {
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+}
+.book .behind img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(0.3);
+}
+.book .daypage {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+.book .daypage .day {
+  font-size: clamp(32px, 6vmin, 74px);
+  line-height: 1;
+  font-weight: 600;
+}
+
+/* The map behind a page, and the map that closes the book. */
+.book .behindmap {
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+  filter: sepia(0.2) saturate(0.8) contrast(0.96);
+}
+.book .worldmap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid #ded4bd;
+  box-shadow:
+    0 1px 0 #fff inset,
+    0 6px 14px rgba(40, 33, 20, 0.12);
+  background: #f0e9da;
+  filter: sepia(0.12) saturate(0.9);
+  overflow: hidden;
+}
+.book .maplibregl-ctrl-attrib {
+  font-size: 9px;
+  background: rgba(253, 250, 242, 0.7);
+}
+.book .behindmap .maplibregl-ctrl-bottom-right {
+  bottom: 14px;
+}
+.book .behindmap .maplibregl-ctrl-attrib-button {
+  display: none;
+}
+
+.book .sheet {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+.book .sheet .photo {
+  padding: 2px;
+  aspect-ratio: 1;
+}
+.book .sheet .photo::before,
+.book .sheet .photo::after {
+  display: none;
+}
+.book .strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  height: 22%;
+}
+.book .strip .photo {
+  height: 100%;
+}
+.book .two {
+  display: grid;
+  gap: clamp(8px, 1.4vmin, 16px);
+  flex: 1;
+  min-height: 0;
+}
+
+.book .stations {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(11px, 1.35vmin, 14px);
+  color: #3b3a35;
+  display: grid;
+  gap: 8px;
+}
+.book .folio {
+  position: absolute;
+  bottom: 12px;
+  font-size: 11px;
+  color: var(--book-muted);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.1em;
+}
+.book .page.left .folio,
+.book .page.single .folio {
+  left: var(--pad);
+}
+.book .page.right .folio {
+  right: var(--pad);
+}
+
+/* The bar at the foot. On a phone the book is turned by swiping, so it would only cover a
+   picture; this rule stands after the one it overrides, and the last of equal weight wins. */
+.book-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(20, 19, 17, 0.72);
+  color: #e8e0cf;
+  backdrop-filter: blur(8px);
+  font-size: 12.5px;
+  z-index: 10;
+}
+.book-bar button {
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  border: 0;
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+}
+.book-bar button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+@media (max-width: 899px) {
+  .book-bar {
+    display: none;
+  }
+}
+
+/*
+ * Printing, and saving as PDF, which is the same thing to a browser: every page of the book on
+ * a sheet of its own, in landscape, with nothing on it that one could click. The reader hands
+ * the printer all the pages instead of the two on screen, because a printer has no arrow keys.
+ */
+@media print {
+  @page {
+    size: landscape;
+    margin: 0;
+  }
+  .book {
+    display: block;
+    height: auto;
+    width: auto;
+    overflow: visible;
+    background: #fff;
+  }
+  .book .page,
+  .book .page.left,
+  .book .page.right,
+  .book .page.single {
+    flex: none;
+    width: 100%;
+    height: 100vh;
+    break-after: page;
+    box-shadow: none;
+    border: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .book .page:last-child {
+    break-after: auto;
+  }
+  .book-bar,
+  .book-leave {
+    display: none !important;
+  }
+}

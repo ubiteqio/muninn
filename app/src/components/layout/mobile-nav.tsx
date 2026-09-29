@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { AlbumWays } from '@/components/layout/album-ways'
 import { MOBILE_MORE, MOBILE_NAVIGATION } from '@/components/layout/navigation'
 import { Symbol } from '@/components/muninn/symbol'
 import {
@@ -48,6 +49,28 @@ export function MobileNav({ active }: { active: string }) {
               </li>
             )
           }
+          // "Alben" holds two ways in - the folders and the Smarts - and opens them above
+          // the bar, where a thumb already is.
+          if (item.id === 'albums') {
+            return (
+              <li key={item.id} className="flex-1">
+                <AlbumWays
+                  side="top"
+                  align="center"
+                  trigger={
+                    <button
+                      type="button"
+                      aria-label={t(`nav.${item.id}`)}
+                      className={cn(TARGET, isActive ? 'text-primary' : 'text-muted-foreground')}
+                    >
+                      <Symbol name={item.icon} size={ICON} filled={isActive} />
+                    </button>
+                  }
+                />
+              </li>
+            )
+          }
+
           return (
             <li key={item.id} className="flex-1">
               <Link

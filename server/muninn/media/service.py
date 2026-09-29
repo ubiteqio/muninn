@@ -10,14 +10,16 @@ from datetime import date, datetime
 from enum import StrEnum
 from pathlib import Path
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
+from muninn.huginn import attempts
 from muninn.huginn.derive import DERIVE_VERSION, Derivatives, DeriveError, derive
 from muninn.models.media import Media, MediaKind, MediaStatus, shown
 from muninn.models.settings import AppSettings
+from muninn.models.withdrawn import WithdrawnMedium
 
 
 class MediaNotFoundError(Exception):
@@ -263,7 +265,22 @@ async def apply_derivatives(
     if media.derive_version == DERIVE_VERSION and media.thumbnail_path == relative_of(
         media_id, f"thumb-{stem}.webp"
     ):
-        return True
+        # Written down is not the same as there: files can be lost with a disk, a cleanup or a
+        # half-finished restore. What the database promises is checked before it is believed.
+        recorded = [
+            path
+            for path in (
+                media.thumbnail_path,
+                media.preview_path,
+                media.video_path,
+                media.poster_path,
+            )
+            if path is not None
+        ]
+        if await asyncio.to_thread(
+            lambda: all((derived_root / path).is_file() for path in recorded)
+        ):
+            return True
 
     folder = folder_of(derived_root, media_id)
     try:
@@ -278,9 +295,11 @@ async def apply_derivatives(
             quality=settings.image_quality,
             video_height=settings.video_height,
         )
-    except DeriveError:
+    except DeriveError as error:
         # A broken or unreadable original is not worth a failed task: the medium stays in the
-        # library without previews, and the admin sees it in the index status.
+        # library without previews, and the admin sees it in the index status. It is counted,
+        # so the clock stops handing the same file out every minute for ever.
+        await attempts.note_failure(session, media_id, "derive", str(error))
         return False
 
     previous = [
@@ -300,6 +319,7 @@ async def apply_derivatives(
         _size_of, folder, [made.thumbnail, made.preview, made.video, made.poster]
     )
     media.derive_version = DERIVE_VERSION
+    await attempts.forget(session, media_id, "derive")
     if made.width is not None:
         # The decoded picture beats the tag: this is the size everything that shows it needs.
         media.width = made.width
@@ -319,6 +339,50 @@ async def apply_derivatives(
         _remove_files, derived_root, [path for path in previous if path not in keep]
     )
     return True
+
+
+async def withdraw(
+    session: AsyncSession, media_id: uuid.UUID, *, derived_root: Path, by: uuid.UUID | None
+) -> str:
+    """Take a medium down: now, everywhere, and for good. Returns the path it lay at.
+
+    A picture nobody should see cannot wait for a pass to notice. The row goes, and with it -
+    by the database's own hand - every face, vector, description, transcript, reaction,
+    comment and favourite that hung on it. The previews and the face crops go from the disk in
+    the same breath rather than at the next sweep.
+
+    What stays is a line saying it was taken down, held by content hash. The original is still
+    on the NAS, because originals are never written to, so the next reading would find it and
+    show it again within the minute; this is what turns it away - after a rename or a move as
+    well, since the hash is what a medium is.
+    """
+    media = await get_media(session, media_id)
+    path = media.files[0].relative_path if media.files else ""
+    session.add(
+        WithdrawnMedium(content_hash=media.content_hash, relative_path=path, withdrawn_by=by)
+    )
+    await session.delete(media)
+    await session.commit()
+    await asyncio.to_thread(_remove_folders, derived_root, [media_id])
+    return path
+
+
+async def is_withdrawn(session: AsyncSession, *, content_hash: str) -> bool:
+    """Whether this picture was taken down, whatever it is called now."""
+    found = await session.scalar(
+        select(WithdrawnMedium.content_hash).where(WithdrawnMedium.content_hash == content_hash)
+    )
+    return found is not None
+
+
+async def withdrawn_paths(session: AsyncSession, under: str) -> set[str]:
+    """The paths of what was taken down below a folder, to turn them away before hashing."""
+    rows = await session.scalars(
+        select(WithdrawnMedium.relative_path).where(
+            WithdrawnMedium.relative_path.startswith(f"{under}/") if under else true()
+        )
+    )
+    return set(rows)
 
 
 async def remove_derivatives(derived_root: Path, media_ids: Sequence[uuid.UUID]) -> int:
@@ -418,6 +482,8 @@ class MediaLabel:
     kind: MediaKind
     album_id: uuid.UUID
     album_path: str
+    #: Of the primary file. A picture that will not be read is often one that is unusually big.
+    byte_size: int = 0
 
 
 async def labels_of(
@@ -438,6 +504,7 @@ async def labels_of(
             kind=media.kind,
             album_id=media.album_id,
             album_path=media.album.relative_path,
+            byte_size=media.primary_file.byte_size,
         )
         for media in rows
         if media.files

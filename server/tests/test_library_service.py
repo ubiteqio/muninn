@@ -1,6 +1,7 @@
 """Publishing folders of the library, and keeping their albums in step with the NAS."""
 
 import os
+import shutil
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -12,9 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from muninn.library import service
 from muninn.library.safety import MARKER_NAME, device_of
+from muninn.media import service as media_service
 from muninn.models.album import Album
 from muninn.models.change_log import ChangeKind, ChangeLogEntry, SyncTrigger
-from muninn.models.media import Media, MediaFileRole, MediaKind, MediaStatus
+from muninn.models.media import Media, MediaFile, MediaFileRole, MediaKind, MediaStatus
 from muninn.models.pending_file import PendingFile
 from muninn.models.publication import Publication, ScanStatus
 from muninn.models.settings import AppSettings
@@ -822,3 +824,198 @@ class TestProgressInsideAFolder:
         # Every ten files, and once more when the folder is through.
         assert [step.files_done for step in seen] == [10, 20, 25]
         assert all(step.files_total == 25 for step in seen)
+
+
+async def test_a_file_nobody_may_read_is_walked_past_not_crashed_on(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """One file with a permission that came with a copy took every reading down with it: the
+    pass died on it, and no other file anywhere was confirmed again."""
+    write(library, "Fest/gut.jpg")
+    write(library, "Fest/auch-gut.jpg")
+    locked = write(library, "Fest/gesperrt.jpg")
+    locked.chmod(0o000)
+    publication = await publish(session, library, "Fest")
+
+    await sync(session, publication, library, settings)
+    report = await sync(session, publication, library, settings, now=LATER)
+
+    # The pass finished, and the two readable files are in.
+    assert report.status is ScanStatus.OK
+    assert [one.relative_path for one in report.unreadable] == ["Fest/gesperrt.jpg"]
+    names = set(await session.scalars(select(MediaFile.relative_path)))
+    assert {"Fest/gut.jpg", "Fest/auch-gut.jpg"} <= names
+
+    # And it is written down where the engine room can show it.
+    (walked_past,) = await service.unreadable_files(session)
+    assert walked_past.relative_path == "Fest/gesperrt.jpg"
+    assert await service.count_unreadable(session) == 1
+
+    # Put right, it leaves by itself on the next reading.
+    locked.chmod(0o644)
+    await sync(session, publication, library, settings, now=EVEN_LATER)
+    assert await service.unreadable_files(session) == []
+
+
+async def test_a_file_deleted_while_it_was_still_waiting_is_forgotten(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """It never settled, so nothing else would ever look at it again: the waiting are only
+    compared against what a listing contains, and it is not in one any more."""
+    write(library, "Autos/bleibt.jpg")
+    copied = write(library, "Autos/DSC_0024 copy.JPG")
+    publication = await publish(session, library, "Autos")
+
+    # Seen once, and waiting for the listing that would confirm it.
+    await sync(session, publication, library, settings)
+    assert set(await session.scalars(select(PendingFile.relative_path))) == {
+        "Autos/bleibt.jpg",
+        "Autos/DSC_0024 copy.JPG",
+    }
+
+    copied.unlink()
+    await sync(session, publication, library, settings, now=LATER)
+
+    # The one that is still there became a medium; the one that went is forgotten, not counted.
+    assert await session.scalars(select(PendingFile.relative_path)) is not None
+    assert set(await session.scalars(select(PendingFile.relative_path))) == set()
+    names = set(await session.scalars(select(MediaFile.relative_path)))
+    assert names == {"Autos/bleibt.jpg"}
+
+
+async def test_a_folder_deleted_while_its_files_were_waiting_forgets_them(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """The folder went, so it is never listed again and its files were never compared with
+    anything. They waited for ever, and the clock started a read every minute to look again."""
+    write(library, "Feiern/Geburtstag/bleibt.jpg")
+    write(library, "Feiern/Standesamt/IMG_3856.MOV")
+    publication = await publish(session, library, "Feiern")
+    await sync(session, publication, library, settings)
+
+    shutil.rmtree(library / "Feiern" / "Standesamt")
+    await sync(session, publication, library, settings, now=LATER)
+
+    assert set(await session.scalars(select(PendingFile.relative_path))) == set()
+    assert await service.waiting_for_a_second_look(session, stability_seconds=30, now=LATER) == []
+
+
+async def test_a_folder_emptied_while_its_files_were_waiting_forgets_them(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    write(library, "Feiern/Geburtstag/bleibt.jpg")
+    moved = write(library, "Feiern/Standesamt/IMG_3856.MOV")
+    publication = await publish(session, library, "Feiern")
+    await sync(session, publication, library, settings)
+
+    moved.unlink()
+    await sync(session, publication, library, settings, now=LATER)
+
+    assert set(await session.scalars(select(PendingFile.relative_path))) == set()
+
+
+async def test_a_subfolder_that_cannot_be_listed_keeps_what_waits_in_it(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """Not having come across a folder because it could not be opened is not its absence."""
+    write(library, "Feiern/Geburtstag/bleibt.jpg")
+    write(library, "Feiern/Standesamt/IMG_3856.MOV")
+    publication = await publish(session, library, "Feiern")
+    await sync(session, publication, library, settings)
+
+    (library / "Feiern" / "Standesamt").chmod(0o000)
+    try:
+        await sync(session, publication, library, settings, now=LATER)
+    finally:
+        (library / "Feiern" / "Standesamt").chmod(0o755)
+
+    assert "Feiern/Standesamt/IMG_3856.MOV" in set(
+        await session.scalars(select(PendingFile.relative_path))
+    )
+
+
+async def test_a_folder_that_cannot_be_listed_forgets_nothing(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """A listing that failed proves nothing - least of all that a file is gone."""
+    write(library, "Autos/warten.jpg")
+    publication = await publish(session, library, "Autos")
+    await sync(session, publication, library, settings)
+    assert set(await session.scalars(select(PendingFile.relative_path))) == {"Autos/warten.jpg"}
+
+    (library / "Autos").chmod(0o000)
+    try:
+        await sync(session, publication, library, settings, now=LATER)
+    finally:
+        (library / "Autos").chmod(0o755)
+
+    assert set(await session.scalars(select(PendingFile.relative_path))) == {"Autos/warten.jpg"}
+
+
+async def test_the_engine_room_counts_the_media_the_library_shows(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """A copy of another file is not a second picture.
+
+    The albums, the timeline and the Überblick all leave duplicates out; the engine room
+    counted them, so the two screens disagreed by exactly the number of copies in the library.
+    """
+    write(library, "Autos/eins.jpg")
+    write(library, "Autos/zwei.jpg")
+    publication = await publish(session, library, "Autos")
+    await sync(session, publication, library, settings)
+    await sync(session, publication, library, settings, now=LATER)
+
+    before = await service.index_counts(session)
+    assert before.media == 2
+
+    # One of them turns out to be a copy of the other.
+    media = list(await session.scalars(select(Media).order_by(Media.id)))
+    media[1].duplicate_of = media[0].id
+    await session.commit()
+
+    after = await service.index_counts(session)
+    assert after.media == 1
+    assert after.photos == 1
+
+
+async def test_a_medium_taken_down_does_not_come_back(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """The original stays on the NAS, so the next reading would find it and show it again."""
+    write(library, "Autos/heikel.jpg")
+    write(library, "Autos/harmlos.jpg")
+    publication = await publish(session, library, "Autos")
+    await sync(session, publication, library, settings)
+    await sync(session, publication, library, settings, now=LATER)
+    taken_down = await session.scalar(
+        select(Media).join(MediaFile).where(MediaFile.relative_path == "Autos/heikel.jpg")
+    )
+    assert taken_down is not None
+
+    await media_service.withdraw(session, taken_down.id, derived_root=library / "derived", by=None)
+
+    await sync(session, publication, library, settings, now=EVEN_LATER)
+
+    left = set(await session.scalars(select(MediaFile.relative_path)))
+    assert left == {"Autos/harmlos.jpg"}
+
+
+async def test_a_medium_taken_down_stays_down_under_another_name(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """A medium is what its content is: renamed or moved, it is the same picture."""
+    write(library, "Autos/heikel.jpg", content=b"dieses bild nicht")
+    publication = await publish(session, library, "Autos")
+    await sync(session, publication, library, settings)
+    await sync(session, publication, library, settings, now=LATER)
+    taken_down = await session.scalar(select(Media))
+    assert taken_down is not None
+    await media_service.withdraw(session, taken_down.id, derived_root=library / "derived", by=None)
+
+    # The same bytes, somewhere else entirely.
+    write(library, "Autos/anders/kopie.jpg", content=b"dieses bild nicht")
+    await sync(session, publication, library, settings, now=EVEN_LATER)
+    await sync(session, publication, library, settings, now=EVEN_LATER + timedelta(minutes=1))
+
+    assert list(await session.scalars(select(MediaFile.relative_path))) == []

@@ -1,7 +1,15 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import { useEffect } from 'react'
 
 import { api, unwrap } from '@/api/client'
 import type { components } from '@/api/generated/schema'
+import { onLiveEvent } from '@/api/live'
 import type { Medium } from '@/features/albums/use-albums'
 
 export type PersonView = components['schemas']['PersonCard']
@@ -9,6 +17,7 @@ export type FaceView = components['schemas']['FaceView']
 export type GroupView = components['schemas']['GroupView']
 export type SuggestionView = components['schemas']['SuggestionView']
 export type MediaFace = components['schemas']['MediaFaceView']
+export type AlikeFace = components['schemas']['AlikeFace']
 
 const KEY = ['people'] as const
 
@@ -129,6 +138,50 @@ export function useMediaFaces(mediaId: string | undefined) {
   })
 }
 
+/** One page of a person's faces, as the infinite list holds it. */
+interface FacePage {
+  items: FaceView[]
+  next_cursor?: string | null
+}
+
+/**
+ * Take these faces out of every list that holds them, without asking the server again.
+ *
+ * The lists are paged by offset. Answering one face and then refetching moves every later
+ * face up by one, so page two comes back starting where page one now ends: the order appears
+ * to scatter and one face is skipped over entirely. Taking it out of what is already loaded
+ * leaves the rest exactly where it was, one place higher - which is all that happened.
+ */
+function useDropFaces() {
+  const queryClient = useQueryClient()
+  return (faceIds: string[]) => {
+    const gone = new Set(faceIds)
+    queryClient.setQueriesData<InfiniteData<FacePage>>(
+      { predicate: (query) => query.queryKey[3] === 'faces' },
+      (data) =>
+        data && {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((face) => !gone.has(face.id)),
+          })),
+        },
+    )
+  }
+}
+
+/** Everything about people but the face lists, which are put right in place instead. */
+function useRefreshBesideFaces() {
+  const queryClient = useQueryClient()
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'people' && query.queryKey[3] !== 'faces',
+      }),
+      queryClient.invalidateQueries({ queryKey: ['media'] }),
+    ])
+}
+
 /** Everything that may show a person again: the screens here, and the photos. */
 function useRefresh() {
   const queryClient = useQueryClient()
@@ -153,8 +206,32 @@ export function useNameGroup() {
   })
 }
 
+/**
+ * Stand by what Muninn decided for a whole page of faces at once.
+ *
+ * A face Muninn assigned itself vouches for nobody when the next face is sorted - one wrong
+ * guess would otherwise teach the rest - so a person may have thousands of faces and still be
+ * recognised poorly. Going through them a page at a time, taking the wrong ones out with the
+ * cross and standing by the rest, is what turns those conclusions into evidence.
+ */
+export function useConfirmMany() {
+  const drop = useDropFaces()
+  const refresh = useRefreshBesideFaces()
+  return useMutation({
+    mutationFn: async (faceIds: string[]) =>
+      unwrap(await api.POST('/api/v1/faces/confirm', { body: { face_ids: faceIds } })),
+    onSuccess: async (_answer, faceIds) => {
+      // They are no longer Muninn's own, so they leave that filter - and the ones around them
+      // stay where they are rather than being dealt out again.
+      drop(faceIds)
+      await refresh()
+    },
+  })
+}
+
 export function useAnswer() {
-  const refresh = useRefresh()
+  const drop = useDropFaces()
+  const refresh = useRefreshBesideFaces()
   return useMutation({
     mutationFn: async ({ faceId, yes }: { faceId: string; yes: boolean }) => {
       const params = { params: { path: { face_id: faceId } } }
@@ -164,8 +241,74 @@ export function useAnswer() {
           : await api.POST('/api/v1/faces/{face_id}/reject', params),
       )
     },
+    onSuccess: async (_answer, { faceId }) => {
+      drop([faceId])
+      await refresh()
+    },
+  })
+}
+
+/**
+ * The open questions about the same person that look like the one just answered.
+ *
+ * Asked once, at the widest distance the server offers, and narrowed in the browser: the slider
+ * in the dialog then costs nothing to move.
+ */
+export function useAlikeFaces(faceId: string | null, personId: string | null) {
+  return useQuery({
+    queryKey: [...KEY, 'alike', faceId, personId],
+    enabled: faceId !== null && personId !== null,
+    // The answer is about one moment; asking again later would be a different list.
+    staleTime: Infinity,
+    gcTime: 60_000,
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/api/v1/faces/{face_id}/alike', {
+          params: { path: { face_id: faceId ?? '' }, query: { person: personId ?? '' } },
+        }),
+      ),
+  })
+}
+
+/** The same yes or no for a whole list of faces. */
+export function useDecideAlike() {
+  const refresh = useRefresh()
+  return useMutation({
+    mutationFn: async ({
+      personId,
+      faceIds,
+      yes,
+    }: {
+      personId: string
+      faceIds: string[]
+      yes: boolean
+    }) =>
+      unwrap(
+        await api.POST('/api/v1/faces/alike', {
+          body: { person_id: personId, face_ids: faceIds, confirm: yes },
+        }),
+      ),
     onSuccess: refresh,
   })
+}
+
+/**
+ * Keeps the Personen screen in step with the worker.
+ *
+ * The pass that looks at the faces again answers questions by itself. Without this the screen
+ * would still be offering them minutes later, and somebody would be deciding what was decided.
+ */
+export function useLivePeople(): void {
+  const queryClient = useQueryClient()
+
+  useEffect(
+    () =>
+      onLiveEvent((event) => {
+        if (event.topic !== 'people') return
+        void queryClient.invalidateQueries({ queryKey: KEY })
+      }),
+    [queryClient],
+  )
 }
 
 export function useNameFace() {

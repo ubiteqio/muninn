@@ -191,6 +191,10 @@ def _derive_video(
         ],
         timeout=TRANSCODE_TIMEOUT_SECONDS,
     )
+    # An exit code of nought is not a file. A tool that says it is happy and writes nothing
+    # would otherwise be written down as done, and the medium would point at a path that is not
+    # there - with nothing in the pipeline able to notice.
+    _must_exist(target / video_name)
 
     return Derivatives(
         thumbnail=thumbnail_name,
@@ -200,6 +204,16 @@ def _derive_video(
         width=poster.width,
         height=poster.height,
     )
+
+
+def _must_exist(file: Path) -> None:
+    """What a tool claims to have written, checked before anybody relies on it."""
+    try:
+        if file.stat().st_size > 0:
+            return
+    except OSError as error:
+        raise DeriveError(f"{file.name} was not written: {error}") from error
+    raise DeriveError(f"{file.name} was written empty")
 
 
 def pixel_hash_of(image: "pyvips.Image") -> str:
@@ -306,7 +320,12 @@ def _run(command: list[str], *, timeout: int, allow_failure: bool = False) -> st
         result = subprocess.run(  # noqa: S603 - fixed command, the only variable is a path
             [executable, *command[1:]],
             capture_output=True,
+            # What these tools print is whatever was written into the file years ago. A 3GP
+            # from 2010 carries a byte that is not UTF-8, and decoding strictly raised before
+            # anything could be read - taking the whole stage down for that medium. The
+            # unreadable byte is replaced; every field around it still arrives.
             text=True,
+            errors="replace",
             timeout=timeout,
             check=False,
         )

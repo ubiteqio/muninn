@@ -1,5 +1,20 @@
 apply plugin: 'com.android.application'
 
+/**
+ * Where the signing key is described, if it is here at all.
+ *
+ * MUNINN_KEYSTORE_PROPERTIES names the file; otherwise ~/.muninn/keystore.properties is
+ * looked at. Nothing in the repository holds the key or the password.
+ */
+def muninnSigning = null
+def signingFile = System.getenv('MUNINN_KEYSTORE_PROPERTIES')
+    ? file(System.getenv('MUNINN_KEYSTORE_PROPERTIES'))
+    : file("${System.properties['user.home']}/.muninn/keystore.properties")
+if (signingFile.exists()) {
+    muninnSigning = new Properties()
+    signingFile.withInputStream { muninnSigning.load(it) }
+}
+
 android {
     namespace = "io.ubiteq.apps.muninn"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +31,26 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // The signing key lives outside the repository: it is the identity of the app, and a
+    // secret has no business in a public checkout. Without the file a release build is simply
+    // unsigned, which is what a machine that is not Boris's should get.
+    signingConfigs {
+        release {
+            if (muninnSigning != null) {
+                storeFile file(muninnSigning['storeFile'])
+                storePassword muninnSigning['storePassword']
+                keyAlias muninnSigning['keyAlias']
+                keyPassword muninnSigning['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (muninnSigning != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

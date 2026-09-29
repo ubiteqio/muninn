@@ -6,10 +6,12 @@ import { AppShell } from '@/components/layout/app-shell'
 import { PageHeading } from '@/components/layout/page-heading'
 import { EmptyNote } from '@/components/muninn/empty-note'
 import { Pagination } from '@/components/muninn/pagination'
+import { LoadingSection, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { AlikeDialog } from '@/features/people/alike-dialog'
 import { Face } from '@/features/people/face'
 import { LetterBar } from '@/features/people/letter-bar'
 import { letterOf } from '@/features/people/letters'
@@ -24,6 +26,7 @@ import {
   useAnswer,
   useGroupFaces,
   useGroups,
+  useLivePeople,
   useNameGroup,
   usePeople,
   useSuggestions,
@@ -37,10 +40,14 @@ import { cn } from '@/lib/utils'
 export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
   const { t } = useTranslation()
   const [showHidden, setShowHidden] = useState(false)
+  // What was just answered, so the same answer can be offered for the faces that look the same.
+  // It lives here and not in the card: answering makes the card go, and the dialog with it.
+  const [answered, setAnswered] = useState<Answered | null>(null)
   const navigate = useNavigate()
   const sectionRef = useRef<HTMLElement>(null)
   const people = usePeople(showHidden)
   const groups = useGroups()
+  useLivePeople()
   const waiting = people.data?.suggestions ?? 0
   const suggestions = useSuggestions(waiting > 0)
   const persons = useMemo(() => people.data?.persons ?? [], [people.data])
@@ -68,6 +75,8 @@ export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
           <p className="text-base text-destructive">{t('auth.error.unreachable')}</p>
         )}
         {nothing && <EmptyNote>{t('people.empty')}</EmptyNote>}
+
+        {people.isPending && <PersonsLoading />}
 
         {(persons.length > 0 || showHidden) && (
           <section ref={sectionRef} aria-labelledby="persons-heading" className="scroll-mt-4">
@@ -134,6 +143,8 @@ export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
           </section>
         )}
 
+        {(people.isPending || (waiting > 0 && suggestions.isPending)) && <SuggestionsLoading />}
+
         {allSuggestions.length > 0 && (
           <section aria-labelledby="suggestions-heading">
             <SectionHeading
@@ -142,11 +153,18 @@ export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
             />
             <ul className="mt-3 flex gap-3 overflow-x-auto pb-1">
               {allSuggestions.map((item) => (
-                <SuggestionCard key={item.face.id} face={item.face} person={item.person} />
+                <SuggestionCard
+                  key={item.face.id}
+                  face={item.face}
+                  person={item.person}
+                  onAnswered={setAnswered}
+                />
               ))}
             </ul>
           </section>
         )}
+
+        {groups.isPending && <GroupsLoading />}
 
         {allGroups.length > 0 && (
           <section aria-labelledby="groups-heading">
@@ -170,6 +188,17 @@ export function PeopleScreen({ letter, page = 1 }: PeopleSearch = {}) {
           </section>
         )}
       </div>
+      {answered !== null && (
+        <AlikeDialog
+          key={answered.faceId}
+          faceId={answered.faceId}
+          person={answered.person}
+          yes={answered.yes}
+          onDone={() => {
+            setAnswered(null)
+          }}
+        />
+      )}
     </AppShell>
   )
 }
@@ -213,12 +242,95 @@ function browse(persons: PersonView[], letter: string | undefined, page: number)
   }
 }
 
+/** A face that was just answered, and how. */
+export interface Answered {
+  faceId: string
+  person: { id: string; name: string }
+  yes: boolean
+}
+
+/** A face on its way: the round picture and the two lines under it. */
+function TileLoading() {
+  return (
+    <li className="flex flex-col items-center gap-2">
+      <Placeholder className="size-[88px] rounded-full" />
+      <Placeholder className="h-4 w-20" />
+      <Placeholder className="-mt-0.5 h-3 w-12" />
+    </li>
+  )
+}
+
+function PersonsLoading() {
+  const { t } = useTranslation()
+
+  return (
+    <LoadingSection title={t('people.persons')}>
+      <Placeholder className="h-11 rounded-lg" />
+      <ul className="mt-4 grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+        {Array.from({ length: PER_PAGE }, (_, index) => (
+          <TileLoading key={index} />
+        ))}
+      </ul>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <Placeholder className="h-3.5 w-40" />
+        <Placeholder className="h-9 w-44 rounded-full" />
+      </div>
+    </LoadingSection>
+  )
+}
+
+function SuggestionsLoading() {
+  const { t } = useTranslation()
+
+  return (
+    <LoadingSection title={t('people.suggestionsTitle')}>
+      <ul className="flex gap-3 overflow-hidden">
+        {Array.from({ length: 6 }, (_, index) => (
+          <li
+            key={index}
+            className="flex w-[168px] shrink-0 flex-col items-center gap-1.5 rounded-lg border border-hairline/10 p-3"
+          >
+            <Placeholder className="size-[80px] rounded-full" />
+            <Placeholder className="h-4 w-28" />
+            <Placeholder className="h-3 w-20" />
+            <div className="flex gap-2">
+              {Array.from({ length: 3 }, (_, slot) => (
+                <Placeholder key={slot} className="h-9 w-11 rounded-md" />
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </LoadingSection>
+  )
+}
+
+function GroupsLoading() {
+  const { t } = useTranslation()
+
+  return (
+    <LoadingSection title={t('people.groups')}>
+      <Placeholder className="h-3.5 w-72" />
+      <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        {Array.from({ length: 6 }, (_, index) => (
+          <li key={index} className="rounded-lg border border-hairline/10 p-2">
+            <Placeholder className="aspect-square w-full rounded-md" />
+            <Placeholder className="mt-2 h-3 w-16" />
+          </li>
+        ))}
+      </ul>
+    </LoadingSection>
+  )
+}
+
 function SuggestionCard({
   face,
   person,
+  onAnswered,
 }: {
   face: FaceView
   person: { id: string; name: string }
+  onAnswered: (answered: Answered) => void
 }) {
   const { t } = useTranslation()
   const answer = useAnswer()
@@ -259,7 +371,14 @@ function SuggestionCard({
             aria-label={t('people.no', { name })}
             disabled={answer.isPending}
             onClick={() => {
-              answer.mutate({ faceId, yes: false })
+              answer.mutate(
+                { faceId, yes: false },
+                {
+                  onSuccess: () => {
+                    onAnswered({ faceId, person, yes: false })
+                  },
+                },
+              )
             }}
           >
             <Symbol name="close" size={18} />
@@ -281,7 +400,14 @@ function SuggestionCard({
             aria-label={t('people.yes', { name })}
             disabled={answer.isPending}
             onClick={() => {
-              answer.mutate({ faceId, yes: true })
+              answer.mutate(
+                { faceId, yes: true },
+                {
+                  onSuccess: () => {
+                    onAnswered({ faceId, person, yes: true })
+                  },
+                },
+              )
             }}
           >
             <Symbol name="check_circle" size={18} />

@@ -1,17 +1,27 @@
+import { useIsFetching } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AppShell } from '@/components/layout/app-shell'
 import { Knotwork } from '@/components/muninn/knotwork'
+import { LoadingBody } from '@/components/muninn/placeholder'
 import { Symbol } from '@/components/muninn/symbol'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { useLibraryUpdates } from '@/features/albums/use-library-updates'
 import { formatDuration } from '@/features/media/format'
-import { MediaGrid } from '@/features/media/media-grid'
+import { MediaGrid, MediaGridLoading } from '@/features/media/media-grid'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { PeopleRow } from '@/features/people/people-row'
 import {
+  type Facets,
   type MediaKind,
   type SearchSort,
   useSearch,
@@ -28,16 +38,31 @@ import type { SearchParams } from '@/routes'
  * Everything that makes up a search stands in the address - the words, the chips, an open
  * medium - so a search can be sent to somebody, and the back button undoes the last step.
  */
-export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchParams) {
+export function SearchScreen({
+  q = '',
+  kind,
+  sort,
+  year,
+  place,
+  camera,
+  album,
+  similar,
+  medium,
+}: SearchParams) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const isDesktop = useMediaQuery(DESKTOP_QUERY)
   const isWide = useMediaQuery(WIDE_QUERY)
-  const search = useSearch({ q, kind, sort, similar })
+  const search = useSearch({ q, kind, sort, year, place, camera, album, similar })
   const abilitiesQuery = useSearchAbilities()
   const abilities = abilitiesQuery.data
   // Only once it is known: a page that is still asking says nothing about missing models.
   const withoutPictures = abilities !== undefined && !abilities.pictures
+  // Set up and answering. Asked again every half minute, so the field follows the machine.
+  const aiReady = abilities?.ready === true
+  // Any search on its way, wherever it was started - the field on this page or the one in the
+  // header, which is the only one on a desktop.
+  const looking = useIsFetching({ queryKey: ['media', 'search'] }) > 0
   useLibraryUpdates()
 
   const change = useCallback(
@@ -115,6 +140,8 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
           key={q}
           initial={q}
           className="md:hidden"
+          ai={aiReady}
+          busy={looking}
           onSearch={(words) => {
             change({ q: words, similar: undefined, medium: undefined })
           }}
@@ -138,6 +165,18 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
             <Chips
               kind={kind}
               sort={sort}
+              filters={
+                <Filters
+                  year={year}
+                  place={place}
+                  camera={camera}
+                  album={album}
+                  facets={search.data?.pages[0]?.facets}
+                  onChange={(next) => {
+                    change({ ...next, medium: undefined }, true)
+                  }}
+                />
+              }
               period={understood ? period(understood.date_from, understood.date_until, t) : null}
               places={understood?.places ?? []}
               persons={understood?.persons ?? []}
@@ -172,10 +211,8 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
             }}
           />
         )}
-        {!asked && <Hint withoutPictures={withoutPictures} />}
-        {asked && search.isPending && (
-          <p className="text-base text-muted-foreground">{t('search.searching')}</p>
-        )}
+        {!asked && <Hint mode={withoutPictures ? 'words' : aiReady ? 'ai' : 'resting'} />}
+        {asked && search.isPending && <ResultsLoading columns={columns} />}
         {search.isError && (
           <p className="text-base text-destructive">{t('auth.error.unreachable')}</p>
         )}
@@ -204,50 +241,267 @@ export function SearchScreen({ q = '', kind, sort, similar, medium }: SearchPara
   )
 }
 
+/**
+ * What stands there while the hits are on their way: the grid in its shape, rather than one
+ * line of text under the chips. The pictures land in the rows that are already held, so the eye
+ * stays where it was instead of following a page that unfolds under it.
+ */
+function ResultsLoading({ columns }: { columns: number }) {
+  const { t } = useTranslation()
+
+  return (
+    <section aria-busy="true" aria-label={t('search.results')}>
+      <LoadingBody boxed={false} label={t('search.searching')}>
+        <MediaGridLoading columns={columns} />
+      </LoadingBody>
+    </section>
+  )
+}
+
 /** A change to the address: a value to set, or undefined to take it out. */
 type Changes = { [Key in keyof SearchParams]?: SearchParams[Key] | undefined }
 
 /**
  * The field itself: the header's on the desktop, the page's own on the phone. It starts from
  * what the address says; whoever shows it gives it a key, so a new search starts it afresh.
+ *
+ * It shows what it can do. With the models answering it is the accent colour and asks to be
+ * described to; without them it is the plain field it has always been, because then it really
+ * is a search for words. Promising more than the machine can deliver would be worse than the
+ * plain field.
  */
 export function SearchField({
   initial,
   onSearch,
   className,
+  ai = false,
+  busy = false,
 }: {
   initial: string
   onSearch: (words: string) => void
   className?: string
+  /** The picture and word models are set up and their machine answers. */
+  ai?: boolean
+  /** A search is on its way; the button rests and the bar runs until it is back. */
+  busy?: boolean
 }) {
   const { t } = useTranslation()
   const [words, setWords] = useState(initial)
+  const ready = words.trim().length > 0
 
   return (
     <form
       role="search"
       onSubmit={(event) => {
         event.preventDefault()
-        if (words.trim()) onSearch(words.trim())
+        if (ready) onSearch(words.trim())
       }}
       className={cn('relative min-w-0', className)}
     >
       <Symbol
-        name="search"
+        name={ai ? 'auto_awesome' : 'search'}
         size={20}
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        className={cn(
+          'pointer-events-none absolute left-3 top-1/2 -translate-y-1/2',
+          ai ? 'text-accent' : 'text-muted-foreground',
+        )}
       />
       <Input
         type="search"
-        className="pl-10"
+        className={cn('pl-10 pr-14 sm:pr-28', ai && 'border-accent/40')}
         value={words}
         onChange={(event) => {
           setWords(event.target.value)
         }}
-        placeholder={t('search.placeholder')}
+        placeholder={t(ai ? 'search.placeholderAi' : 'search.placeholder')}
         aria-label={t('search.label')}
       />
+      <Button
+        type="submit"
+        size="sm"
+        disabled={busy || !ready}
+        aria-label={t('search.submit')}
+        className="absolute right-1.5 top-1/2 h-8 -translate-y-1/2 gap-1.5 rounded-full px-2.5 sm:px-3.5"
+      >
+        <Symbol name={busy ? 'sync' : 'search'} size={18} className={cn(busy && 'animate-spin')} />
+        <span className="hidden sm:inline">{t('search.submit')}</span>
+      </Button>
+      {busy && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-3 -bottom-1 h-0.5 overflow-hidden rounded-full bg-accent/15"
+        >
+          <span className="block h-full w-1/4 animate-sweep rounded-full bg-accent" />
+        </span>
+      )}
     </form>
+  )
+}
+
+/** "Alle" is the absence of a kind, and a dropdown needs a value to stand for it. */
+const ALL = 'all'
+
+interface Choice {
+  value: string
+  label: string
+  /** How many media are behind it, where that is known. */
+  note?: string
+}
+
+/**
+ * One filter as a chip that opens its list: the year, the town, the camera, the album.
+ *
+ * What can be chosen comes from the library itself - the overview counts the years, towns and
+ * cameras it really has, the tree knows the albums - so nothing is offered that finds nothing.
+ * A filter with nothing to offer is not shown at all.
+ */
+function Picker({
+  icon,
+  label,
+  chosen,
+  choices,
+  clearable = true,
+  onChoose,
+}: {
+  icon: string
+  label: string
+  chosen: string | undefined
+  choices: Choice[]
+  /** A filter can be taken off again; a choice between two or three cannot be unmade. */
+  clearable?: boolean
+  onChoose: (value: string | undefined) => void
+}) {
+  const { t } = useTranslation()
+  // A chosen filter keeps its chip even when nothing is left to offer - otherwise a choice that
+  // found nothing would take away the only way to undo itself.
+  if (choices.length === 0 && chosen === undefined) return null
+  const shown = choices.find((choice) => choice.value === chosen)?.label ?? chosen
+
+  return (
+    /* One pill: the part that opens the list and the part that takes the filter off again share
+       its height, whatever is written in it. */
+    <span
+      className={cn(
+        'inline-flex h-9 shrink-0 items-stretch overflow-hidden rounded-full text-sm',
+        shown === undefined ? 'bg-secondary text-muted-foreground' : 'bg-accent/15 text-foreground',
+      )}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              'flex items-center gap-1.5 px-3 transition',
+              shown === undefined && 'hover:text-foreground',
+            )}
+          >
+            <Symbol name={icon} size={16} />
+            {shown ?? label}
+            <Symbol name="expand_more" size={16} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="max-h-72 overflow-y-auto">
+          {choices.map((choice) => (
+            <DropdownMenuItem
+              key={choice.value}
+              onSelect={() => {
+                onChoose(choice.value)
+              }}
+            >
+              <span className="flex-1">{choice.label}</span>
+              {choice.note !== undefined && (
+                <span className="ml-3 tabular-nums text-muted-foreground">{choice.note}</span>
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {clearable && shown !== undefined && (
+        <button
+          type="button"
+          aria-label={t('search.filter.clear', { label })}
+          className="flex items-center pl-1 pr-2.5 transition hover:bg-accent/25"
+          onClick={() => {
+            onChoose(undefined)
+          }}
+        >
+          <Symbol name="close" size={16} />
+        </button>
+      )}
+    </span>
+  )
+}
+
+/**
+ * The filters one chooses, beside the ones the words already carry.
+ *
+ * Everything offered comes from the media the search found, with how many carry it, so no
+ * choice leads to an empty page. A filter with nothing to offer is not shown at all - unless it
+ * is the one that is set, which keeps its chip so it can be taken off again.
+ */
+function Filters({
+  year,
+  place,
+  camera,
+  album,
+  facets,
+  onChange,
+}: {
+  year: number | undefined
+  place: string | undefined
+  camera: string | undefined
+  album: string | undefined
+  /** What the found media are made of; nothing is offered that finds nothing. */
+  facets: Facets | undefined
+  onChange: (next: Changes) => void
+}) {
+  const { t } = useTranslation()
+  const offered = (list: Facets['years'] | undefined): Choice[] =>
+    (list ?? []).map((one) => ({
+      value: one.value,
+      label: one.label,
+      note: one.count.toLocaleString('de-DE'),
+    }))
+
+  return (
+    <div role="group" aria-label={t('search.filter.label')} className="flex shrink-0 gap-1.5">
+      <Picker
+        icon="history"
+        label={t('search.filter.year')}
+        chosen={year === undefined ? undefined : String(year)}
+        choices={offered(facets?.years)}
+        onChoose={(value) => {
+          onChange({ year: value === undefined ? undefined : Number(value) })
+        }}
+      />
+      <Picker
+        icon="map"
+        label={t('search.filter.place')}
+        chosen={place}
+        choices={offered(facets?.towns)}
+        onChoose={(value) => {
+          onChange({ place: value })
+        }}
+      />
+      <Picker
+        icon="photo_camera"
+        label={t('search.filter.camera')}
+        chosen={camera}
+        choices={offered(facets?.cameras)}
+        onChoose={(value) => {
+          onChange({ camera: value })
+        }}
+      />
+      <Picker
+        icon="folder"
+        label={t('search.filter.album')}
+        chosen={album}
+        choices={offered(facets?.albums)}
+        onChoose={(value) => {
+          onChange({ album: value })
+        }}
+      />
+    </div>
   )
 }
 
@@ -257,6 +511,7 @@ function Chips({
   period: range,
   places,
   persons,
+  filters,
   onKind,
   onSort,
 }: {
@@ -265,54 +520,55 @@ function Chips({
   period: string | null
   places: readonly string[]
   persons: readonly string[]
+  /** The chosen filters, between the two groups of chips. */
+  filters: ReactNode
   onKind: (kind: MediaKind | undefined) => void
   onSort: (sort: SearchSort) => void
 }) {
   const { t } = useTranslation()
-  const kinds: { value: MediaKind | undefined; label: string }[] = [
-    { value: undefined, label: t('search.kind.all') },
+  const kinds: Choice[] = [
+    { value: ALL, label: t('search.kind.all') },
     { value: 'image', label: t('search.kind.image') },
     { value: 'video', label: t('search.kind.video') },
   ]
-  const sorts: { value: SearchSort; label: string }[] = [
+  const sorts: Choice[] = [
     { value: 'relevance', label: t('search.sort.relevance') },
     { value: 'date', label: t('search.sort.date') },
   ]
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div role="group" aria-label={t('search.kind.label')} className="flex gap-1.5">
-        {kinds.map((option) => (
-          <Chip
-            key={option.label}
-            pressed={kind === option.value}
-            onClick={() => {
-              onKind(option.value)
-            }}
-          >
-            {option.label}
-          </Chip>
-        ))}
-      </div>
-      <span aria-hidden="true" className="mx-1 h-4 w-px bg-hairline/20" />
-      <div role="group" aria-label={t('search.sort.label')} className="flex gap-1.5">
-        {sorts.map((option) => (
-          <Chip
-            key={option.value}
-            pressed={(sort ?? 'relevance') === option.value}
-            onClick={() => {
-              onSort(option.value)
-            }}
-          >
-            {option.label}
-          </Chip>
-        ))}
-      </div>
+    /* On a phone one row that scrolls sideways, as the breadcrumb does: wrapped, the groups fell
+       into four lines and the strokes between them ended up stranded at the ends of lines. It
+       bleeds into the page's margin so the last chip does not sit against the edge. */
+    <div className="no-scrollbar -mx-5 flex items-center gap-2 overflow-x-auto px-5 md:mx-0 md:flex-wrap md:px-0">
+      <Picker
+        icon="photo_library"
+        label={t('search.kind.label')}
+        chosen={kind ?? ALL}
+        choices={kinds}
+        clearable={false}
+        onChoose={(value) => {
+          onKind(value === ALL ? undefined : (value as MediaKind))
+        }}
+      />
+      <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-hairline/20" />
+      {filters}
+      <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-hairline/20" />
+      <Picker
+        icon="tune"
+        label={t('search.sort.label')}
+        chosen={sort ?? 'relevance'}
+        choices={sorts}
+        clearable={false}
+        onChoose={(value) => {
+          onSort((value ?? 'relevance') as SearchSort)
+        }}
+      />
       {/* The period found in the words: taken as a filter, and shown, so nobody wonders why
           the results stop at one year. */}
       {range && (
-        <span className="flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-1 text-xs-plus text-foreground">
-          <Symbol name="history" size={14} />
+        <span className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent/15 px-3 text-sm text-foreground">
+          <Symbol name="history" size={16} />
           {range}
         </span>
       )}
@@ -320,9 +576,9 @@ function Chips({
       {persons.map((person) => (
         <span
           key={person}
-          className="flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-1 text-xs-plus text-foreground"
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent/15 px-3 text-sm text-foreground"
         >
-          <Symbol name="person" size={14} />
+          <Symbol name="person" size={16} />
           {person}
         </span>
       ))}
@@ -330,9 +586,9 @@ function Chips({
       {places.map((place) => (
         <span
           key={place}
-          className="flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-1 text-xs-plus text-foreground"
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent/15 px-3 text-sm text-foreground"
         >
-          <Symbol name="map" size={14} />
+          <Symbol name="map" size={16} />
           {place}
         </span>
       ))}
@@ -340,41 +596,25 @@ function Chips({
   )
 }
 
-function Chip({
-  pressed,
-  onClick,
-  children,
-}: {
-  pressed: boolean
-  onClick: () => void
-  children: string
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        'rounded-full border px-3 py-1 text-xs-plus transition',
-        pressed
-          ? 'border-accent bg-accent/15 text-foreground'
-          : 'border-hairline/15 text-muted-foreground hover:text-foreground',
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
 /** Before anything is typed: what can be asked, rather than an empty page. */
-function Hint({ withoutPictures }: { withoutPictures: boolean }) {
+/**
+ * What to type, in the words of the search one actually has.
+ *
+ * "words" when no models are set up, "resting" when they are but their machine is away - saying
+ * "describe what you are looking for" to somebody who will only get a word search is worse than
+ * saying nothing.
+ */
+function Hint({ mode }: { mode: 'words' | 'resting' | 'ai' }) {
   const { t } = useTranslation()
+  const said = {
+    words: 'search.hintWithoutPictures',
+    resting: 'search.hintResting',
+    ai: 'search.hint',
+  }[mode]
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 text-center">
       <Knotwork className="w-24" />
-      <p className="max-w-[360px] text-md text-muted-foreground">
-        {t(withoutPictures ? 'search.hintWithoutPictures' : 'search.hint')}
-      </p>
+      <p className="max-w-[360px] text-md text-muted-foreground">{t(said)}</p>
     </div>
   )
 }

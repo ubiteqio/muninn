@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/muninn/confirm-dialog'
@@ -11,17 +12,21 @@ import { AdminArea } from '@/features/admin/admin-area'
 import { AiServices } from '@/features/admin/ai-services'
 import {
   type ActiveTask,
+  type AiService,
   type Change,
   type FinishedTask,
   type Jobs,
   type RunningRead,
+  useAiHealth,
   useChanges,
   useJobs,
   useLiveJobs,
   usePurgeQueue,
   useStopRead,
   useStopTask,
+  useWaiting,
 } from '@/features/admin/use-jobs'
+import { formatBytes } from '@/features/media/format'
 import { useTicker } from '@/hooks/use-ticker'
 import { cn } from '@/lib/utils'
 
@@ -119,6 +124,11 @@ function WhatHuginnDoes({ jobs }: { jobs: Jobs }) {
                 albums: jobs.albums,
               })
             : t('admin.jobs.now.neverRead')}
+          {/* What kind of work the library is made of: a film is a transcode, a transcript and
+            a description of every fifth second, a photograph is none of that. */}
+          {jobs.last_read_at && jobs.media > 0 && (
+            <> {t('admin.jobs.now.kinds', { photos: jobs.photos, videos: jobs.videos })}</>
+          )}
           {jobs.schedule.next_quick_sync_at && (
             <>
               {' · '}
@@ -382,30 +392,126 @@ function Throughput({ done }: { done: Record<string, number> }) {
 }
 
 /**
+ * What is behind one of the numbers: the media themselves, and what stopped each of them.
+ *
+ * A number can only be watched; a list can be acted on. The file and the album say which
+ * pictures these are, the count of tries says whether the pipeline has given up, and the last
+ * error says what the machine actually said - which until now lived only in a worker's log.
+ */
+function Behind({ stage }: { stage: string }) {
+  const { t } = useTranslation()
+  const waiting = useWaiting(stage)
+
+  if (waiting.isPending) {
+    return (
+      <p className="px-4 pb-3 text-xs-plus text-muted-foreground">{t('admin.jobs.open.loading')}</p>
+    )
+  }
+
+  const items = waiting.data?.items ?? []
+  const files = waiting.data?.files ?? []
+  if (items.length === 0 && files.length === 0) {
+    return (
+      <p className="px-4 pb-3 text-xs-plus text-muted-foreground">{t('admin.jobs.open.gone')}</p>
+    )
+  }
+
+  return (
+    <ul className="border-t border-hairline/[0.06] bg-secondary/25 px-4 py-2">
+      {files.map((file) => (
+        <li key={file.relative_path} className="py-1 text-xs-plus">
+          <span className="font-mono text-foreground">{file.relative_path}</span>
+          {file.byte_size > 0 && (
+            <span className="text-muted-foreground"> · {formatBytes(file.byte_size)}</span>
+          )}
+          {file.reason && (
+            <span className="mt-0.5 block break-words font-mono text-2xs text-destructive">
+              {file.reason}
+            </span>
+          )}
+        </li>
+      ))}
+      {items.map((item) => (
+        <li key={item.media_id} className="py-1 text-xs-plus">
+          <Link
+            to="/albums/$albumId"
+            params={{ albumId: item.album_id }}
+            search={{ medium: item.media_id }}
+            className="font-mono text-foreground hover:underline"
+          >
+            {item.filename}
+          </Link>
+          <span className="text-muted-foreground"> · {item.album}</span>
+          {item.byte_size > 0 && (
+            <span className="text-muted-foreground"> · {formatBytes(item.byte_size)}</span>
+          )}
+          {item.attempts > 0 && (
+            <span className="text-muted-foreground">
+              {' · '}
+              {t('admin.jobs.open.attempts', { count: item.attempts })}
+              {item.last_at && ` · ${when(item.last_at)}`}
+            </span>
+          )}
+          {item.last_error && (
+            <span className="mt-0.5 block break-words font-mono text-2xs text-destructive">
+              {item.last_error}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
  * The work still owed, in the order a file travels: seen, read, previews, then the AI stages.
  * Only the steps with something waiting are listed; when nothing waits, one line says so.
  */
+/**
+ * Which machine each step waits for. The steps that read the NAS wait for nobody.
+ *
+ * A stage whose machine does not answer rests rather than failing a thousand media a minute -
+ * deliberately, because a machine that is away is not the file's fault. Its work then stands in
+ * this list and moves no further, which reads as a stuck job unless the list says why.
+ */
+const NEEDS: Record<string, string> = {
+  vector: 'image_embedder',
+  transcript: 'transcriber',
+  analysis: 'analyzer',
+  captionVector: 'text_embedder',
+  faces: 'face_detector',
+}
+
 function OpenWork({ jobs }: { jobs: Jobs }) {
   const { t } = useTranslation()
+  const health = useAiHealth()
+
+  // Which line asks the server what is behind it; one at a time.
+  const [open, setOpen] = useState<string | null>(null)
 
   const steps = [
-    { key: 'check', value: jobs.waiting_files },
-    { key: 'metadata', value: jobs.pending_metadata },
-    { key: 'preview', value: jobs.pending_derivatives },
+    // First, because it is the only one nothing will clear by itself: somebody has to give
+    // Muninn leave to read those files.
+    { key: 'unreadable', stage: 'unreadable', value: jobs.unreadable_files },
+    { key: 'check', stage: 'files', value: jobs.waiting_files },
+    { key: 'metadata', stage: 'metadata', value: jobs.pending_metadata },
+    { key: 'preview', stage: 'derive', value: jobs.pending_derivatives },
     // Only once a picture model is set up; before that there is no such step, not an empty one.
     ...(jobs.pending_image_vectors === null
       ? []
-      : [{ key: 'vector', value: jobs.pending_image_vectors }]),
+      : [{ key: 'vector', stage: 'image_vector', value: jobs.pending_image_vectors }]),
     ...(jobs.pending_transcripts === null
       ? []
-      : [{ key: 'transcript', value: jobs.pending_transcripts }]),
-    ...(jobs.pending_analyses === null ? [] : [{ key: 'analysis', value: jobs.pending_analyses }]),
+      : [{ key: 'transcript', stage: 'transcription', value: jobs.pending_transcripts }]),
+    ...(jobs.pending_analyses === null
+      ? []
+      : [{ key: 'analysis', stage: 'analysis', value: jobs.pending_analyses }]),
     ...(jobs.pending_caption_vectors === null
       ? []
-      : [{ key: 'captionVector', value: jobs.pending_caption_vectors }]),
+      : [{ key: 'captionVector', stage: 'caption_vector', value: jobs.pending_caption_vectors }]),
     ...(jobs.pending_faces === null || jobs.pending_faces === undefined
       ? []
-      : [{ key: 'faces', value: jobs.pending_faces }]),
+      : [{ key: 'faces', stage: 'faces', value: jobs.pending_faces }]),
   ]
 
   // Only what actually waits. Seven zeros in a row say nothing, and squeeze every label.
@@ -424,13 +530,38 @@ function OpenWork({ jobs }: { jobs: Jobs }) {
         ) : (
           <ul className="divide-y divide-hairline/[0.06]">
             {owed.map((step) => (
-              <li key={step.key} className="flex items-baseline gap-3 px-4 py-2.5">
-                <span className="min-w-12 text-md font-semibold text-foreground">
-                  {step.value.toLocaleString('de-DE')}
-                </span>
-                <span className="text-base text-muted-foreground">
-                  {t(`admin.jobs.open.${step.key}`)}
-                </span>
+              <li key={step.key}>
+                <button
+                  type="button"
+                  aria-expanded={open === step.stage}
+                  onClick={() => {
+                    setOpen((shown) => (shown === step.stage ? null : step.stage))
+                  }}
+                  className="flex w-full items-baseline gap-3 px-4 py-2.5 text-left transition hover:bg-secondary/40"
+                >
+                  <span className="min-w-12 text-md font-semibold text-foreground">
+                    {step.value.toLocaleString('de-DE')}
+                  </span>
+                  <span className="flex-1 text-base text-muted-foreground">
+                    {t(`admin.jobs.open.${step.key}`)}
+                    {/* Standing still because its machine is away, not because it is stuck. */}
+                    {waitingFor(step.key, health.data?.services ?? []) && (
+                      <span className="text-muted-foreground/80">
+                        {' · '}
+                        {t('admin.jobs.open.waitsForAi')}
+                      </span>
+                    )}
+                  </span>
+                  <Symbol
+                    name="expand_more"
+                    size={18}
+                    className={cn(
+                      'shrink-0 text-muted-foreground transition-transform',
+                      open === step.stage && 'rotate-180',
+                    )}
+                  />
+                </button>
+                {open === step.stage && <Behind stage={step.stage} />}
               </li>
             ))}
           </ul>
@@ -453,6 +584,14 @@ function OpenWork({ jobs }: { jobs: Jobs }) {
       </Card>
     </section>
   )
+}
+
+/** Whether this step's machine is not answering, and the work is therefore only waiting. */
+function waitingFor(key: string, services: AiService[]): boolean {
+  const kind = NEEDS[key]
+  if (kind === undefined) return false
+  const machine = services.find((service) => service.kind === kind)
+  return machine !== undefined && machine.configured && machine.ok === false
 }
 
 /** Emptying one queue. It asks first: what is thrown away is gone until the next read. */

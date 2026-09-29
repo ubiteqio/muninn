@@ -18,21 +18,24 @@ from muninn.core.config import get_settings
 from muninn.duplicates import service as duplicates_service
 from muninn.faces import people
 from muninn.faces import service as faces_service
-from muninn.huginn import jobs
+from muninn.huginn import attempts, jobs
 from muninn.huginn.app import celery_app
 from muninn.huginn.runtime import run, session_scope
 from muninn.library import service
 from muninn.media import service as media_service
 from muninn.memories import service as memories_service
+from muninn.models import photobook
 from muninn.models.ai import AiKind
 from muninn.models.change_log import SyncTrigger
 from muninn.models.notification import NotificationKind
 from muninn.models.publication import ScanStatus
 from muninn.notify import events
 from muninn.notify import service as notify_service
+from muninn.photobooks import service as photobooks_service
 from muninn.places import service as places_service
 from muninn.search import service as search_service
 from muninn.settings import service as settings_service
+from muninn.smarts import service as smarts_service
 
 logger = logging.getLogger(__name__)
 
@@ -153,10 +156,22 @@ def detect_faces(self: Any, media_id: str) -> bool:
     return run(_detect_faces(uuid.UUID(media_id), self.request.id))
 
 
-@celery_app.task(name="muninn.reassess_faces", queue="scan")
+@celery_app.task(name="muninn.sort_faces", queue="people")
+def sort_faces(face_ids: list[str]) -> None:
+    """One face after a "Nein": its person, or a suggestion and the group it belongs to."""
+    run(_sort_faces([uuid.UUID(face_id) for face_id in face_ids]))
+
+
+@celery_app.task(name="muninn.reassess_faces", queue="people")
 def reassess_faces() -> int:
     """After a name was given or taken: the faces nobody assigned by hand are asked again."""
     return run(_reassess_faces())
+
+
+@celery_app.task(name="muninn.regroup_faces", queue="people")
+def regroup_faces() -> dict[str, int]:
+    """Build the groups of the unnamed faces again, under the rule as it stands now."""
+    return run(_regroup_faces())
 
 
 @celery_app.task(name="muninn.prune_change_log", queue="scan")
@@ -165,10 +180,79 @@ def prune_change_log() -> int:
     return run(_prune_change_log())
 
 
+@celery_app.task(name="muninn.build_smarts", queue="scan")
+def build_smarts() -> int:
+    """Find the chapters of the whole library anew.
+
+    It reads places, dates, faces and the vectors that are already in the database and asks no
+    machine, so it runs whether or not the graphics machine is awake - which is the point.
+    """
+    return run(_build_smarts())
+
+
+@celery_app.task(name="muninn.build_photobooks", queue="scan")
+def build_photobooks(book_ids: list[str]) -> int:
+    """Build these photo books: choose the pictures, lay out the pages, ask for the words.
+
+    On the scan queue rather than the AI queue, although it does talk to the machine: one book
+    is a handful of minutes of small text prompts, and it must not sit behind a night of picture
+    descriptions while an admin waits for their shelf to fill.
+    """
+    return run(_build_photobooks([uuid.UUID(one) for one in book_ids]))
+
+
 @celery_app.task(name="muninn.clean_derived", queue="scan")
 def clean_derived() -> int:
     """Remove previews that belong to no medium any more."""
     return run(_clean_derived())
+
+
+async def _build_smarts() -> int:
+    """Find every chapter anew. The library has grown, so it falls into other groups."""
+    async with session_scope() as session:
+        done = await smarts_service.rebuild(session)
+    # Anybody who left the Smarts open overnight holds chapters that are gone.
+    redis = jobs.connect()
+    try:
+        await events.publish(redis, events.SMARTS_TOPIC, kind="rebuilt", chapters=done.chapters)
+    finally:
+        await redis.aclose()
+    logger.info(
+        "Smarts: %d chapters over %d media (%s)",
+        done.chapters,
+        done.media,
+        ", ".join(f"{kind} {count}" for kind, count in sorted(done.by_kind.items())),
+    )
+    return done.chapters
+
+
+async def _build_photobooks(book_ids: list[uuid.UUID]) -> int:
+    """One book at a time, each in its own transaction: a book that fails leaves the rest."""
+    done = 0
+    for book_id in book_ids:
+        async with session_scope() as session:
+            book = await photobooks_service.get(session, book_id)
+            if book is None:
+                continue
+            try:
+                await photobooks_service.build(session, book)
+            except Exception as error:
+                book.state = photobook.STATE_FAILED
+                book.trouble = f"{type(error).__name__}: {error}"
+                logger.exception("Fotobuch %s ist nicht entstanden", book_id)
+            else:
+                done += 1
+            await session.commit()
+            built = book.page_count
+
+        logger.info("Fotobuch %s: %d Seiten, Texte: %s", book_id, built, book.written)
+
+    redis = jobs.connect()
+    try:
+        await events.publish(redis, events.PHOTOBOOKS_TOPIC, kind="built", books=done)
+    finally:
+        await redis.aclose()
+    return done
 
 
 async def _tick() -> list[str]:
@@ -617,6 +701,9 @@ async def _transcribe_media(media_id: uuid.UUID, task_id: str) -> bool:
         except (AiError, transcripts.SoundError) as error:
             if isinstance(error, AiError):
                 await _pause_if_unreachable(error, outcome)
+            else:
+                # Nothing to hear in this one, and that will not change by asking again.
+                await attempts.note_failure(session, media_id, jobs.TRANSCRIPTION_STAGE, str(error))
             logger.warning("No transcript for %s: %s", media_id, error)
             outcome.failed = True
             return False
@@ -716,7 +803,14 @@ async def _detect_faces(media_id: uuid.UUID, task_id: str) -> bool:
                 derived_root=derived_root,
             )
         except AiError as error:
-            await _pause_if_unreachable(error, outcome)
+            if isinstance(error, AiUnreachableError):
+                # The machine is away. Not this medium's fault, so it keeps its three tries.
+                await _pause_if_unreachable(error, outcome)
+            else:
+                # The machine answered, and the answer was no. Asking again with the same
+                # frames gets the same no, so it is counted - otherwise a picture the detector
+                # chokes on comes round again every few minutes for ever.
+                await attempts.note_failure(session, media_id, jobs.FACES_STAGE, str(error))
             logger.warning("No faces for %s: %s", media_id, error)
             outcome.failed = True
             return False
@@ -729,6 +823,11 @@ class Outcome:
     failed: bool = False
     #: The stage it belongs to, so a machine that is away can pause it.
     stage: str | None = None
+
+
+def _last_line(error: BaseException) -> str:
+    """What to write down about an exception: its kind and its message, not a page of frames."""
+    return f"{type(error).__name__}: {error}".strip()
 
 
 @asynccontextmanager
@@ -746,6 +845,14 @@ async def _announced(stage: str, media_id: uuid.UUID, task_id: str) -> AsyncIter
         await jobs.mark_active(redis, task_id, stage, media_id)
         await events.publish(redis, "jobs", kind="task_started", stage=stage, task_id=task_id)
         yield outcome
+    except Exception as error:
+        # A stage that threw wrote nothing down, so the clock handed the same medium out again
+        # a minute later - for ever, for a file that will throw every time. It is counted like
+        # any other failure, and after three the admins hear what the traceback said.
+        outcome.failed = True
+        async with session_scope() as session:
+            await attempts.note_failure(session, media_id, stage, _last_line(error))
+        raise
     except BaseException:
         outcome.failed = True
         raise
@@ -811,9 +918,43 @@ async def _prepare_memories(day: date) -> int:
         return await memories_service.prepare(session, day)
 
 
-async def _reassess_faces() -> int:
+async def _sort_faces(face_ids: list[uuid.UUID]) -> None:
     async with session_scope() as session:
-        return await people.reassess(session)
+        await people.sort_faces(session, face_ids)
+
+
+async def _regroup_faces() -> dict[str, int]:
+    async with session_scope() as session:
+        found = await people.regroup(session)
+    # A plain answer: Celery carries the result of a task as JSON.
+    return {
+        "groups": found.groups,
+        "faces": found.faces,
+        "largest": found.largest,
+        "ungrouped": found.ungrouped,
+    }
+
+
+async def _reassess_faces() -> int:
+    redis = jobs.connect()
+    try:
+        await jobs.reassessment_starts(redis)
+    finally:
+        await redis.aclose()
+    async with session_scope() as session:
+        changed = await people.reassess(session)
+        # A name given today can put somebody on a video they were already on: a duplicate the
+        # moment it happens.
+        await faces_service.collapse_all_videos(session, get_settings().derived_path)
+
+    if changed:
+        # Somebody may be looking at the questions this pass has just answered.
+        redis = jobs.connect()
+        try:
+            await events.publish(redis, events.PEOPLE_TOPIC, kind="reassessed", changed=changed)
+        finally:
+            await redis.aclose()
+    return changed
 
 
 async def _place_media() -> int:

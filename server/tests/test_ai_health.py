@@ -202,3 +202,26 @@ async def test_only_admins_end_a_pause(
     response = await api_client.delete("/admin/jobs/ai/analyzer/pause", headers=headers)
 
     assert response.status_code == 403
+
+
+async def test_one_button_ends_every_pause_and_asks_again(
+    api_client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+    machines: Machines,
+    fake_redis: Any,
+) -> None:
+    """A stage is paused only if it happened to have work while the machine was away, so which
+    of them carry a pause says more about what there was to do than about the machine."""
+    headers = await admin_headers(api_client, session_factory)
+    await add_profile(session_factory, AiKind.ANALYZER, "qwen")
+    await add_profile(session_factory, AiKind.IMAGE_EMBEDDER, "siglip2")
+    for stage in ("analysis", "image_vector"):
+        await fake_redis.set(jobs.pause_key(stage), "1", ex=300)
+
+    answer = await api_client.post("/admin/jobs/ai/retry", headers=headers)
+
+    assert answer.status_code == 200
+    assert all(one["paused_until"] is None for one in answer.json()["services"])
+    assert await fake_redis.get(jobs.pause_key("analysis")) is None
+    # And the machines were asked afresh rather than a kept answer repeated.
+    assert set(machines.asked) == {AiKind.ANALYZER, AiKind.IMAGE_EMBEDDER}

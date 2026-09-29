@@ -10,6 +10,21 @@ import { renderScreen } from '@/test/render'
 
 const JOBS = 'GET /api/v1/admin/jobs'
 const CHANGES = 'GET /api/v1/admin/index/changes'
+const AI = 'GET /api/v1/admin/jobs/ai'
+
+/** One AI machine, as the engine room hears about it. */
+function aMachine(kind: string, ok: boolean) {
+  return {
+    kind,
+    configured: true,
+    model: 'buffalo_l',
+    ok,
+    detail: ok ? 'antwortet' : 'Keine Antwort',
+    milliseconds: null,
+    checked_at: '2026-09-26T20:00:00Z',
+    paused_until: ok ? null : '2026-09-26T20:05:00Z',
+  }
+}
 
 const idle = {
   running: [],
@@ -87,6 +102,34 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe('work that waits for a machine', () => {
+  it('says so on the line, instead of looking stuck', async () => {
+    stubApi({
+      [JOBS]: { body: { ...idle, pending_faces: 1 } },
+      [CHANGES]: { body: [] },
+      [AI]: { body: { services: [aMachine('face_detector', false)] } },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+
+    const row = await screen.findByText(/Medien ohne Gesichtersuche/)
+    expect(row).toHaveTextContent('wartet auf die KI-Maschine')
+  })
+
+  it('says nothing of the sort while the machine answers', async () => {
+    stubApi({
+      [JOBS]: { body: { ...idle, pending_faces: 1 } },
+      [CHANGES]: { body: [] },
+      [AI]: { body: { services: [aMachine('face_detector', true)] } },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+
+    const row = await screen.findByText(/Medien ohne Gesichtersuche/)
+    expect(row).not.toHaveTextContent('wartet auf die KI-Maschine')
+  })
+})
+
 describe('the engine room', () => {
   it('takes a hint from the live channel instead of waiting for the next question', async () => {
     // One socket per tab: the test holds on to it to play the server.
@@ -120,6 +163,90 @@ describe('the engine room', () => {
     expect(sockets[0]?.url).not.toContain('token')
   })
 
+  it('names the media behind a number, and what stopped them', async () => {
+    // A number can only be watched; a list can be acted on. Until now the reason lived in a
+    // worker's log and only if something had crashed loudly enough to print it.
+    stubApi({
+      [JOBS]: { body: { ...idle, pending_derivatives: 2 } },
+      [CHANGES]: { body: [] },
+      'GET /api/v1/admin/jobs/waiting/derive': {
+        body: {
+          stage: 'derive',
+          files: [],
+          items: [
+            {
+              media_id: 'm1',
+              kind: 'video',
+              filename: 'VIDEO0001.3gp',
+              album: 'Kinder/2010',
+              album_id: 'a1',
+              byte_size: 41_943_040,
+              attempts: 3,
+              last_at: new Date().toISOString(),
+              last_error: "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xfe",
+            },
+          ],
+        },
+      },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+
+    const line = await screen.findByRole('button', { name: /Medien ohne Vorschau/ })
+    expect(line).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(line)
+
+    expect(await screen.findByText('VIDEO0001.3gp')).toBeInTheDocument()
+    expect(screen.getByText(/Kinder\/2010/)).toBeInTheDocument()
+    expect(screen.getByText(/3 Versuche/)).toBeInTheDocument()
+    expect(screen.getByText(/41,9 MB/)).toBeInTheDocument()
+    expect(screen.getByText(/UnicodeDecodeError/)).toBeInTheDocument()
+    expect(line).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('asks nothing until a number is opened', async () => {
+    const { calls } = stubApi({
+      [JOBS]: { body: { ...idle, pending_derivatives: 2 } },
+      [CHANGES]: { body: [] },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+    await screen.findByRole('button', { name: /Medien ohne Vorschau/ })
+
+    expect(calls.some((call) => call.path.includes('/waiting/'))).toBe(false)
+  })
+
+  it('names the files it had to walk past, and why', async () => {
+    // Nothing clears these by itself: somebody has to give Muninn leave to read them.
+    stubApi({
+      [JOBS]: { body: { ...idle, unreadable_files: 1 } },
+      [CHANGES]: { body: [] },
+      'GET /api/v1/admin/jobs/waiting/unreadable': {
+        body: {
+          stage: 'unreadable',
+          items: [],
+          files: [
+            {
+              relative_path: 'Kinder/2019/IMG_3829.MOV',
+              first_seen_at: new Date().toISOString(),
+              byte_size: 419_396_824,
+              reason: "[Errno 13] Permission denied: '/library/Kinder/2019/IMG_3829.MOV'",
+            },
+          ],
+        },
+      },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: /nicht gelesen werden konnten/ }),
+    )
+
+    expect(await screen.findByText('Kinder/2019/IMG_3829.MOV')).toBeInTheDocument()
+    expect(screen.getByText(/Permission denied/)).toBeInTheDocument()
+  })
+
   it('says when there is nothing to do', async () => {
     stubApi({ [JOBS]: { body: idle }, [CHANGES]: { body: [] } })
 
@@ -133,7 +260,9 @@ describe('the engine room', () => {
   it('says what just happened when nothing is running', async () => {
     const justFinished = new Date(Date.now() - 2 * 60_000).toISOString()
     stubApi({
-      [JOBS]: { body: { ...idle, last_read_at: justFinished, media: 8, albums: 2 } },
+      [JOBS]: {
+        body: { ...idle, last_read_at: justFinished, media: 8, albums: 2, photos: 6, videos: 2 },
+      },
       [CHANGES]: { body: [] },
     })
 
@@ -142,6 +271,9 @@ describe('the engine room', () => {
     expect(
       await screen.findByText(/Zuletzt gelesen vor 2 Minuten · 8 Medien in 2 Alben/),
     ).toBeInTheDocument()
+    // What the work is made of: a film is a transcode, a transcript and a description of
+    // every fifth second; a photograph is none of that.
+    expect(screen.getByText(/\(Bilder: 6, Videos: 2\)/)).toBeInTheDocument()
   })
 
   it('shows a running read with how far it got', async () => {

@@ -47,9 +47,11 @@ describe('the phone layout', () => {
     await renderScreen(<MobileNav active="home" />)
 
     const bar = within(screen.getByRole('navigation'))
-    // In this order: the links found by name are the bar's links, one after another.
-    const names = ['Alben', 'Karte', 'Home', 'Personen']
+    // In this order: the links found by name are the bar's links, one after another. "Alben"
+    // is not among them - it opens the two ways in, the folders and the Smarts.
+    const names = ['Karte', 'Home', 'Personen']
     expect(names.map((name) => bar.getByRole('link', { name }))).toEqual(bar.getAllByRole('link'))
+    expect(bar.getByRole('button', { name: 'Alben' })).toBeInTheDocument()
     expect(bar.getByRole('button', { name: 'Mehr' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument()
   })

@@ -88,6 +88,9 @@ class JobsView(BaseModel):
     last_read_at: datetime | None
     albums: int
     media: int
+    #: Of those media, how many are pictures and how many are films.
+    photos: int = 0
+    videos: int = 0
     queues: list[QueueView]
     #: Media that still need their metadata read.
     pending_metadata: int
@@ -105,11 +108,50 @@ class JobsView(BaseModel):
     pending_faces: int | None = None
     #: Files seen once, waiting for the listing that confirms them.
     waiting_files: int
+    #: Files the reading had to walk past because it could not open them.
+    unreadable_files: int = 0
     #: The last few pieces of work that were finished, newest first.
     finished: list[FinishedTask]
     #: How many media each stage finished in the last minute, by stage name.
     done_last_minute: dict[str, int]
     schedule: ScheduleView
+
+
+class WaitingItem(BaseModel):
+    """One medium behind a number in the engine room, and what is known about why."""
+
+    media_id: UUID
+    kind: str
+    filename: str
+    album: str
+    #: Where the medium lies, so the list can lead to the picture itself.
+    album_id: UUID
+    #: How big the file is. One that will not be read is often an unusually big one.
+    byte_size: int
+    #: How often this stage has tried and failed at this medium; three is where it gives up.
+    attempts: int
+    #: When it last tried. Nothing where it has not failed at all.
+    last_at: datetime | None = None
+    #: What the machine said the last time, in its own words. Nothing where it never spoke.
+    last_error: str | None
+
+
+class WaitingFile(BaseModel):
+    """One file seen once and waiting for the listing that confirms it."""
+
+    relative_path: str
+    first_seen_at: datetime
+    byte_size: int = 0
+    #: Why it is still here, where anybody knows: what the operating system said.
+    reason: str | None = None
+
+
+class WaitingView(BaseModel):
+    """What is behind one of the numbers: the media themselves, or the files still waiting."""
+
+    stage: str
+    items: list[WaitingItem]
+    files: list[WaitingFile]
 
 
 class PurgedQueue(BaseModel):

@@ -2,9 +2,11 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyNote } from '@/components/muninn/empty-note'
+import { LoadingBody, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
 import { Symbol } from '@/components/muninn/symbol'
 import { Badge } from '@/components/ui/badge'
+import { CollectionFrame } from '@/features/albums/collection-frame'
 import { type Album, pathTo, useAlbumTree } from '@/features/albums/use-albums'
 import { cn } from '@/lib/utils'
 
@@ -21,7 +23,7 @@ function AlbumCard({ album, path, className }: { album: Album; path: string; cla
       aria-label={t('albums.open', { title: album.title })}
       className={cn('group block text-left', className)}
     >
-      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-secondary/60 transition group-hover:ring-1 group-hover:ring-primary/35">
+      <CollectionFrame title={album.title} note={path}>
         {album.cover_urls[0] ? (
           <img
             src={album.cover_urls[0]}
@@ -38,9 +40,7 @@ function AlbumCard({ album, path, className }: { album: Album; path: string; cla
         <Badge variant="count" className="absolute bottom-1.5 right-1.5">
           {album.media_count}
         </Badge>
-      </div>
-      <p className="mt-2 truncate text-base font-semibold text-foreground">{album.title}</p>
-      <p className="truncate text-xs-plus text-muted-foreground">{path}</p>
+      </CollectionFrame>
     </Link>
   )
 }
@@ -72,8 +72,9 @@ export function RecentAlbumsSection({ layout = 'scroller' }: { layout?: 'scrolle
       : ''
 
   return (
-    <section aria-labelledby="albums-heading">
+    <section aria-labelledby="albums-heading" aria-busy={tree.isPending}>
       <SectionHeading
+        id="albums-heading"
         title={t('albums.title')}
         className={layout === 'scroller' ? 'px-5 lg:px-0' : undefined}
         action={
@@ -83,7 +84,9 @@ export function RecentAlbumsSection({ layout = 'scroller' }: { layout?: 'scrolle
         }
       />
 
-      {albums.length === 0 ? (
+      {tree.isPending ? (
+        <AlbumsLoading layout={layout} />
+      ) : albums.length === 0 ? (
         <EmptyNote className={cn(layout === 'scroller' && 'mx-5 lg:mx-0')}>
           {t('albums.emptyRecent')}
         </EmptyNote>
@@ -106,5 +109,32 @@ export function RecentAlbumsSection({ layout = 'scroller' }: { layout?: 'scrolle
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * The covers on their way: the same squares with the title and the path under them, in the row
+ * the phone shows or the two columns of the aside.
+ */
+function AlbumsLoading({ layout }: { layout: 'scroller' | 'grid' }) {
+  const cards = Array.from({ length: SHOWN }, (_, index) => (
+    <div key={index} className={cn(layout === 'scroller' && 'w-[132px] shrink-0')}>
+      <Placeholder className="aspect-square w-full rounded-lg" />
+      {/* The title and the path under it take 42 px together, and so do these. */}
+      <Placeholder className="mt-2 h-[19px] w-4/5" />
+      <Placeholder className="h-[15px] w-3/5" />
+    </div>
+  ))
+
+  return (
+    <LoadingBody
+      boxed={false}
+      className={cn(
+        'mt-3',
+        layout === 'scroller' ? 'flex gap-3 overflow-hidden px-5' : 'grid grid-cols-2 gap-3.5',
+      )}
+    >
+      {cards}
+    </LoadingBody>
   )
 }

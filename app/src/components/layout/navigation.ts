@@ -9,6 +9,18 @@ export const NAVIGATION = [
   { id: 'profile', icon: 'person', to: '/profile' },
 ] as const
 
+/**
+ * What "Alben" opens: the folders as they lie on the NAS, the Smarts - the same media sorted by
+ * what is in them - and the Fotobücher, an album made into something that is read from front to
+ * back. Three ways into the library, so they hang on one destination rather than taking three
+ * places in a rail that has five.
+ */
+export const ALBUM_WAYS = [
+  { id: 'folders', icon: 'folder', to: '/albums' },
+  { id: 'smarts', icon: 'auto_awesome', to: '/smarts' },
+  { id: 'photobooks', icon: 'menu_book', to: '/photobooks' },
+] as const
+
 /** Personen: after the map in the rail, and in the phone's bottom bar. */
 export const PEOPLE_DESTINATION = { id: 'people', icon: 'group', to: '/people' } as const
 
@@ -28,6 +40,12 @@ export const MOBILE_NAVIGATION = [
 
 /** What "Mehr" opens on the phone, in this order. */
 export const MOBILE_MORE = [OVERVIEW_DESTINATION, NAVIGATION[4]] as const
+
+/** What the rail puts under "Mehr" where it is too short for everything: the rest, in order. */
+export function moreOf(all: readonly NavigationItem[]): readonly NavigationItem[] {
+  const shown = new Set<string>(MOBILE_NAVIGATION.map((item) => item.id))
+  return all.filter((item) => !shown.has(item.id))
+}
 
 /** Hliðskjálf, the sixth destination. Only admins have it, and only they may open it. */
 export const ADMIN_DESTINATION = { id: 'admin', icon: 'shield_person', to: '/admin' } as const

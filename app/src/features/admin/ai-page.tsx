@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ConfirmDialog } from '@/components/muninn/confirm-dialog'
 import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -160,16 +161,30 @@ function ProfileRow({ profile }: { profile: AiProfile }) {
           >
             {t(editing ? 'admin.ai.closeEdit' : 'admin.ai.edit')}
           </Button>
-          <Button
-            variant="outline"
-            className="h-8 px-2 text-xs-plus"
-            disabled={remove.isPending}
-            onClick={() => {
+          <ConfirmDialog
+            trigger={
+              <Button
+                variant="outline"
+                aria-label={t('admin.ai.remove')}
+                className="h-8 px-2 text-xs-plus"
+                disabled={remove.isPending}
+              >
+                <Symbol name="delete" size={16} />
+              </Button>
+            }
+            title={t('admin.ai.delete.title', { name: profile.name })}
+            description={t(
+              profile.is_active ? 'admin.ai.delete.inUse' : 'admin.ai.delete.description',
+            )}
+            confirmLabel={t('admin.ai.delete.confirm')}
+            cancelLabel={t('admin.ai.cancel')}
+            closeLabel={t('common.close')}
+            destructive
+            pending={remove.isPending}
+            onConfirm={() => {
               remove.mutate(profile.id)
             }}
-          >
-            <Symbol name="delete" size={16} />
-          </Button>
+          />
         </div>
       </div>
 

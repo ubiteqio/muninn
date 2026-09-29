@@ -9,10 +9,13 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from muninn.huginn import jobs
+from muninn.huginn import attempts, jobs
 from muninn.library import service
+from muninn.models.media import MediaKind
+from muninn.models.pending_file import PendingFile
 from muninn.models.user import UserRole
 from tests.helpers import auth_header, create_user, login
+from tests.test_timeline import JULY, a_medium, an_album
 
 pytestmark = pytest.mark.usefixtures("api_client")
 
@@ -51,7 +54,7 @@ async def test_an_idle_muninn_says_so(
 
     body = response.json()
     assert body["running"] == []
-    assert {queue["name"] for queue in body["queues"]} == {"scan", "derive", "ai"}
+    assert {queue["name"] for queue in body["queues"]} == {"scan", "derive", "ai", "people"}
     assert all(queue["waiting"] == 0 for queue in body["queues"])
     assert body["pending_derivatives"] == 0
     # No picture model set up: there is no backlog to speak of, not an empty one.
@@ -455,3 +458,92 @@ class TestUnpublishing:
 
         assert response.status_code == 204
         assert await jobs.claim(api_app.state.redis, "derive", media_id) is True
+
+
+async def test_the_numbers_say_which_media_and_why(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """ "2 Medien ohne Vorschau" is a true answer to the wrong question. Which two, and what
+    stopped them, was only ever in a worker's log."""
+    headers = await admin_headers(api_client, session_factory)
+    album = await an_album(session, "Fest")
+    medium = await a_medium(session, album, taken_at=JULY, name="VIDEO0001.3gp")
+    medium.derive_version = 0
+    await session.commit()
+    await attempts.note_failure(
+        session, medium.id, "derive", "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xfe"
+    )
+
+    answer = await api_client.get("/admin/jobs/waiting/derive", headers=headers)
+
+    assert answer.status_code == 200
+    body = answer.json()
+    (item,) = [one for one in body["items"] if one["media_id"] == str(medium.id)]
+    assert item["filename"] == "VIDEO0001.3gp"
+    assert item["album"] == "Fest"
+    assert item["attempts"] == 1
+    assert "UnicodeDecodeError" in item["last_error"]
+    # How big it is, and when the stage last gave up on it.
+    assert item["byte_size"] > 0
+    assert item["last_at"] is not None
+
+
+async def test_the_files_waiting_are_named_too(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """They have no medium yet, so they are named by their path."""
+    headers = await admin_headers(api_client, session_factory)
+    session.add(
+        PendingFile(
+            relative_path="Kinder/IMG_3829.MOV",
+            byte_size=419_396_824,
+            modified_at=JULY,
+            first_seen_at=JULY,
+        )
+    )
+    await session.commit()
+
+    answer = await api_client.get("/admin/jobs/waiting/files", headers=headers)
+
+    assert answer.status_code == 200
+    (file,) = answer.json()["files"]
+    assert file["relative_path"] == "Kinder/IMG_3829.MOV"
+    assert file["byte_size"] == 419_396_824
+
+
+async def test_a_stage_nobody_knows_has_nothing_waiting(
+    api_client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """The admin area and the server are deployed together, but not always in that order."""
+    headers = await admin_headers(api_client, session_factory)
+
+    answer = await api_client.get("/admin/jobs/waiting/erfunden", headers=headers)
+
+    assert answer.status_code == 200
+    assert answer.json() == {"stage": "erfunden", "items": [], "files": []}
+
+
+async def test_the_totals_say_how_many_are_pictures_and_how_many_films(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """ "14.989 Medien" says nothing about what kind of work is left: a film is a transcode, a
+    transcript and a description of every fifth second, a photograph is none of that."""
+    headers = await admin_headers(api_client, session_factory)
+    album = await an_album(session, "Fest")
+    for index in range(3):
+        await a_medium(session, album, taken_at=JULY, name=f"bild-{index}.jpg")
+    film = await a_medium(session, album, taken_at=JULY, name="film.mp4")
+    film.kind = MediaKind.VIDEO
+    await session.commit()
+
+    body = (await api_client.get("/admin/jobs", headers=headers)).json()
+
+    assert body["media"] == 4
+    assert body["photos"] == 3
+    assert body["videos"] == 1

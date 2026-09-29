@@ -76,7 +76,10 @@ describe('AiServices', () => {
     expect(screen.queryByRole('region', { name: 'KI-Dienste' })).not.toBeInTheDocument()
   })
 
-  it('wakes a paused service with a click on its chip', async () => {
+  it('offers one try for the row, and says what the others are waiting for', async () => {
+    // A stage carries a pause only if it happened to have work while the machine was away.
+    // Which of them do says more about what there was to do than about the machine, so the
+    // button belongs to the row - and a stage that is merely down says so in words.
     const { calls } = stubApi({
       [HEALTH]: {
         body: {
@@ -86,21 +89,36 @@ describe('AiServices', () => {
               detail: 'nicht erreichbar',
               paused_until: '2026-09-22T06:46:00Z',
             }),
+            aService('text_embedder', { ok: false, detail: 'nicht erreichbar' }),
           ],
         },
       },
-      'DELETE /api/v1/admin/jobs/ai/face_detector/pause': { status: 204 },
+      'POST /api/v1/admin/jobs/ai/retry': { body: { services: [] } },
     })
 
     await renderScreen(<AiServices />)
-    await userEvent.click(
-      await screen.findByRole('button', {
-        name: /^Gesichter, antwortet nicht, .*Jetzt versuchen$/,
-      }),
-    )
+
+    const list = await screen.findByRole('list')
+    expect(within(list).getByText(/pausiert bis/)).toBeInTheDocument()
+    expect(within(list).getByText(/wird beim nächsten Auftrag versucht/)).toBeInTheDocument()
+    // One button, and it is not inside a chip.
+    expect(within(list).queryByRole('button')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Jetzt versuchen' }))
 
     await waitFor(() => {
-      expect(calls.some((call) => call.method === 'DELETE')).toBe(true)
+      expect(calls.some((call) => call.path.endsWith('/ai/retry'))).toBe(true)
     })
+  })
+
+  it('offers nothing to try while every machine answers', async () => {
+    stubApi({
+      [HEALTH]: { body: { services: [aService('image_embedder', { ok: true })] } },
+    })
+
+    await renderScreen(<AiServices />)
+
+    await screen.findByRole('region', { name: 'KI-Dienste' })
+    expect(screen.queryByRole('button', { name: 'Jetzt versuchen' })).not.toBeInTheDocument()
   })
 })

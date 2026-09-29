@@ -26,7 +26,7 @@ from muninn.models.notification import (
     PushEvent,
 )
 from muninn.models.social import Comment, Favorite
-from muninn.models.user import User, UserStatus
+from muninn.models.user import User, UserRole, UserStatus
 
 #: Events closer together than this become one notification.
 BUNDLE_WINDOW = timedelta(minutes=10)
@@ -113,6 +113,69 @@ async def followers(
         talked = select(Comment.user_id).where(Comment.album_id == album_id)
     rows = await session.scalars(kept.union(talked))
     return list(rows)
+
+
+async def admins(session: AsyncSession) -> list[uuid.UUID]:
+    """Every active admin - for what only somebody with the engine room can act on."""
+    rows = await session.scalars(
+        select(User.id).where(User.status == UserStatus.ACTIVE, User.role == UserRole.ADMIN)
+    )
+    return list(rows)
+
+
+async def stage_failed(
+    session: AsyncSession,
+    *,
+    media_id: uuid.UUID,
+    stage: str,
+    detail: str,
+    now: datetime | None = None,
+) -> list[uuid.UUID]:
+    """A stage has given up on a medium: tell the admins, with what the machine said.
+
+    Only a real failure gets here - a file nothing can be read from, a model that answered no.
+    A machine that is merely away is not the medium's fault and says nothing, or every restart
+    of the AI server would ring the bell a thousand times.
+
+    One entry per medium and stage: a medium that fails two stages is two entries, because the
+    two are different problems with different answers.
+    """
+    now = now or datetime.now(UTC)
+    told: list[uuid.UUID] = []
+    for user_id in await admins(session):
+        open_one = await session.scalar(
+            select(Notification)
+            .where(
+                Notification.user_id == user_id,
+                Notification.kind == NotificationKind.STAGE_FAILED.value,
+                Notification.read_at.is_(None),
+                Notification.media_id == media_id,
+                Notification.stage == stage,
+            )
+            .limit(1)
+        )
+        if open_one is not None:
+            # The same stage on the same medium again: the newest words, not a second entry.
+            open_one.detail = detail
+            open_one.count += 1
+            open_one.updated_at = now
+        else:
+            session.add(
+                Notification(
+                    user_id=user_id,
+                    kind=NotificationKind.STAGE_FAILED.value,
+                    actor_ids=[],
+                    count=1,
+                    media_id=media_id,
+                    stage=stage,
+                    detail=detail,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        told.append(user_id)
+    await session.flush()
+    return told
 
 
 async def everybody(session: AsyncSession) -> list[uuid.UUID]:

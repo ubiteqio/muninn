@@ -48,6 +48,10 @@ def configuration() -> dict[str, Any]:
                 "task": "muninn.find_duplicates",
                 "schedule": crontab(minute="*/15"),
             },
+            "build-smarts": {
+                "task": "muninn.build_smarts",
+                "schedule": crontab(hour=3, minute=30),
+            },
             "prune-change-log": {
                 "task": "muninn.prune_change_log",
                 "schedule": crontab(hour=4, minute=0),

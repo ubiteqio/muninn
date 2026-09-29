@@ -1,8 +1,8 @@
 """What Muninn expects of a machine, and what it gets back."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 from muninn.ai.analysis import Analysis
 
@@ -72,6 +72,31 @@ class Analyzer(Protocol):
     ) -> str:
         """One or two sentences about a whole video, from what was seen second by second and,
         when anything is said in it, from what was heard."""
+        ...
+
+
+class Writer(Protocol):
+    """Writes German prose from facts the library already holds.
+
+    The photo book needs sentences, not descriptions of pictures: everything it may say is in
+    the facts it hands over, and what comes back is a small JSON object of the shape the caller
+    asked for. The same machine that describes pictures answers this - a text prompt is the
+    cheapest thing a vision model does - which is why it is a protocol of its own rather than
+    another method on the Analyzer: the job is different, even where the profile is the same.
+    """
+
+    async def write(
+        self,
+        facts: Mapping[str, Any],
+        *,
+        rules: str,
+        temperature: float = 0.8,
+        most: int = 500,
+    ) -> dict[str, Any]:
+        """What the model made of those facts, as the object the rules asked for.
+
+        Raises AiError when the answer is not JSON, and AiUnreachableError when nobody answered.
+        """
         ...
 
 

@@ -16,6 +16,7 @@ import {
   type FaceFilter,
   type FaceView,
   useAnswer,
+  useConfirmMany,
   useMerge,
   usePeople,
   usePerson,
@@ -168,7 +169,17 @@ export function PersonScreen({ personId }: { personId: string }) {
             }}
           />
         ) : (
-          data && <FacesTab personId={personId} name={data.name} />
+          data && (
+            <FacesTab
+              personId={personId}
+              name={data.name}
+              counts={{
+                all: data.faces,
+                auto: data.faces_auto,
+                twice: data.faces_twice,
+              }}
+            />
+          )
         )}
       </div>
 
@@ -217,13 +228,26 @@ const FILTERS: (FaceFilter | undefined)[] = [undefined, 'auto', 'twice']
  * Muninn gave on its own, or those where the person is twice in one photo, can be shown alone;
  * a tap on a face shows the whole photo with it marked.
  */
-function FacesTab({ personId, name }: { personId: string; name: string }) {
+function FacesTab({
+  personId,
+  name,
+  counts,
+}: {
+  personId: string
+  name: string
+  /** How many faces each filter holds, so a chip can say so before anybody scrolls. */
+  counts: { all: number; auto: number; twice: number }
+}) {
   const { t } = useTranslation()
   const [only, setOnly] = useState<FaceFilter | undefined>(undefined)
   const [checking, setChecking] = useState<FaceView | null>(null)
   const faces = usePersonFaces(personId, only)
   const answer = useAnswer()
+  const confirmMany = useConfirmMany()
   const all = faces.data?.pages.flatMap((page) => page.items) ?? []
+  // Only what is on the screen. A button that reached the whole list would stand by faces
+  // nobody had looked at, and a wrong one vouches just as loudly as a right one.
+  const muninns = all.filter((face) => face.assigned_by === 'auto')
 
   return (
     <div>
@@ -239,10 +263,31 @@ function FacesTab({ personId, name }: { personId: string; name: string }) {
               setOnly(filter)
             }}
           >
-            {t(`people.only.${filter ?? 'all'}`)}
+            {t(`people.only.${filter ?? 'all'}`)}{' '}
+            {/* A space, not only a margin: the name a screen reader says runs the two
+              together otherwise. */}
+            <span className="tabular-nums opacity-70">
+              {counts[filter ?? 'all'].toLocaleString('de-DE')}
+            </span>
           </Button>
         ))}
       </div>
+      {muninns.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-hairline/10 bg-secondary/30 px-4 py-3">
+          <p className="min-w-0 flex-1 text-base text-muted-foreground">
+            {t('people.standBy.hint', { name })}
+          </p>
+          <Button
+            size="sm"
+            disabled={confirmMany.isPending}
+            onClick={() => {
+              confirmMany.mutate(muninns.map((face) => face.id))
+            }}
+          >
+            {t('people.standBy.button', { count: muninns.length })}
+          </Button>
+        </div>
+      )}
       {faces.isSuccess && all.length === 0 && (
         <p className="mt-4 text-base text-muted-foreground">{t('people.noneToCheck')}</p>
       )}

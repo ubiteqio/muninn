@@ -4,16 +4,20 @@ import { AdminAiPage } from '@/features/admin/ai-page'
 import { AdminDuplicatesPage } from '@/features/admin/duplicates-page'
 import { AdminFoldersPage } from '@/features/admin/folders-page'
 import { AdminJobsPage } from '@/features/admin/jobs-page'
+import { PhotobooksPage } from '@/features/admin/photobooks-page'
 import { AdminSettingsPage } from '@/features/admin/settings-page'
 import { AdminUsersPage } from '@/features/admin/users-page'
 import { AlbumsScreen } from '@/features/albums/albums-screen'
 import { HomeScreen } from '@/features/home/home-screen'
 import { IntroScreen } from '@/features/home/intro-screen'
 import { OverviewScreen } from '@/features/overview/overview-screen'
-import { PeopleScreen,type PeopleSearch } from '@/features/people/people-screen'
+import { PeopleScreen, type PeopleSearch } from '@/features/people/people-screen'
 import { PersonScreen } from '@/features/people/person-screen'
+import { PhotobooksScreen } from '@/features/photobooks/photobooks-screen'
 import { ProfileScreen } from '@/features/profile/profile-screen'
 import { SearchScreen } from '@/features/search/search-screen'
+import { ChapterScreen } from '@/features/smarts/chapter-screen'
+import { SmartsScreen } from '@/features/smarts/smarts-screen'
 import { WalhallScreen } from '@/features/social/walhall-screen'
 import { Route as rootRoute } from '@/routes/__root'
 
@@ -150,6 +154,12 @@ export const overviewRoute = createRoute({
   component: OverviewScreen,
 })
 
+export const adminPhotobooksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/photobooks',
+  component: PhotobooksPage,
+})
+
 export const adminDuplicatesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/duplicates',
@@ -204,6 +214,13 @@ export interface SearchParams {
   q?: string
   kind?: 'image' | 'video'
   sort?: 'relevance' | 'date'
+  /** One year, as the overview counts them. */
+  year?: number
+  /** A town, as the overview names it. */
+  place?: string
+  camera?: string
+  /** An album and everything below it. */
+  album?: string
   /** Pictures like this medium, instead of words. */
   similar?: string
   medium?: string
@@ -218,10 +235,19 @@ export const searchRoute = createRoute({
     const q = asText(search.q)
     const similar = asText(search.similar)
     const medium = asText(search.medium)
+    const place = asText(search.place)
+    const camera = asText(search.camera)
+    const album = asText(search.album)
+    const year = Number(search.year)
     return {
       ...(q === undefined ? {} : { q }),
       ...(search.kind === 'image' || search.kind === 'video' ? { kind: search.kind } : {}),
       ...(search.sort === 'date' ? { sort: 'date' as const } : {}),
+      // A year out of any thinkable range is somebody's broken link, not a filter.
+      ...(Number.isInteger(year) && year > 1800 && year < 2200 ? { year } : {}),
+      ...(place === undefined ? {} : { place }),
+      ...(camera === undefined ? {} : { camera }),
+      ...(album === undefined ? {} : { album }),
       ...(similar === undefined ? {} : { similar }),
       ...(medium === undefined ? {} : { medium }),
     }
@@ -260,6 +286,74 @@ export const personRoute = createRoute({
 function PersonRoute() {
   const { personId } = personRoute.useParams()
   return <PersonScreen key={personId} personId={personId} />
+}
+
+/** Smarts: the library sorted by what is in the pictures, for browsing rather than searching. */
+export interface SmartsSearch {
+  /** A shelf, when one is open: videos, documents, screenshots. */
+  shelf?: string
+  /** The medium shown full screen. */
+  medium?: string
+}
+
+export const smartsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/smarts',
+  component: SmartsRoute,
+  validateSearch: (search: Record<string, unknown>): SmartsSearch => {
+    const shelf = asText(search.shelf)
+    const medium = asText(search.medium)
+    return {
+      ...(shelf === undefined ? {} : { shelf }),
+      ...(medium === undefined ? {} : { medium }),
+    }
+  },
+})
+
+function SmartsRoute() {
+  return <SmartsScreen {...smartsRoute.useSearch()} />
+}
+
+export const photobooksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/photobooks',
+  component: PhotobooksRoute,
+})
+
+function PhotobooksRoute() {
+  return <PhotobooksScreen />
+}
+
+export const photobookRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/photobooks/$bookId',
+  component: PhotobookRoute,
+})
+
+function PhotobookRoute() {
+  return <PhotobooksScreen bookId={photobookRoute.useParams().bookId} />
+}
+
+export const chapterRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/smarts/$chapterId',
+  component: ChapterRoute,
+  validateSearch: (search: Record<string, unknown>): { medium?: string; play?: boolean } => {
+    const medium = asText(search.medium)
+    return {
+      ...(medium === undefined ? {} : { medium }),
+      // "?play=1" from the dice and the play button: anything else is not a slideshow.
+      ...(search.play === true || search.play === 'true' || search.play === '1'
+        ? { play: true }
+        : {}),
+    }
+  },
+})
+
+function ChapterRoute() {
+  const { chapterId } = chapterRoute.useParams()
+  const { medium, play } = chapterRoute.useSearch()
+  return <ChapterScreen key={chapterId} chapterId={chapterId} medium={medium} play={play} />
 }
 
 /** Walhall: everybody's own favourites. */

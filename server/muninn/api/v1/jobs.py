@@ -25,12 +25,15 @@ from muninn.api.schemas.jobs import (
     RunningRead,
     ScheduleView,
     TaskMedia,
+    WaitingFile,
+    WaitingItem,
+    WaitingView,
 )
 from muninn.api.schemas.library import SyncProgressView
 from muninn.core.deps import AdminUser, get_redis, get_session
 from muninn.core.problem import ProblemError, problem_type
 from muninn.faces import service as faces_service
-from muninn.huginn import jobs
+from muninn.huginn import jobs, outstanding
 from muninn.huginn.app import celery_app
 from muninn.library import service
 from muninn.media import service as media_service
@@ -90,6 +93,8 @@ async def read_jobs(admin: AdminUser, session: SessionDep, redis: RedisDep) -> J
         last_read_at=max(read_times) if read_times else None,
         albums=counts.albums,
         media=counts.media,
+        photos=counts.photos,
+        videos=counts.videos,
         queues=[QueueView(name=name, waiting=waiting) for name, waiting in lengths.items()],
         pending_metadata=counts.pending_metadata,
         pending_derivatives=counts.pending_derivatives,
@@ -98,6 +103,7 @@ async def read_jobs(admin: AdminUser, session: SessionDep, redis: RedisDep) -> J
         pending_analyses=await _pending_analyses(session),
         pending_caption_vectors=await _pending_caption_vectors(session),
         pending_faces=await _pending_faces(session),
+        unreadable_files=await service.count_unreadable(session),
         waiting_files=waiting_files,
         finished=finished,
         done_last_minute=await jobs.done_last_minute(redis),
@@ -235,13 +241,95 @@ async def _schedule(
     )
 
 
+@router.get("/waiting/{stage}", summary="What is behind one of the numbers")
+async def read_waiting(
+    stage: str, admin: AdminUser, session: SessionDep, limit: int = outstanding.MOST
+) -> WaitingView:
+    """Which media a stage has not finished with, and what stopped each of them.
+
+    The number beside a stage says how much is left; this says what. Every stage is asked the
+    same question it is asked when work is handed out, so the list cannot drift from the count.
+
+    ``files`` is for the one number that is not about media at all: files seen once and waiting
+    for the listing that confirms them. They have no medium yet to name.
+    """
+    if stage == jobs.UNREADABLE_FILES:
+        walked_past = await service.unreadable_files(session, limit=limit)
+        return WaitingView(
+            stage=stage,
+            items=[],
+            files=[
+                WaitingFile(
+                    relative_path=one.relative_path,
+                    first_seen_at=one.last_at,
+                    reason=one.reason,
+                )
+                for one in walked_past
+            ],
+        )
+
+    if stage == jobs.WAITING_FILES:
+        rows = await service.files_waiting(session, limit=limit)
+        return WaitingView(
+            stage=stage,
+            items=[],
+            files=[
+                WaitingFile(
+                    relative_path=row.relative_path,
+                    first_seen_at=row.first_seen_at,
+                    byte_size=row.byte_size or 0,
+                )
+                for row in rows
+            ],
+        )
+
+    waiting = await outstanding.media_waiting_for(session, stage, limit=limit)
+    labels = await media_service.labels_of(session, [one.media_id for one in waiting])
+    return WaitingView(
+        stage=stage,
+        items=[
+            WaitingItem(
+                media_id=one.media_id,
+                kind=labels[one.media_id].kind.value,
+                filename=labels[one.media_id].filename,
+                album=labels[one.media_id].album_path,
+                album_id=labels[one.media_id].album_id,
+                byte_size=labels[one.media_id].byte_size,
+                attempts=one.attempts,
+                last_at=one.last_at,
+                last_error=one.last_error,
+            )
+            for one in waiting
+            if one.media_id in labels
+        ],
+        files=[],
+    )
+
+
+@router.post("/ai/retry", summary="Ask every AI machine again, now")
+async def retry_ai(admin: AdminUser, session: SessionDep, redis: RedisDep) -> AiHealthView:
+    """The machine is back and the admin says so: every pause ends and every service is asked.
+
+    One button rather than one per service. A stage is paused only if it happened to have work
+    while the machine was away, so which of them carry a pause says more about what there was
+    to do than about the machine - and none of that is what somebody who has just switched it
+    on again is thinking about.
+    """
+    await ai_health.resume_all(redis)
+    found = await ai_health.services(session, redis)
+    return _ai_health_view(found)
+
+
 @router.get("/ai", summary="Whether each AI service answers")
 async def read_ai_health(admin: AdminUser, session: SessionDep, redis: RedisDep) -> AiHealthView:
     """The same small question as "Verbindung testen", for every interface in use at once.
 
     Answers are kept for half a minute, so an open page asks each machine at most twice a minute.
     """
-    services = await ai_health.services(session, redis)
+    return _ai_health_view(await ai_health.services(session, redis))
+
+
+def _ai_health_view(services: list[ai_health.ServiceHealth]) -> AiHealthView:
     return AiHealthView(
         services=[
             AiServiceView(

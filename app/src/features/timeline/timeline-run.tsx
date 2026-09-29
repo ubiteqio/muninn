@@ -5,6 +5,7 @@ import { useScrollContainer } from '@/components/layout/scroll-container'
 import { useMediaViewer } from '@/features/media/use-media-viewer'
 import { useSocialUpdates } from '@/features/social/use-social'
 import { DateScrubber } from '@/features/timeline/date-scrubber'
+import { DayLoading } from '@/features/timeline/timeline-loading'
 import { TimelineTile } from '@/features/timeline/timeline-tile'
 import {
   type Geometry,
@@ -12,7 +13,9 @@ import {
   heightAbove,
   heightBelow,
   heightOfAll,
+  type Mark,
   momentAt,
+  PAGE_SIZE,
   scrollPageTo,
   type TimelineShape,
   useTimelineShape,
@@ -93,10 +96,35 @@ export function TimelineRun({ columns, month, medium, onMediumChange }: Timeline
   const tile = width > 0 ? (width - GAP * (columns - 1)) / columns : 0
   const geometry: Geometry = { columns, rowHeight: tile + GAP, heading: HEADING }
 
+  // The days the first page is about to bring: from the top of the month, or from wherever the
+  // rail has carried the window, until one page is full. One page, not whole days - the window
+  // asks for a hundred media, so a day of four hundred arrives as a quarter of itself, and a
+  // placeholder that drew all four hundred would stand four viewports taller than what lands.
+  const preview = useMemo((): Mark[] => {
+    if (!timeline.isPending || !marks) return []
+
+    const day = anchor?.slice(0, 10)
+    const from =
+      day === undefined ? 0 : Math.max(marks.marks.findIndex((mark) => mark.start <= day), 0)
+
+    const days: Mark[] = []
+    let left = PAGE_SIZE
+    for (const mark of marks.marks.slice(from)) {
+      if (left <= 0) break
+      days.push({ ...mark, count: Math.min(mark.count, left) })
+      left -= mark.count
+    }
+    return days
+  }, [anchor, marks, timeline.isPending])
+
   const first = groups[0]?.id ?? null
   const last = groups.at(-1)?.id ?? null
-  const above = marks && first && first !== 'undated' ? heightAbove(marks, first, geometry) : 0
-  const below = marks && last && last !== 'undated' ? heightBelow(marks, last, geometry) : 0
+  // Loaded or still coming, the spacers hang on the same two days, so the month is its full
+  // length either way and nothing moves when the pictures arrive.
+  const firstKey = first !== null && first !== 'undated' ? first : (preview[0]?.start ?? null)
+  const lastKey = last !== null && last !== 'undated' ? last : (preview.at(-1)?.start ?? null)
+  const above = marks && firstKey !== null ? heightAbove(marks, firstKey, geometry) : 0
+  const below = marks && lastKey !== null ? heightBelow(marks, lastKey, geometry) : 0
   const total = marks ? heightOfAll(marks, geometry) : 0
 
   /** Where the timeline block begins inside the scrolling page. */
@@ -174,10 +202,14 @@ export function TimelineRun({ columns, month, medium, onMediumChange }: Timeline
   return (
     <>
       <div className="mt-3 flex gap-0">
-        <div ref={block} className="min-w-0 flex-1">
+        <div ref={block} className="min-w-0 flex-1" aria-busy={timeline.isPending || undefined}>
+          {timeline.isPending && <span className="sr-only">{t('common.loading')}</span>}
           <div aria-hidden="true" style={{ height: above }} />
 
           <div ref={loaded} className="space-y-4">
+            {preview.map((mark) => (
+              <DayLoading key={mark.start} columns={columns} count={mark.count} />
+            ))}
             {positioned.map(({ group, start }) => (
               <div key={group.id}>
                 <h3 className="mb-1.5 text-sm-plus font-semibold text-foreground">

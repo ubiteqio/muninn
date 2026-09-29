@@ -215,7 +215,12 @@ def _run(command: list[str]) -> str | None:
         result = subprocess.run(  # noqa: S603 - fixed command, the only variable is a path
             [executable, *command[1:]],
             capture_output=True,
+            # What these tools print is whatever was written into the file years ago. A 3GP
+            # from 2010 carries a byte that is not UTF-8, and decoding strictly raised before
+            # anything could be read - taking the whole stage down for that medium. The
+            # unreadable byte is replaced; every field around it still arrives.
             text=True,
+            errors="replace",
             timeout=TOOL_TIMEOUT_SECONDS,
             check=False,
         )

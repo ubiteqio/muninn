@@ -8,6 +8,7 @@ import { AdminArea } from '@/features/admin/admin-area'
 import {
   downloadHiddenList,
   type DuplicateGroup,
+  type DuplicateSort,
   type DuplicateState,
   useDuplicates,
   useKeep,
@@ -26,7 +27,10 @@ import { cn } from '@/lib/utils'
 export function AdminDuplicatesPage() {
   const { t } = useTranslation()
   const [state, setState] = useState<DuplicateState>('open')
-  const duplicates = useDuplicates(state)
+  // Working through copies is usually about winning back room, and a group of two 4K videos
+  // is worth forty photographs of a birthday. The order is somebody's to choose all the same.
+  const [sort, setSort] = useState<DuplicateSort>('newest')
+  const duplicates = useDuplicates(state, sort)
   const [current, setCurrent] = useState<string | undefined>()
   const [downloadFailed, setDownloadFailed] = useState(false)
 
@@ -80,6 +84,27 @@ export function AdminDuplicatesPage() {
             {value === 'open'
               ? t('admin.duplicates.open', { count: openCount })
               : t('admin.duplicates.all')}
+          </button>
+        ))}
+
+        <span aria-hidden="true" className="mx-1 h-4 w-px bg-hairline/15" />
+
+        {(['newest', 'size'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={sort === value}
+            className={cn(
+              'rounded-full border px-3 py-1 text-sm-plus transition',
+              sort === value
+                ? 'border-accent bg-accent/15 text-foreground'
+                : 'border-hairline/10 text-muted-foreground hover:text-foreground',
+            )}
+            onClick={() => {
+              setSort(value)
+            }}
+          >
+            {t(`admin.duplicates.sort.${value}`)}
           </button>
         ))}
       </div>

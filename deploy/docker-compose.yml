@@ -1,8 +1,11 @@
 name: muninn
 
+# API, workers and the clock are one image and differ only in the command. Only the api builds
+# it - see there. When every service carried the build as well, "up --build" started six
+# identical builds at once, and the classic builder, which a NAS usually has, shares no cache
+# between builds running at the same time: the GeoNames stage alone was fetched and boiled down
+# six times over, for one image.
 x-server: &server
-  build:
-    context: ../server
   image: muninn/server:local
   restart: unless-stopped
   depends_on:
@@ -43,6 +46,12 @@ services:
       context: ./postgres
     image: muninn/postgres:local
     restart: unless-stopped
+    # PostgreSQL hands plans above a cost threshold to LLVM, which compiles them to machine code
+    # at runtime. On one NAS that code segfaulted the backend every time - the overview counts,
+    # the worker asking what still needs analysing - while everything simple ran fine and every
+    # integrity check came back clean. Muninn's queries are small enough that compiling them
+    # buys nothing, so the interpreter does the work.
+    command: ["postgres", "-c", "jit=off"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -70,6 +79,10 @@ services:
 
   api:
     <<: *server
+    # The one place the server image is built. Compose builds before it starts anything, so the
+    # workers and the clock find the image waiting for them.
+    build:
+      context: ../server
     ports:
       - "127.0.0.1:${MUNINN_API_PORT:-8000}:8000"
     healthcheck:
@@ -155,6 +168,29 @@ services:
       - "${MUNINN_AI_CONCURRENCY:-2}"
       - --hostname
       - ai@%h
+      - --loglevel
+      - ${MUNINN_LOG_LEVEL:-info}
+
+  # Who the faces are: sorting one after a "Nein", and looking at every unnamed face again after
+  # a name was given. A queue of its own, because such a pass walks the whole library and takes
+  # minutes - on the reading queue it stood in front of the clock and of folders waiting to be
+  # read. One at a time: the passes share a lock anyway, and two would only wait for each other.
+  people-worker:
+    <<: *server
+    environment:
+      <<: *server-environment
+      MUNINN_RUN_MIGRATIONS: "0"
+    command:
+      - celery
+      - --app
+      - muninn.huginn.app
+      - worker
+      - --queues
+      - people
+      - --concurrency
+      - "1"
+      - --hostname
+      - people@%h
       - --loglevel
       - ${MUNINN_LOG_LEVEL:-info}
 

@@ -12,6 +12,11 @@ from muninn.albums.service import cursor_value
 from muninn.api.schemas.media import MediaView
 from muninn.api.schemas.pagination import Page, decode_cursor, encode_cursor
 from muninn.api.schemas.people import (
+    AlikeFace,
+    AlikeFaces,
+    ConfirmManyRequest,
+    DecidedMany,
+    DecideManyRequest,
     FacePage,
     FaceView,
     ForgottenFaces,
@@ -41,7 +46,7 @@ from muninn.core.signing import verify_media
 from muninn.faces import listing, people
 from muninn.faces import service as faces_service
 from muninn.faces.service import crop_name
-from muninn.huginn.dispatch import queue_face_reassessment
+from muninn.huginn.dispatch import queue_face_reassessment, queue_face_sorting
 from muninn.media.service import relative_of
 from muninn.models.face import Face, Person
 
@@ -144,7 +149,7 @@ async def name_group(
         person = await people.name_group(session, cluster, payload.name, user)
     except people.PersonError as error:
         raise _problem(422, "cannot-name", "Cannot name this group", str(error)) from error
-    queue_face_reassessment()
+    await queue_face_reassessment()
     return PersonBrief.of(person)
 
 
@@ -179,7 +184,19 @@ async def read_person(
         ),
         listing.PersonSummary(person=person, faces=0, media=0, cover=None),
     )
-    return _person_view(summary, settings.jwt_secret)
+    view = _person_view(summary, settings.jwt_secret)
+    # Only here, where the filters that hold them are: the row of people asks for nothing it
+    # does not show, and these are two counts per person.
+    return view.model_copy(
+        update={
+            "faces_auto": await listing.count_faces(
+                session, person.id, only=listing.FaceFilter.AUTO
+            ),
+            "faces_twice": await listing.count_faces(
+                session, person.id, only=listing.FaceFilter.TWICE
+            ),
+        }
+    )
 
 
 @router.patch("/people/{person_id}", summary="Rename a person, or hide or show them")
@@ -213,7 +230,7 @@ async def merge_person(
     source = await _person(session, person_id)
     target = await _person(session, payload.into)
     await people.merge(session, source, target)
-    queue_face_reassessment()
+    await queue_face_reassessment()
     return await read_person(target.id, user, session, settings)
 
 
@@ -273,11 +290,58 @@ async def _face(session: AsyncSession, face_id: uuid.UUID) -> Face:
 
 
 @router.post(
+    "/faces/alike",
+    summary="Answer several open questions about one person the same way",
+)
+async def decide_alike_faces(
+    payload: DecideManyRequest, user: ActiveUser, session: SessionDep
+) -> DecidedMany:
+    """Yes or no for a whole list at once, as the modal after a decision offers it.
+
+    Faces that are no longer an open question about this person are skipped: the list somebody
+    answered may have moved on between seeing it and sending it back.
+    """
+    person = await _person(session, payload.person_id)
+    answered = await people.decide_many(session, payload.face_ids, person, confirm=payload.confirm)
+    if payload.confirm and answered:
+        await queue_face_reassessment()
+    return DecidedMany(answered=answered)
+
+
+@router.post("/faces/confirm", summary="Stand by what Muninn decided for several faces")
+async def confirm_many_faces(
+    payload: ConfirmManyRequest, user: ActiveUser, session: SessionDep, settings: SettingsDep
+) -> DecidedMany:
+    """A page of the faces Muninn assigned itself, confirmed in one go.
+
+    What Muninn decided by itself vouches for nobody - one wrong guess would otherwise teach
+    the rest - so a person may have thousands of faces and still be recognised poorly. Going
+    through them a page at a time, taking the wrong ones out with the cross and standing by
+    the rest, is worth more than answering a hundred questions.
+
+    Only the faces Muninn gave, and each keeps its own person. Anything else is skipped.
+    """
+    media_ids = {
+        face.media_id
+        for face in [await session.get(Face, face_id) for face_id in payload.face_ids]
+        if face is not None
+    }
+    confirmed = await people.confirm_many(session, payload.face_ids)
+    if confirmed:
+        for media_id in media_ids:
+            await _one_face_each(session, settings, media_id)
+        await queue_face_reassessment()
+    return DecidedMany(answered=confirmed)
+
+
+@router.post(
     "/faces/{face_id}/confirm",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Yes: the suggestion, or the person Muninn gave, is right",
 )
-async def confirm_face(face_id: uuid.UUID, user: ActiveUser, session: SessionDep) -> Response:
+async def confirm_face(
+    face_id: uuid.UUID, user: ActiveUser, session: SessionDep, settings: SettingsDep
+) -> Response:
     face = await _face(session, face_id)
     # A suggestion answered with yes, or a person Muninn gave confirmed: either way the face
     # now vouches for its person when new faces are sorted.
@@ -285,7 +349,8 @@ async def confirm_face(face_id: uuid.UUID, user: ActiveUser, session: SessionDep
     if person_id is None:
         raise _problem(409, "no-suggestion", "Nothing suggested for this face")
     await people.assign(session, face_id, await _person(session, person_id))
-    queue_face_reassessment()
+    await _one_face_each(session, settings, face.media_id)
+    await queue_face_reassessment()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -298,20 +363,63 @@ async def reject_face(face_id: uuid.UUID, user: ActiveUser, session: SessionDep)
     """The suggestion goes - or, for a face that has a person, the face leaves them."""
     await _face(session, face_id)
     await people.reject(session, face_id)
+    queue_face_sorting(face_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/faces/{face_id}/alike",
+    summary="Open questions about the same person that look like this face",
+)
+async def read_alike_faces(
+    face_id: uuid.UUID,
+    person: uuid.UUID,
+    user: ActiveUser,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> AlikeFaces:
+    """Asked right after a yes or a no, to offer the same answer for what looks the same.
+
+    Everything within the widest distance Muninn would ever offer comes back, each with how
+    alike it is, so the app can let somebody draw the line themselves without asking again.
+    """
+    await _face(session, face_id)
+    found = await people.alike_suggestions(session, face_id, person)
+    return AlikeFaces(
+        person_id=person,
+        items=[
+            AlikeFace(face=FaceView.of(face, secret=settings.jwt_secret), similarity=similarity)
+            for face, similarity in found
+        ],
+    )
+
+
+async def _one_face_each(session: SessionDep, settings: Settings, media_id: uuid.UUID) -> None:
+    """The medium has this person for certain now, so the other looks at them are answered.
+
+    A second sighting of somebody already named adds nothing to the medium, and a question
+    about somebody who is on it for certain has its answer. Both go, with their squares - this
+    is how one child came to be confirmed five times on one photograph.
+    """
+    await faces_service.collapse_media_faces(session, media_id, settings.derived_path)
 
 
 @router.post("/faces/{face_id}/name", summary="Say who this face is")
 async def name_face(
-    face_id: uuid.UUID, payload: NameRequest, user: ActiveUser, session: SessionDep
+    face_id: uuid.UUID,
+    payload: NameRequest,
+    user: ActiveUser,
+    session: SessionDep,
+    settings: SettingsDep,
 ) -> PersonBrief:
-    await _face(session, face_id)
+    face = await _face(session, face_id)
     try:
         person = await people.person_named(session, payload.name, user)
     except people.PersonError as error:
         raise _problem(422, "cannot-name", "Cannot name this face", str(error)) from error
     await people.assign(session, face_id, person)
-    queue_face_reassessment()
+    await _one_face_each(session, settings, face.media_id)
+    await queue_face_reassessment()
     return PersonBrief.of(person)
 
 

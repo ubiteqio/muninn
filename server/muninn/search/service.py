@@ -10,6 +10,7 @@ import asyncio
 import base64
 import hashlib
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -158,6 +159,15 @@ async def forget(session: AsyncSession, kind: VectorKind, media_id: uuid.UUID) -
         text(_sql("DELETE FROM {table} WHERE media_id = :media_id", kind)),
         {"media_id": media_id},
     )
+
+
+async def has_vector(session: AsyncSession, kind: VectorKind, media_id: uuid.UUID) -> bool:
+    """Whether this medium has a vector of this kind at all - for the admin's view of a medium."""
+    found = await session.scalar(
+        text(_sql("SELECT 1 FROM {table} WHERE media_id = :media_id LIMIT 1", kind)),
+        {"media_id": media_id},
+    )
+    return found is not None
 
 
 async def media_without(
@@ -407,6 +417,75 @@ async def burst_pairs(
     return [(row.first, row.second) for row in rows]
 
 
+async def near_pairs(
+    session: AsyncSession, *, album_id: uuid.UUID, model: str, max_distance: float
+) -> list[tuple[uuid.UUID, uuid.UUID, float]]:
+    """Which media of one album look alike, and how alike - for the chapters of the Smarts.
+
+    Every pair of one album, once, and only those below the distance. An album of a few thousand
+    is a few million comparisons of halfvecs, which PostgreSQL does in about a second and which
+    nobody waits for: this runs in a worker, not in a request.
+    """
+    rows = await session.execute(
+        text(
+            _sql(
+                """
+                WITH pool AS (
+                    SELECT e.media_id, e.embedding::halfvec AS v
+                      FROM {table} e JOIN media m ON m.id = e.media_id
+                     WHERE m.album_id = :album AND m.status = 'active'
+                       AND m.duplicate_of IS NULL AND e.model = :model
+                )
+                SELECT a.media_id AS first, b.media_id AS second, (a.v <=> b.v) AS distance
+                  FROM pool a JOIN pool b ON a.media_id < b.media_id
+                 WHERE a.v <=> b.v <= :max_distance
+                """,
+                VectorKind.IMAGE,
+            )
+        ),
+        {"album": album_id, "model": model, "max_distance": max_distance},
+    )
+    return [(row.first, row.second, float(row.distance)) for row in rows]
+
+
+async def near_to(
+    session: AsyncSession,
+    media_id: uuid.UUID,
+    *,
+    model: str,
+    max_distance: float,
+    limit: int,
+) -> list[tuple[uuid.UUID, float]]:
+    """Everything in the library that looks like this one, nearest first, through the index.
+
+    The chapters of the Smarts are built from this: one question per chapter rather than one
+    per pair. Comparing every picture with every other is a quadratic scan - 23 seconds for
+    8000 media here, an hour at 100.000 - while the index answers one of these in milliseconds,
+    however large the library is.
+    """
+    rows = await session.execute(
+        text(
+            _sql(
+                """
+                WITH leader AS (
+                    SELECT embedding::halfvec AS v FROM {table}
+                     WHERE media_id = :media_id AND model = :model
+                )
+                SELECT e.media_id, (e.embedding::halfvec <=> l.v) AS distance
+                  FROM {table} e JOIN media m ON m.id = e.media_id, leader l
+                 WHERE e.model = :model AND m.status = 'active' AND m.duplicate_of IS NULL
+                   AND (e.embedding::halfvec <=> l.v) <= :max_distance
+                 ORDER BY distance
+                 LIMIT :limit
+                """,
+                VectorKind.IMAGE,
+            )
+        ),
+        {"media_id": media_id, "model": model, "max_distance": max_distance, "limit": limit},
+    )
+    return [(row.media_id, float(row.distance)) for row in rows]
+
+
 # --- faces ------------------------------------------------------------------------------------
 
 
@@ -482,12 +561,25 @@ async def face_neighbors(
     max_distance: float,
     limit: int = 10,
     confirmed: bool = False,
+    min_pixels: int = 0,
+    min_score: float = 0.0,
+    suggested_for: uuid.UUID | None = None,
 ) -> list[FaceNeighbor]:
     """The faces nearest to this one - of named persons, or without a person - nearest first.
 
-    `confirmed` keeps to faces somebody assigned by hand. Asked apart, not filtered afterwards:
+    `confirmed` keeps to the faces that may vouch for a name: what somebody assigned by hand,
+    and what Muninn assigned itself and marked trusted. Asked apart, not filtered afterwards:
     copies and bursts of a photo fill the ten nearest with Muninn's own guesses, and the
     confirmed face that should decide would never be among them.
+
+    `suggested_for` keeps to the faces that are an open question about that one person, which is
+    what answering several of them at once is about.
+
+    `min_pixels` and `min_score` are the caller's bar for a face good enough to be listened to.
+    A small or unsure face is kept and can still be given a name, but its vector says too little
+    to group anybody or to vouch for them, and those are the faces that glue unrelated groups
+    together. A decision somebody made by hand is never held to this bar: the person is right
+    whatever the picture is like.
 
     Only faces of the same model count: another model's vectors live in another space.
     """
@@ -502,8 +594,14 @@ async def face_neighbors(
     cast = f"f.embedding::halfvec({dimensions})"
     probe = f"CAST(:vector AS halfvec({dimensions}))"
     which = "f.person_id IS NOT NULL" if named else "f.person_id IS NULL"
+    good = _good_enough(min_pixels, min_score)
     if confirmed:
-        which += " AND f.assigned_by = 'user'"
+        trusted = f"f.trusted AND {good}" if good else "f.trusted"
+        which += f" AND (f.assigned_by = 'user' OR ({trusted}))"
+    elif good:
+        which += f" AND {good}"
+    if suggested_for is not None:
+        which += " AND f.suggested_person_id = :suggested_for"
     await session.execute(text(f"SET LOCAL hnsw.ef_search = {max(40, limit * 4)}"))
     await session.execute(text("SET LOCAL hnsw.iterative_scan = relaxed_order"))
     rows = await session.execute(
@@ -522,7 +620,12 @@ async def face_neighbors(
              ORDER BY distance
             """  # noqa: S608 - the cast, the model literal and the condition are ours
         ),
-        {"vector": row.vector, "id": face_id, "max_distance": max_distance},
+        {
+            "vector": row.vector,
+            "id": face_id,
+            "max_distance": max_distance,
+            "suggested_for": suggested_for,
+        },
     )
     return [
         FaceNeighbor(
@@ -534,6 +637,186 @@ async def face_neighbors(
         )
         for r in rows
     ]
+
+
+async def distance_to_clusters(
+    session: AsyncSession, face_id: uuid.UUID, clusters: Sequence[int]
+) -> dict[int, float]:
+    """How far this face lies from the middle of each of those groups.
+
+    The middle is the average of the group's faces. Asking it, rather than whichever single face
+    happens to be nearest, is what keeps one face between two groups from tying them together.
+    """
+    if not clusters:
+        return {}
+    stored = await session.execute(
+        text("SELECT embedding::text AS vector, dimensions, model FROM faces WHERE id = :id"),
+        {"id": face_id},
+    )
+    row = stored.first()
+    if row is None:
+        return {}
+    dimensions = int(row.dimensions)
+    wanted = ", ".join(str(int(cluster)) for cluster in clusters)
+    rows = await session.execute(
+        text(
+            f"""
+            SELECT cluster,
+                   avg(embedding::vector({dimensions}))
+                       <=> CAST(:vector AS vector({dimensions})) AS distance
+              FROM faces
+             WHERE cluster IN ({wanted})
+               AND model = {_quoted(row.model)} AND dimensions = {dimensions}
+             GROUP BY cluster
+            """  # noqa: S608 - the cast, the model literal and the group numbers are ours
+        ),
+        {"vector": row.vector},
+    )
+    return {int(r.cluster): float(r.distance) for r in rows}
+
+
+async def gap_between_clusters(session: AsyncSession, first: int, second: int) -> float:
+    """How far the middles of two groups lie apart. 1.0 - unrelated - when one has no faces."""
+    found = await session.scalar(
+        text(
+            f"""
+            WITH centers AS (
+                SELECT cluster, avg(embedding::vector) AS center
+                  FROM faces
+                 WHERE cluster IN ({int(first)}, {int(second)})
+                 GROUP BY cluster
+            )
+            SELECT (SELECT center FROM centers WHERE cluster = {int(first)})
+                   <=> (SELECT center FROM centers WHERE cluster = {int(second)})
+            """  # noqa: S608 - both group numbers are ours
+        )
+    )
+    return float(found) if found is not None else 1.0
+
+
+@dataclass(frozen=True, slots=True)
+class PersonVectors:
+    """The vectors that speak for a person, and the space they live in."""
+
+    model: str
+    dimensions: int
+    vectors: list[list[float]]
+
+
+async def vouching_vectors(session: AsyncSession, person_id: uuid.UUID) -> PersonVectors | None:
+    """The vectors of the faces that may speak for this person: confirmed, or trusted and good.
+
+    None when there are none, or when they are not all of one model - a person whose faces were
+    found by two models has no one space to be averaged in.
+    """
+    rows = await session.execute(
+        text(
+            """
+            SELECT embedding::text AS vector, dimensions, model
+              FROM faces
+             WHERE person_id = :person_id
+               AND (assigned_by = 'user' OR trusted)
+             ORDER BY id
+            """
+        ),
+        {"person_id": person_id},
+    )
+    found = list(rows)
+    if not found:
+        return None
+    models = {(r.model, int(r.dimensions)) for r in found}
+    if len(models) != 1:
+        return None
+    (model, dimensions) = models.pop()
+    return PersonVectors(
+        model=model,
+        dimensions=dimensions,
+        vectors=[[float(part) for part in r.vector.strip("[]").split(",")] for r in found],
+    )
+
+
+async def store_prototypes(
+    session: AsyncSession,
+    person_id: uuid.UUID,
+    *,
+    model: str,
+    centers: list[tuple[list[float], int]],
+) -> None:
+    """Replace what stands for this person. The caller commits."""
+    await session.execute(
+        text("DELETE FROM person_prototypes WHERE person_id = :person_id"),
+        {"person_id": person_id},
+    )
+    for center, faces in centers:
+        await session.execute(
+            text(
+                """
+                INSERT INTO person_prototypes (id, person_id, model, dimensions, center, faces)
+                VALUES (:id, :person_id, :model, :dimensions, CAST(:center AS halfvec), :faces)
+                """
+            ),
+            {
+                "id": uuid.uuid4(),
+                "person_id": person_id,
+                "model": model,
+                "dimensions": len(center),
+                "center": _literal(center),
+                "faces": faces,
+            },
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PrototypeNeighbor:
+    person_id: uuid.UUID
+    distance: float
+    faces: int
+
+
+async def prototype_neighbors(
+    session: AsyncSession, face_id: uuid.UUID, *, max_distance: float, limit: int = 5
+) -> list[PrototypeNeighbor]:
+    """The persons whose middles lie nearest this face, nearest first.
+
+    One middle per way a person looked, so a face of somebody at two is asked against the middle
+    of their other baby photos and not against the average of a lifetime.
+    """
+    stored = await session.execute(
+        text("SELECT embedding::text AS vector, dimensions, model FROM faces WHERE id = :id"),
+        {"id": face_id},
+    )
+    row = stored.first()
+    if row is None:
+        return []
+    dimensions = int(row.dimensions)
+    rows = await session.execute(
+        text(
+            f"""
+            SELECT person_id, faces, center::halfvec({dimensions})
+                   <=> CAST(:vector AS halfvec({dimensions})) AS distance
+              FROM person_prototypes
+             WHERE model = {_quoted(row.model)} AND dimensions = {dimensions}
+             ORDER BY distance
+             LIMIT {int(limit)}
+            """  # noqa: S608 - the cast and the model literal are ours
+        ),
+        {"vector": row.vector},
+    )
+    return [
+        PrototypeNeighbor(person_id=r.person_id, distance=float(r.distance), faces=int(r.faces))
+        for r in rows
+        if float(r.distance) <= max_distance
+    ]
+
+
+def _good_enough(min_pixels: int, min_score: float) -> str:
+    """The caller's quality bar as SQL, or nothing when it does not care."""
+    parts = []
+    if min_pixels > 0:
+        parts.append(f"f.pixels >= {int(min_pixels)}")
+    if min_score > 0:
+        parts.append(f"f.score >= {float(min_score)}")
+    return " AND ".join(parts)
 
 
 def _quoted(value: str) -> str:

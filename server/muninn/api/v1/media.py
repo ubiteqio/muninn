@@ -1,12 +1,13 @@
 """The timeline, a single medium, and its files (/media)."""
 
+import logging
 import mimetypes
 import uuid
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +15,8 @@ from muninn.analysis import service as analysis_service
 from muninn.analysis import transcripts
 from muninn.api.schemas.media import (
     MarkView,
+    MediaStagesView,
+    MediaStageView,
     MediaView,
     PeriodCoverView,
     PeriodView,
@@ -22,14 +25,23 @@ from muninn.api.schemas.media import (
 from muninn.api.schemas.pagination import Page, decode_cursor, encode_cursor
 from muninn.api.schemas.social import SocialView
 from muninn.core.config import Settings
-from muninn.core.deps import ActiveUser, OptionalUser, get_session, get_settings_from_state
+from muninn.core.deps import (
+    ActiveUser,
+    AdminUser,
+    OptionalUser,
+    get_session,
+    get_settings_from_state,
+)
 from muninn.core.problem import ProblemError, problem_type
 from muninn.core.signing import sign_media, verify_media
+from muninn.huginn import stages
 from muninn.media import service
 from muninn.models.media import Media, MediaStatus
 from muninn.places import service as places_service
 from muninn.social import service as social_service
 from muninn.social.service import Target, TargetKind
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/media", tags=["media"])
 
@@ -182,6 +194,84 @@ async def read_media(
             await social_service.summary(session, user, Target(TargetKind.MEDIA, media_id))
         ),
         place=await places_service.place_of(session, media),
+    )
+
+
+@router.get("/{media_id}/stages", summary="What the pipeline did to this medium")
+async def read_stages(
+    media_id: uuid.UUID, admin: AdminUser, session: SessionDep
+) -> MediaStagesView:
+    """Every step and where this medium stands in it: done, still open, or given up on."""
+    try:
+        media = await service.get_media(session, media_id)
+    except service.MediaNotFoundError as error:
+        raise _not_found() from error
+
+    return MediaStagesView(
+        media_id=media_id,
+        stages=[MediaStageView(**vars(state)) for state in await stages.of_medium(session, media)],
+    )
+
+
+@router.delete(
+    "/{media_id}",
+    summary="Take a medium down, now and for good",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def withdraw_medium(
+    media_id: uuid.UUID, admin: AdminUser, session: SessionDep, settings: SettingsDep
+) -> Response:
+    """A picture nobody should see, gone from every album and every search at once.
+
+    Not a job and not a wait: the row goes here, and with it every face, vector, description,
+    transcript, reaction, comment and favourite that hung on it, and the previews on the disk.
+
+    The original on the NAS is not touched - it never is - so what is remembered instead is
+    that this picture was taken down, by its content hash. The next reading turns it away,
+    under that name or any other. There is no way back from here.
+    """
+    try:
+        path = await service.withdraw(
+            session, media_id, derived_root=settings.derived_path, by=admin.id
+        )
+    except service.MediaNotFoundError as error:
+        raise _not_found() from error
+    logger.info("Withdrawn by %s: %s", admin.username, path)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{media_id}/stages/{stage}",
+    summary="Do one step again",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def run_stage(
+    media_id: uuid.UUID, stage: str, admin: AdminUser, session: SessionDep
+) -> MediaStagesView:
+    """What the step wrote is dropped and the worker gets the medium now.
+
+    Failed attempts are forgotten with it: whoever asks has usually just changed something -
+    a better model, a file that was still being copied - and old failures should not stand in
+    the way.
+    """
+    try:
+        media = await service.get_media(session, media_id)
+    except service.MediaNotFoundError as error:
+        raise _not_found() from error
+
+    try:
+        await stages.run(session, media, stage)
+    except stages.UnknownStageError as error:
+        raise ProblemError(
+            status=status.HTTP_404_NOT_FOUND,
+            type=problem_type("stage-not-found"),
+            title="Stage not found",
+            detail=f"The pipeline has no step called {stage!r}.",
+        ) from error
+
+    return MediaStagesView(
+        media_id=media_id,
+        stages=[MediaStageView(**vars(state)) for state in await stages.of_medium(session, media)],
     )
 
 

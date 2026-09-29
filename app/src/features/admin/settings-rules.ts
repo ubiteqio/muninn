@@ -15,6 +15,10 @@ export const LIMITS = {
   // The pause before many deletions at once. 0 is off, which is the default.
   deletion_share_percent: { min: 0, max: 50 },
   deletion_count: { min: 0, max: 100000 },
+
+  // How many smart albums there are, and how many media each one holds.
+  smart_max_chapters: { min: 6, max: 500 },
+  smart_max_media: { min: 50, max: 5000 },
 } as const
 
 export type NumericSetting = keyof typeof LIMITS
@@ -34,6 +38,11 @@ export const SYNC_SETTINGS = [
   'missing_grace_days',
   'deletion_share_percent',
   'deletion_count',
+] as const satisfies readonly NumericSetting[]
+
+export const SMART_SETTINGS = [
+  'smart_max_chapters',
+  'smart_max_media',
 ] as const satisfies readonly NumericSetting[]
 
 export interface SettingsProblem {

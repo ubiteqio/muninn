@@ -20,6 +20,7 @@ const ICONS: Record<string, string> = {
   comment: 'chat_bubble',
   comment_like: 'favorite',
   new_media: 'add_photo_alternate',
+  stage_failed: 'error',
 }
 
 /**
@@ -131,7 +132,11 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: () => void }) {
   const text =
     notice.kind === 'new_media'
       ? t('notify.kind.new_media', { count: notice.count, album: notice.album?.title ?? '' })
-      : t(`notify.kind.${notice.kind}`, { who, count: Math.max(notice.actors.length, 1) })
+      : notice.kind === 'stage_failed'
+        ? t('notify.kind.stage_failed', {
+            stage: t(`admin.jobs.failedStage.${notice.stage ?? ''}`),
+          })
+        : t(`notify.kind.${notice.kind}`, { who, count: Math.max(notice.actors.length, 1) })
 
   const body = (
     <>
@@ -147,7 +152,11 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: () => void }) {
         filled={notice.kind === 'comment_like'}
         className={cn(
           'mt-0.5 shrink-0',
-          notice.kind === 'comment_like' ? 'text-rose-500' : 'text-muted-foreground',
+          notice.kind === 'comment_like' && 'text-rose-500',
+          notice.kind === 'stage_failed' && 'text-destructive',
+          notice.kind !== 'comment_like' &&
+            notice.kind !== 'stage_failed' &&
+            'text-muted-foreground',
         )}
       />
       <span className="min-w-0 flex-1">
@@ -155,6 +164,12 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: () => void }) {
         {notice.excerpt && (
           <span className="mt-0.5 block truncate text-xs-plus text-muted-foreground">
             „{notice.excerpt}“
+          </span>
+        )}
+        {/* What the machine said, in its own words: an admin acts on this, not on a summary. */}
+        {notice.detail && (
+          <span className="mt-0.5 block truncate font-mono text-2xs text-muted-foreground">
+            {notice.detail}
           </span>
         )}
         <span className="mt-0.5 block text-2xs text-muted-foreground">

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { api, unwrap } from '@/api/client'
 import { isApiError } from '@/api/problem'
 import { ConfirmDialog } from '@/components/muninn/confirm-dialog'
+import { InfoHint } from '@/components/muninn/info-hint'
 import { Symbol } from '@/components/muninn/symbol'
 import { Toggle } from '@/components/muninn/toggle'
 import { Button } from '@/components/ui/button'
@@ -17,8 +18,10 @@ import {
   LIMITS,
   type NumericSetting,
   settingsProblem,
+  SMART_SETTINGS,
   SYNC_SETTINGS,
 } from '@/features/admin/settings-rules'
+import { SmartAlbums } from '@/features/admin/smart-albums'
 import { type AppSettings, useSaveSettings, useSettings } from '@/features/admin/use-settings'
 import { Field } from '@/features/auth/field'
 import { FormError } from '@/features/auth/form-error'
@@ -52,10 +55,18 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
   const [done, setDone] = useState(false)
 
   function field(setting: NumericSetting) {
+    const label = t(`admin.settings.field.${setting}.label`)
     return (
       <Field
         key={setting}
-        label={t(`admin.settings.field.${setting}.label`)}
+        label={label}
+        info={
+          <InfoHint about={label}>
+            {explanationOf(t, setting).map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </InfoHint>
+        }
         hint={t(`admin.settings.field.${setting}.hint`, LIMITS[setting])}
         type="number"
         inputMode="numeric"
@@ -70,7 +81,8 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
     )
   }
 
-  async function submit() {
+  /** Returns whether the settings are now saved; the Smarts build on that answer. */
+  async function submit(): Promise<boolean> {
     setError(null)
     setDone(false)
 
@@ -81,7 +93,7 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
     const problem = settingsProblem(values)
     if (problem === 'previewTooSmall') {
       setError(t('admin.settings.error.previewTooSmall'))
-      return
+      return false
     }
     if (problem) {
       setError(
@@ -90,7 +102,7 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
           ...problem.params,
         }),
       )
-      return
+      return false
     }
 
     try {
@@ -102,8 +114,10 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
         faces_enabled: faces,
       })
       setDone(true)
+      return true
     } catch (failure) {
       setError(messageFor(failure, t))
+      return false
     }
   }
 
@@ -134,6 +148,16 @@ function SettingsForm({ settings }: { settings: AppSettings }) {
         </p>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">{SYNC_SETTINGS.map(field)}</div>
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="text-lg font-semibold text-foreground">{t('admin.smarts.section.title')}</h2>
+        <p className="mt-1.5 text-base text-muted-foreground">
+          {t('admin.smarts.section.description')}
+        </p>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">{SMART_SETTINGS.map(field)}</div>
+        <SmartAlbums save={submit} />
       </Card>
 
       <Card className="p-5">
@@ -242,6 +266,21 @@ function ForgetFaces() {
       )}
     </div>
   )
+}
+
+/**
+ * The paragraphs behind the ⓘ of a setting.
+ *
+ * They are kept as a list in the texts rather than as one long string: a wall of text nobody
+ * reads is exactly what this is meant to avoid. i18next hands a list back as a plain value, so
+ * this is the one place that knows what it asked for.
+ */
+function explanationOf(t: TFunction, setting: NumericSetting): string[] {
+  const written: unknown = t(`admin.settings.field.${setting}.info`, {
+    ...LIMITS[setting],
+    returnObjects: true,
+  })
+  return Array.isArray(written) ? (written as string[]) : []
 }
 
 function draftOf(settings: AppSettings): Draft {

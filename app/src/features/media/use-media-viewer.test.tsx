@@ -1,9 +1,12 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import PhotoSwipe from 'photoswipe'
+import { useMemo, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Medium } from '@/features/albums/use-albums'
-import { useMediaViewer } from '@/features/media/use-media-viewer'
+import { useAuthStore } from '@/features/auth/auth-store'
+import { steers, useMediaViewer } from '@/features/media/use-media-viewer'
 import { stubApi } from '@/test/api-stub'
 import { renderScreen } from '@/test/render'
 
@@ -43,18 +46,40 @@ function aMedium(id: string): Medium {
   }
 }
 
+function aVideo(id: string): Medium {
+  const medium = aMedium(id)
+  return {
+    ...medium,
+    kind: 'video',
+    duration_seconds: 12,
+    urls: { ...medium.urls, video: `/api/v1/media/${id}/video?token=abc`, poster: null },
+  }
+}
+
 const MEDIA = [aMedium('media-1'), aMedium('media-2')]
 
 function Album({
   current,
   onCurrentChange = vi.fn(),
   social = false,
+  media = MEDIA,
+  onEndReached,
+  hasMore = false,
 }: {
   current?: string | undefined
   onCurrentChange?: (id: string | undefined) => void
   social?: boolean
+  media?: Medium[]
+  onEndReached?: (() => void) | undefined
+  hasMore?: boolean
 }) {
-  const viewer = useMediaViewer(MEDIA, { current, onCurrentChange, social })
+  const viewer = useMediaViewer(media, {
+    current,
+    onCurrentChange,
+    social,
+    onEndReached,
+    hasMore,
+  })
 
   return (
     <div>
@@ -73,15 +98,182 @@ function Album({
 
 const gallery = () => document.querySelector('.pswp')
 
+describe('paging between media', () => {
+  it('does not steer the gallery when the screen renders again', async () => {
+    /*
+     * The gallery moves by itself when somebody swipes; the address follows a moment later.
+     * A screen that renders again in between - and most do, the viewer counts the picture it
+     * is on - must not pull it back to where the address still points, or every swipe lands
+     * on the picture it started from.
+     */
+    const goTo = vi.spyOn(PhotoSwipe.prototype, 'goTo')
+
+    function Screen() {
+      const [ticks, setTicks] = useState(0)
+      const viewer = useMediaViewer(MEDIA, {
+        current: 'media-1',
+        onCurrentChange: () => undefined,
+        // Written inline, the way the screens write it: a new function on every render.
+        onSimilar: () => undefined,
+        social: false,
+      })
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setTicks((count) => count + 1)
+            }}
+          >
+            {`Noch einmal (${String(ticks)})`}
+          </button>
+          {viewer.panel}
+        </div>
+      )
+    }
+
+    await renderScreen(<Screen />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+    goTo.mockClear()
+
+    await userEvent.click(screen.getByRole('button', { name: /Noch einmal/ }))
+    await screen.findByRole('button', { name: 'Noch einmal (1)' })
+
+    expect(goTo).not.toHaveBeenCalled()
+  })
+})
+
+describe('when an open gallery is sent somewhere', () => {
+  /*
+   * The picture moved and the address had not caught up yet, so every swipe and every arrow key
+   * was undone: the gallery turned to the next picture and was sent straight back to the one
+   * the address still named. In an album it looked as though the keys did nothing at all.
+   */
+  it("answers a changed address, and never the gallery's own move", () => {
+    // The address moved on - a link, the back button - and the gallery is elsewhere.
+    expect(steers('media-2', 'media-1', 0, 1)).toBe(true)
+    // The address moved on and the gallery is already there: nothing to do.
+    expect(steers('media-2', 'media-1', 1, 1)).toBe(false)
+    // The gallery turned by itself; the address still names the picture before it.
+    expect(steers('media-1', 'media-1', 1, 0)).toBe(false)
+    // Nothing has changed at all.
+    expect(steers('media-1', 'media-1', 0, 0)).toBe(false)
+  })
+})
+
+describe('a list that is read again while somebody browses', () => {
+  it('does not pull the gallery back when the same pictures arrive as a new list', async () => {
+    /*
+     * The album reads itself again every couple of seconds while the NAS is being indexed, and
+     * every answer is a new array of the same pictures. The gallery had moved on; the address
+     * follows a moment later, and the effect that runs on the new list used to send the gallery
+     * back to where the address still pointed. Pressing the arrow key then did nothing at all.
+     */
+    const goTo = vi.spyOn(PhotoSwipe.prototype, 'goTo')
+
+    function Screen() {
+      const [again, setAgain] = useState(0)
+      // A fresh array every time the query answers, holding the very same pictures.
+      const media = useMemo(() => MEDIA.map((one) => ({ ...one })), [again])
+      const viewer = useMediaViewer(media, {
+        current: 'media-1',
+        onCurrentChange: () => undefined,
+        social: false,
+      })
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setAgain((count) => count + 1)
+            }}
+          >
+            {`Gelesen (${String(again)})`}
+          </button>
+          {viewer.panel}
+        </div>
+      )
+    }
+
+    await renderScreen(<Screen />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+    goTo.mockClear()
+
+    await userEvent.click(screen.getByRole('button', { name: /Gelesen/ }))
+    await screen.findByRole('button', { name: 'Gelesen (1)' })
+
+    expect(goTo).not.toHaveBeenCalled()
+  })
+})
+
+describe('a list that goes on past what is loaded', () => {
+  it('asks for the next page when it opens near the end', async () => {
+    const more = vi.fn()
+
+    // The last of the loaded pictures: the next page has to be on its way before the swipe.
+    await renderScreen(
+      <Album
+        current="media-2"
+        onEndReached={more}
+        hasMore
+        media={[aMedium('media-1'), aMedium('media-2')]}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(more).toHaveBeenCalled()
+    })
+  })
+
+  it('leaves the pictures alone while the end is far off', async () => {
+    const more = vi.fn()
+    const many = Array.from({ length: 20 }, (_, index) => aMedium(`media-${String(index)}`))
+
+    await renderScreen(<Album current="media-0" onEndReached={more} hasMore media={many} />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    expect(more).not.toHaveBeenCalled()
+  })
+
+  it('does not turn round to the first picture while a page can still arrive', async () => {
+    // PhotoSwipe loops by default, which is how picture 100 of a page led back to picture 1.
+    const init = vi.spyOn(PhotoSwipe.prototype, 'init')
+
+    await renderScreen(<Album current="media-1" hasMore />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    expect((init.mock.contexts[0] as PhotoSwipe | undefined)?.options.loop).toBe(false)
+  })
+
+  it('turns round again once the album has no more pages', async () => {
+    const init = vi.spyOn(PhotoSwipe.prototype, 'init')
+
+    await renderScreen(<Album current="media-1" />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    expect((init.mock.contexts[0] as PhotoSwipe | undefined)?.options.loop).toBe(true)
+  })
+})
+
 describe('useMediaViewer', () => {
-  it('shows nothing while the address names no medium', () => {
-    render(<Album />)
+  it('shows nothing while the address names no medium', async () => {
+    await renderScreen(<Album />)
 
     expect(gallery()).toBeNull()
   })
 
   it('opens the medium the address asks for', async () => {
-    render(<Album current="media-1" />)
+    await renderScreen(<Album current="media-1" />)
 
     await waitFor(() => {
       expect(gallery()).not.toBeNull()
@@ -89,12 +281,28 @@ describe('useMediaViewer', () => {
   })
 
   it('closes again when the medium leaves the address', async () => {
-    const { rerender } = render(<Album current="media-1" />)
+    function Album2() {
+      const [current, setCurrent] = useState<string | undefined>('media-1')
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setCurrent(undefined)
+            }}
+          >
+            Schliessen
+          </button>
+          <Album current={current} onCurrentChange={setCurrent} />
+        </div>
+      )
+    }
+    await renderScreen(<Album2 />)
     await waitFor(() => {
       expect(gallery()).not.toBeNull()
     })
 
-    rerender(<Album current={undefined} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Schliessen' }))
 
     await waitFor(() => {
       expect(gallery()).toBeNull()
@@ -103,7 +311,7 @@ describe('useMediaViewer', () => {
 
   it('opens nothing by itself: a click writes the medium into the address', async () => {
     const onCurrentChange = vi.fn()
-    render(<Album onCurrentChange={onCurrentChange} />)
+    await renderScreen(<Album onCurrentChange={onCurrentChange} />)
 
     await userEvent.click(screen.getByRole('button', { name: 'Zweites öffnen' }))
 
@@ -118,7 +326,7 @@ describe('useMediaViewer', () => {
     ) {
       clicks.push({ href: this.getAttribute('href') ?? '', download: this.download })
     })
-    render(<Album current="media-2" />)
+    await renderScreen(<Album current="media-2" />)
     await waitFor(() => {
       expect(gallery()).not.toBeNull()
     })
@@ -156,8 +364,9 @@ describe('useMediaViewer', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Details anzeigen' }))
 
-    expect(screen.getByText('media-2.jpg')).toBeInTheDocument()
-    expect(await screen.findByText('Ein Gondoliere auf dem Canal Grande.')).toBeInTheDocument()
+    const details = screen.getByRole('complementary', { name: 'Details' })
+    expect(within(details).getByText('media-2.jpg')).toBeInTheDocument()
+    expect(within(details).getByText('Ein Gondoliere auf dem Canal Grande.')).toBeInTheDocument()
   })
 
   it('closes the details with a tap beside them, and keeps them for a tap inside', async () => {
@@ -219,6 +428,186 @@ describe('useMediaViewer', () => {
     expect(screen.queryByRole('complementary', { name: 'Kommentare' })).not.toBeInTheDocument()
   })
 
+  it('starts the video one opens, and the one moved on to', async () => {
+    // Opening a film is asking to watch it; a second tap on play is a tap too many.
+    const played = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+
+    try {
+      await renderScreen(<Album current="film-1" media={[aVideo('film-1'), aVideo('film-2')]} />)
+
+      await waitFor(() => {
+        expect(played).toHaveBeenCalled()
+      })
+    } finally {
+      played.mockRestore()
+    }
+  })
+
+  it('leaves a finger on the video controls to the controls, and swipes above them', async () => {
+    // Dragging the position along the scrubber turned to the next film instead.
+    const played = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+
+    try {
+      await renderScreen(<Album current="film-1" media={[aVideo('film-1'), aVideo('film-2')]} />)
+
+      const video = await waitFor(() => {
+        const found = document.querySelector<HTMLVideoElement>('.pswp__item video')
+        expect(found).not.toBeNull()
+        return found as HTMLVideoElement
+      })
+      vi.spyOn(video, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 400, 800))
+      const heard = vi.fn()
+      document.querySelector('.pswp__scroll-wrap')?.addEventListener('pointerdown', heard)
+      const press = (clientY: number) =>
+        video.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY }))
+
+      press(780)
+      expect(heard).not.toHaveBeenCalled()
+
+      press(400)
+      expect(heard).toHaveBeenCalledOnce()
+    } finally {
+      played.mockRestore()
+    }
+  })
+
+  it('offers an admin what the pipeline can do to the picture, and nobody else', async () => {
+    stubApi({
+      'GET /api/v1/media/media-2': { body: { ...MEDIA[1], analysis: null, transcript: null } },
+      'GET /api/v1/media/media-2/faces': { body: [] },
+      'GET /api/v1/media/media-2/stages': {
+        body: {
+          media_id: 'media-2',
+          stages: [
+            { stage: 'derive', state: 'done', attempts: 0, last_error: null },
+            {
+              stage: 'faces',
+              state: 'given-up',
+              attempts: 3,
+              last_error: 'no frame could be read',
+            },
+          ],
+        },
+      },
+    })
+    useAuthStore.setState({
+      status: 'signed-in',
+      needsPasswordChange: false,
+      user: {
+        id: '00000000-0000-0000-0000-000000000001',
+        username: 'odin',
+        email: 'odin@muninn.local',
+        display_name: 'Odin',
+        role: 'admin',
+        status: 'active',
+        must_change_password: false,
+        created_at: '2026-09-01T10:00:00Z',
+        last_login_at: '2026-09-23T10:00:00Z',
+      },
+    })
+    await renderScreen(<Album current="media-2" />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'KI-Werkzeuge' }))
+
+    expect(await screen.findByText('Gesichter suchen')).toBeInTheDocument()
+    expect(screen.getByText('Aufgegeben nach 3 Versuchen')).toBeInTheDocument()
+    expect(screen.getByText('no frame could be read')).toBeInTheDocument()
+    // Taking a picture down is what somebody reaches for in a hurry: it stands first, not
+    // under seven steps of a pipeline.
+    expect(screen.getByText('Medium entfernen')).toBeInTheDocument()
+  })
+
+  it('takes a picture down only after asking, and names the file', async () => {
+    const { calls } = stubApi({
+      'GET /api/v1/media/media-2': { body: { ...MEDIA[1], analysis: null, transcript: null } },
+      'GET /api/v1/media/media-2/faces': { body: [] },
+      'GET /api/v1/media/media-2/stages': { body: { media_id: 'media-2', stages: [] } },
+      'DELETE /api/v1/media/media-2': { status: 204 },
+    })
+    useAuthStore.setState({
+      status: 'signed-in',
+      needsPasswordChange: false,
+      user: {
+        id: '00000000-0000-0000-0000-000000000001',
+        username: 'odin',
+        email: 'odin@muninn.local',
+        display_name: 'Odin',
+        role: 'admin',
+        status: 'active',
+        must_change_password: false,
+        created_at: '2026-09-01T10:00:00Z',
+        last_login_at: '2026-09-23T10:00:00Z',
+      },
+    })
+    await renderScreen(<Album current="media-2" />)
+    await waitFor(() => {
+      expect(gallery()).not.toBeNull()
+    })
+
+    // The buttons rest after a few seconds, and the tap that brings them back is spent on
+    // that alone - so the menu takes a second one, exactly as it does on a phone.
+    const menu = screen.getAllByRole('button', { name: 'KI-Werkzeuge' }).at(-1) as HTMLElement
+    await userEvent.click(menu)
+    if (menu.getAttribute('data-state') === 'closed') await userEvent.click(menu)
+    await userEvent.click(await screen.findByText('Medium entfernen'))
+
+    // Asked first, with the file named, and nothing sent until it is answered.
+    expect(await screen.findByText('Medium wirklich entfernen?')).toBeInTheDocument()
+    expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Endgültig entfernen' }))
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.method === 'DELETE')).toBe(true)
+    })
+  })
+
+  it('stops the video of the picture one leaves behind', async () => {
+    // PhotoSwipe keeps the neighbouring slides in the DOM, and a video taken out of the page
+    // carries on with its sound. Moving on has to stop it.
+    const paused = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+
+    function Films() {
+      const [current, setCurrent] = useState<string | undefined>('film-1')
+      const viewer = useMediaViewer([aVideo('film-1'), aVideo('film-2')], {
+        current,
+        onCurrentChange: setCurrent,
+      })
+
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setCurrent('film-2')
+            }}
+          >
+            Weiter
+          </button>
+          {viewer.panel}
+        </div>
+      )
+    }
+
+    try {
+      await renderScreen(<Films />)
+      await waitFor(() => {
+        expect(document.querySelectorAll('video').length).toBeGreaterThan(0)
+      })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+
+      await waitFor(() => {
+        expect(paused).toHaveBeenCalled()
+      })
+    } finally {
+      paused.mockRestore()
+    }
+  })
+
   it('offers pictures like the one on screen when asked to', async () => {
     const asked: string[] = []
     function Search() {
@@ -231,7 +620,7 @@ describe('useMediaViewer', () => {
       })
       return <div>{viewer.panel}</div>
     }
-    render(<Search />)
+    await renderScreen(<Search />)
     await waitFor(() => {
       expect(gallery()).not.toBeNull()
     })

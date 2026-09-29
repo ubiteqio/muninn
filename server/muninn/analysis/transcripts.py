@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from muninn.ai.base import SpokenPart, Transcriber, Transcript
+from muninn.huginn import attempts, jobs
 from muninn.models.analysis import MediaAnalysis, MediaTranscript
 from muninn.models.media import Media, MediaKind, MediaStatus
 
@@ -133,6 +134,7 @@ def _missing(model: str, version: int) -> Select[tuple[uuid.UUID]]:
         Media.kind == MediaKind.VIDEO,
         Media.video_path.is_not(None),
         ~heard,
+        attempts.still_open(jobs.TRANSCRIPTION_STAGE, Media.id),
     )
 
 

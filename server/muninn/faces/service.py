@@ -15,12 +15,14 @@ import uuid
 from pathlib import Path
 
 import pyvips
-from sqlalchemy import Select, delete, func, select, update
+from sqlalchemy import Select, and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from muninn.ai.base import DetectedFace, FaceDetector
 from muninn.analysis.frames import FrameError, frames_of
 from muninn.faces import people
+from muninn.huginn import attempts, jobs
 from muninn.media.service import relative_of
 from muninn.models.face import Face
 from muninn.models.media import Media, MediaKind, MediaStatus
@@ -139,7 +141,9 @@ async def apply_faces(
             looks = await _looks_at_video(
                 derived_root / media.video_path, video_step(media.duration_seconds)
             )
-        except (FrameError, FileNotFoundError):
+        except (FrameError, FileNotFoundError) as error:
+            # No frame can be read from this one. Counted, so it is not tried for ever.
+            await attempts.note_failure(session, media_id, jobs.FACES_STAGE, str(error))
             return False
         answers = await detector.detect([_data_url(jpeg, "image/jpeg") for _, jpeg in looks])
         for (second, jpeg), faces in zip(looks, answers, strict=True):
@@ -152,7 +156,8 @@ async def apply_faces(
             return False
         try:
             picture = await asyncio.to_thread((derived_root / path).read_bytes)
-        except FileNotFoundError:
+        except FileNotFoundError as error:
+            await attempts.note_failure(session, media_id, jobs.FACES_STAGE, str(error))
             return False
         mime = _MIME_TYPES.get(Path(path).suffix.lower(), "image/webp")
         (faces,) = await detector.detect([_data_url(picture, mime)])
@@ -181,6 +186,7 @@ async def apply_faces(
     await session.execute(
         update(Media).where(Media.id == media_id).values(face_version=FACE_VERSION)
     )
+    await attempts.forget(session, media_id, jobs.FACES_STAGE)
 
     def write_crops() -> None:
         folder.mkdir(parents=True, exist_ok=True)
@@ -196,15 +202,74 @@ async def apply_faces(
     await session.commit()
     # Who they are, right away: a person if one is close enough, else a group.
     await people.sort_faces(session, stored)
+    # A video shows the same people frame after frame, and a collage or a picture of a picture
+    # shows them more than once too. One face per person is enough either way.
+    await collapse_media_faces(session, media_id, derived_root)
     return True
 
 
+async def collapse_media_faces(
+    session: AsyncSession, media_id: uuid.UUID, derived_root: Path
+) -> int:
+    """One medium's repeated sightings, and the square pictures that belonged to them."""
+    removed = await people.collapse_duplicates(session, media_id)
+    if not removed:
+        return 0
+
+    def remove_crops() -> None:
+        for face_id in removed:
+            (derived_root / relative_of(media_id, crop_name(face_id))).unlink(missing_ok=True)
+
+    await asyncio.to_thread(remove_crops)
+    return len(removed)
+
+
+async def collapse_all_videos(session: AsyncSession, derived_root: Path) -> int:
+    """Every video that shows one person more than once. Returns how many faces went.
+
+    For after a reassessment: a name given today can put a person on a medium they were already
+    on, which is a duplicate the moment it happens.
+    """
+    twice = (
+        select(Face.media_id)
+        .where(Face.person_id.is_not(None))
+        .group_by(Face.media_id, Face.person_id)
+        .having(func.count() > 1)
+    )
+    answered = aliased(Face)
+    guessed = (
+        select(Face.media_id)
+        .join(
+            answered,
+            (answered.media_id == Face.media_id) & (answered.person_id == Face.suggested_person_id),
+        )
+        .where(Face.person_id.is_(None))
+    )
+    media_ids = set(await session.scalars(twice)) | set(await session.scalars(guessed))
+    return sum(
+        [await collapse_media_faces(session, media_id, derived_root) for media_id in media_ids]
+    )
+
+
 def _missing() -> Select[tuple[uuid.UUID]]:
+    """Media this stage could look at now.
+
+    What it looks at has to be there: a picture is read from its preview, a video from its 720p
+    version. A video that has only a poster - because its transcode failed, or has not run yet -
+    was counted as outstanding here, handed out every minute, and skipped every time without a
+    word, so one film sat in "Medien ohne Gesichtersuche" for ever. It belongs to stage 2 until
+    that stage has made what this one reads, and stage 2 counts its own failures.
+    """
+    ready = or_(
+        and_(Media.kind == MediaKind.VIDEO, Media.video_path.is_not(None)),
+        and_(Media.kind == MediaKind.IMAGE, Media.thumbnail_path.is_not(None)),
+    )
     return select(Media.id).where(
         Media.status == MediaStatus.ACTIVE,
         Media.duplicate_of.is_(None),
-        Media.thumbnail_path.is_not(None),
+        ready,
         Media.face_version < FACE_VERSION,
+        attempts.still_open(jobs.FACES_STAGE, Media.id),
     )
 
 

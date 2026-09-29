@@ -81,6 +81,18 @@ async def resume(redis: Redis, kind: AiKind) -> None:
     await redis.delete(jobs.pause_key(STAGE_OF[kind]), _key(kind))
 
 
+async def resume_all(redis: Redis) -> None:
+    """Every stage's pause ends now, and every kept answer goes.
+
+    One button for the whole row: an admin who has just started the machine again does not
+    want to be told which of five stages happened to notice it was away. The stages that were
+    never paused lose nothing - they had no pause to end - but their kept answers go too, so
+    the check that follows asks the machine rather than repeating what it said a minute ago.
+    """
+    for kind in AiKind:
+        await resume(redis, kind)
+
+
 async def services(session: AsyncSession, redis: Redis) -> list[ServiceHealth]:
     """Every interface in the order of the admin area, with what its machine last answered."""
     now = datetime.now(UTC)

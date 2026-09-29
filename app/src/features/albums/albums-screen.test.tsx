@@ -1,5 +1,6 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AlbumsScreen } from '@/features/albums/albums-screen'
@@ -132,9 +133,27 @@ describe('the album tree', () => {
     expect(await screen.findByRole('region', { name: 'Unteralben' })).toBeInTheDocument()
   })
 
+  it('claims nothing about an album while the tree is on its way', async () => {
+    // Before the tree lands the page used to call every album "Alben" and say it held none,
+    // and then take both back. Now it holds the same shape and says nothing.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    )
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" />)
+
+    expect(screen.queryByRole('heading', { name: 'Alben' })).not.toBeInTheDocument()
+    expect(screen.queryByText('0 Alben')).not.toBeInTheDocument()
+    // The shell brings a header of its own, so it is the album's that has to say it is busy.
+    expect(document.querySelector('header[aria-busy="true"]')).not.toBeNull()
+    expect(screen.getAllByText('Wird geladen …').length).toBeGreaterThan(0)
+  })
+
   it('keeps the header the same shape with and without a sync button', async () => {
     stubApi({
-      [TREE]: { body: { items: [root, italien] } },
+      // A folder inside a published one: it is synced with its parent, so it has no button.
+      [TREE]: { body: { items: [root, { ...italien, is_source: false }] } },
       [MEDIA]: { body: { items: [], next_cursor: null, prev_cursor: null } },
     })
 
@@ -142,7 +161,7 @@ describe('the album tree', () => {
 
     // Italien is no published folder of its own, so it has no button - but the lane that would
     // hold one is there all the same, which is what keeps the tiles below from moving.
-    await screen.findByRole('navigation', { name: 'Pfad im Albenbaum' })
+    await screen.findByRole('heading', { name: 'Italien mit Oma' })
     expect(screen.queryByRole('button', { name: 'Jetzt abgleichen' })).not.toBeInTheDocument()
     const lane = document.querySelector('header > div > div:last-child')
     expect(lane).toHaveClass('h-11')
@@ -182,6 +201,66 @@ describe('the album tree', () => {
     await renderScreen(<AlbumsScreen albumId="album-italien" />)
 
     expect(await screen.findByText('Dieses Album ist noch leer')).toBeInTheDocument()
+  })
+
+  it('fetches a picture the loaded page does not hold, so the viewer has one to show', async () => {
+    // A link from elsewhere - the engine room naming the file it has just finished - can point
+    // deep into an album of thousands. The viewer is built from the page that is loaded, so
+    // there was nothing to open and the click did nothing at all.
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: { body: { items: [aMedium({})], next_cursor: 'seite-2' } },
+      'GET /api/v1/media/media-weit-hinten': {
+        body: aMedium({ id: 'media-weit-hinten', taken_at: '2009-07-20T10:00:00Z' }),
+      },
+    })
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" medium="media-weit-hinten" />)
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.path === '/api/v1/media/media-weit-hinten')).toBe(true)
+    })
+  })
+
+  it('fetches the next page while the last picture of this one is open', async () => {
+    // Picture 100 of a page of 100 used to lead back to picture 1: the viewer knew only the
+    // page it was built from, and a gallery that runs out turns round.
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: {
+        body: { items: [aMedium({})], next_cursor: 'seite-2', prev_cursor: null },
+      },
+    })
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" medium="media-1" />)
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('cursor=seite-2'))).toBe(true)
+    })
+  })
+
+  it('asks for no further page when the album ends with this one', async () => {
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: { body: { items: [aMedium({})], next_cursor: null, prev_cursor: null } },
+    })
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" medium="media-1" />)
+
+    await screen.findByRole('link', { name: 'Fotos' })
+    expect(calls.filter((call) => call.path.endsWith('/media')).length).toBe(1)
+  })
+
+  it('asks for nothing extra when the picture is already on the page', async () => {
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: { body: { items: [aMedium({})], next_cursor: null } },
+    })
+
+    await renderScreen(<AlbumsScreen albumId="album-italien" medium="media-1" />)
+
+    await screen.findByRole('link', { name: 'Fotos' })
+    expect(calls.some((call) => call.path === '/api/v1/media/media-1')).toBe(false)
   })
 
   it('opens an album with its path, its pictures and its own title', async () => {
@@ -365,5 +444,54 @@ describe('the album tree', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Jetzt abgleichen' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent(said)
+  })
+})
+
+describe('walking past the page in the viewer', () => {
+  it('keeps the page in hand when the address names a picture of the next one', async () => {
+    // Crossing from 100 to 101 collapsed the viewer's list to that one picture: it is on no
+    // page the grid shows, which from here looks exactly like a link from somewhere else.
+    // Everything after the crossing then had one picture to move through.
+    const { calls } = stubApi({
+      [TREE]: { body: { items: [root, italien] } },
+      [MEDIA]: {
+        body: { items: [aMedium({ id: 'media-100' })], next_cursor: 'seite-2', prev_cursor: null },
+      },
+      'GET /api/v1/albums/album-italien/media?cursor=seite-2': {
+        body: { items: [aMedium({ id: 'media-101' })], next_cursor: null, prev_cursor: null },
+      },
+    })
+
+    /** The address, as the viewer moves it: first the last picture of the page, then the next. */
+    function Walking() {
+      const [medium, setMedium] = useState('media-100')
+      return (
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setMedium('media-101')
+            }}
+          >
+            Weiter
+          </button>
+          <AlbumsScreen albumId="album-italien" medium={medium} />
+        </div>
+      )
+    }
+
+    await renderScreen(<Walking />, { path: '/albums/album-italien' })
+    // The viewer opens on the last picture, so the next page is fetched.
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('cursor=seite-2'))).toBe(true)
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Weiter' }))
+
+    // It is in hand already: asking the server for that one picture is the collapse happening.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Weiter' })).toBeInTheDocument()
+    })
+    expect(calls.some((call) => call.path === '/api/v1/media/media-101')).toBe(false)
   })
 })

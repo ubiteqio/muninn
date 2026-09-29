@@ -259,3 +259,34 @@ async def test_a_few_shots_of_a_burst_can_stay(session: AsyncSession) -> None:
     open_groups, _ = await service.list_groups(session, open_only=True, offset=0, limit=10)
     assert open_groups == []
     assert await service.count_open(session) == 0
+
+
+async def test_the_groups_that_hold_the_most_disk_can_come_first(session: AsyncSession) -> None:
+    """DuplicateGroup.size is how many media are in a group, not how much room they take.
+    Somebody working through copies to win back disk wants the heavy ones first."""
+    light = 0x0000_0000_0000_0000
+    dark = 0x0F0F_0F0F_FFFF_FFFF
+    small_a = await _copy(session, "Klein", "a.jpg", content_hash="a" * 64, fingerprint=light)
+    small_b = await _copy(session, "Klein", "b.jpg", content_hash="a" * 64, fingerprint=light)
+    big_a = await _copy(session, "Gross", "c.jpg", content_hash="b" * 64, fingerprint=dark)
+    big_b = await _copy(session, "Gross", "d.jpg", content_hash="b" * 64, fingerprint=dark)
+    for medium, bytes_each in ((small_a, 500_000), (small_b, 500_000), (big_a, 80_000_000),
+                               (big_b, 80_000_000)):  # fmt: skip
+        for file in medium.files:
+            file.byte_size = bytes_each
+    await session.commit()
+    assert await service.find_groups(session) == 2
+
+    heaviest, _ = await service.list_groups(
+        session, open_only=True, offset=0, limit=10, by_size=True
+    )
+    newest, _ = await service.list_groups(session, open_only=True, offset=0, limit=10)
+
+    def of(group: service.Group) -> set[uuid.UUID]:
+        return {medium.id for medium in group.media}
+
+    assert of(heaviest[0]) == {big_a.id, big_b.id}
+    # Without it the two are the other way about: they were taken at the same moment, so the
+    # newest-first order falls back to the id and says nothing about room at all.
+    assert of(heaviest[-1]) == {small_a.id, small_b.id}
+    assert len(newest) == 2

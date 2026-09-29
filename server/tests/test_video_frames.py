@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from muninn.ai.analysis import Analysis
 from muninn.analysis import service
-from muninn.analysis.frames import ChangeFilter, Frame, frames_of, split_jpegs
+from muninn.analysis.frames import ChangeFilter, Frame, FrameError, frames_of, split_jpegs
+from muninn.huginn import attempts, jobs
 from muninn.models.media import Media, MediaKind
 from tests.test_timeline import JULY, a_medium, an_album
 
@@ -126,6 +127,28 @@ async def test_the_description_looks_every_five_seconds(tmp_path: Path) -> None:
     assert wanted == [0, 10]
 
 
+@has_ffmpeg
+async def test_a_slow_reader_does_not_end_the_extraction(tmp_path: Path) -> None:
+    """The model may take longer per frame than the whole watchdog: only ffmpeg is watched."""
+    video = a_video(tmp_path / "clip.mp4", [("red", 2), ("blue", 2)])
+
+    seconds = []
+    async for frame in frames_of(video, stall_seconds=1):
+        await asyncio.sleep(1.2)
+        seconds.append(frame.second)
+
+    assert seconds == [0, 1, 2, 3]
+
+
+@has_ffmpeg
+async def test_an_ffmpeg_that_says_nothing_is_a_video_that_cannot_be_read(tmp_path: Path) -> None:
+    video = a_video(tmp_path / "clip.mp4", [("red", 2)])
+
+    with pytest.raises(FrameError, match="said nothing"):
+        async for _ in frames_of(video, stall_seconds=0):
+            pass
+
+
 def test_a_video_s_answer_is_made_from_its_frames() -> None:
     frames = [
         answer("Ein Kind am Strand.", tags=["strand", "kind"], people_count=1, scene="strand"),
@@ -205,6 +228,26 @@ async def test_a_video_is_described_frame_by_frame_and_summed_up(
     frames = await service.frames_of_video(session, medium.id)
     assert [(frame.second, frame.caption) for frame in frames] == [(0, "Bild 1"), (5, "Bild 2")]
     assert await service.media_without(session, model="qwen") == []
+
+
+@has_ffmpeg
+@pytest.mark.usefixtures("api_client")
+async def test_a_video_no_frame_can_be_read_from_is_counted(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    """Otherwise the clock hands the same broken video out every minute, for ever."""
+    medium = await a_video_medium(session, tmp_path)
+    assert medium.video_path is not None
+    (tmp_path / medium.video_path).write_bytes(b"not a video")
+
+    described = await service.apply_analysis(
+        session, medium.id, analyzer=FakeAnalyzer(), model="qwen", derived_root=tmp_path
+    )
+
+    assert described is False
+    failure = (await attempts.of_media(session, medium.id))[jobs.ANALYSIS_STAGE]
+    assert failure.attempts == 1
+    assert "ffmpeg could not read" in (failure.last_error or "")
 
 
 def test_a_frame_is_handed_over_as_a_jpeg() -> None:

@@ -14,6 +14,11 @@ from alembic.config import Config
 
 REQUIRED_EXTENSIONS = {"citext", "ltree", "pg_trgm", "postgis", "vector"}
 EXPECTED_TABLES = {
+    "photobook_albums",
+    "media_attempts",
+    "photobooks",
+    "smart_chapters",
+    "smart_chapter_media",
     "users",
     "refresh_tokens",
     "settings",
@@ -24,6 +29,7 @@ EXPECTED_TABLES = {
     "pending_files",
     "change_log",
     "ai_profiles",
+    "person_prototypes",
     "image_embeddings",
     "caption_embeddings",
     "media_analyses",
@@ -95,7 +101,7 @@ def test_upgrade_creates_extensions_and_tables(
 
     assert extensions >= REQUIRED_EXTENSIONS
     assert tables >= EXPECTED_TABLES
-    assert version == "0033"
+    assert version == "0048"
 
 
 def test_username_is_case_insensitive_and_unique(

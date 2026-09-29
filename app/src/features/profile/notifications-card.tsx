@@ -37,7 +37,7 @@ export function NotificationsCard() {
 
   return (
     <section aria-labelledby="notifications-heading" className="space-y-3">
-      <SectionHeading title={t('profile.notifications.title')} />
+      <SectionHeading id="notifications-heading" title={t('profile.notifications.title')} />
       <p className="text-xs-plus text-muted-foreground">{t('profile.notifications.hint')}</p>
 
       <Card className="divide-y divide-hairline/[0.06] overflow-hidden">

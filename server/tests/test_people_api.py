@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from muninn.ai.base import DetectedFace
 from muninn.faces.service import CROP_PIXELS, crop
-from muninn.models.face import Face
+from muninn.models.face import Face, Person
 from tests.helpers import auth_header, create_user, login
 from tests.test_people import at, faces_in_a_photo
 
@@ -21,7 +21,12 @@ pytestmark = pytest.mark.usefixtures("api_client")
 def no_worker(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
     """The API hands the re-check to the worker; there is none here."""
     asked: list[bool] = []
-    monkeypatch.setattr("muninn.api.v1.people.queue_face_reassessment", lambda: asked.append(True))
+
+    async def reassess() -> None:
+        asked.append(True)
+
+    monkeypatch.setattr("muninn.api.v1.people.queue_face_reassessment", reassess)
+    monkeypatch.setattr("muninn.api.v1.people.queue_face_sorting", lambda _: asked.append(True))
     return asked
 
 
@@ -271,3 +276,67 @@ async def test_a_person_muninn_gave_is_confirmed_and_the_faces_filtered(
     assert (confirmed.person_id, confirmed.assigned_by) == (uuid.UUID(lena["id"]), "user")
     automatic = (await api_client.get(faces, params={"only": "auto"}, headers=headers)).json()
     assert ids(automatic) == []
+
+
+async def test_saying_no_answers_at_once_and_hands_the_sorting_over(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers = await _headers(api_client, session_factory)
+    group = await faces_in_a_photo(session, at(1.0), at(0.96, towards=6))
+    unnamed = (await api_client.get("/people", headers=headers)).json()["groups"]["items"][0]
+    await api_client.post(
+        f"/people/groups/{unnamed['cluster']}/name", json={"name": "Lena"}, headers=headers
+    )
+    (mistaken,) = await faces_in_a_photo(session, at(0.9, towards=3))
+    handed_over: list[uuid.UUID] = []
+    monkeypatch.setattr("muninn.api.v1.people.queue_face_sorting", handed_over.append)
+
+    response = await api_client.post(f"/faces/{mistaken}/reject", headers=headers)
+
+    assert response.status_code == 204
+    assert handed_over == [mistaken]
+    refused = await session.get(Face, mistaken, populate_existing=True)
+    assert refused is not None
+    assert refused.person_id is None
+    assert len(group) == 2
+
+
+async def test_a_page_of_muninns_own_faces_is_confirmed_at_once(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """What Muninn decided by itself vouches for nobody. Standing by it is what turns a
+    conclusion into evidence, and it is worth more than answering a hundred questions."""
+    headers = await _headers(api_client, session_factory)
+    lena = Person(name="Lena")
+    session.add(lena)
+    await session.flush()
+    # One photo each: a person may only have one face per medium, so three on one would be
+    # collapsed into one the moment they were confirmed.
+    (mine,) = await faces_in_a_photo(session, at(0.99))
+    (guessed,) = await faces_in_a_photo(session, at(0.98, towards=3))
+    (other,) = await faces_in_a_photo(session, at(0.97, towards=4))
+    for face_id, by in ((mine, "user"), (guessed, "auto"), (other, "auto")):
+        face = await session.get(Face, face_id)
+        assert face is not None
+        face.person_id = lena.id
+        face.assigned_by = by
+    await session.commit()
+
+    answer = await api_client.post(
+        "/faces/confirm", json={"face_ids": [str(mine), str(guessed), str(other)]}, headers=headers
+    )
+
+    assert answer.status_code == 200
+    # Only the two Muninn gave; the one already decided by hand is skipped, not refused.
+    assert answer.json() == {"answered": 2}
+    for face_id in (guessed, other):
+        face = await session.get(Face, face_id)
+        assert face is not None
+        await session.refresh(face)
+        assert face.assigned_by == "user"
+        assert face.person_id == lena.id

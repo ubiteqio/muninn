@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { api, unwrap } from '@/api/client'
 import type { components } from '@/api/generated/schema'
@@ -48,22 +48,68 @@ export interface MediaPagePosition {
  */
 export function useAlbumMedia(albumId: string | undefined, at: MediaPagePosition = {}) {
   return useQuery({
-    queryKey: ['albums', albumId, 'media', at.cursor ?? null, at.before ?? null],
+    queryKey: pageKey(albumId, at),
     enabled: albumId !== undefined,
     placeholderData: keepPreviousData,
-    queryFn: async () =>
-      unwrap(
-        await api.GET('/api/v1/albums/{album_id}/media', {
-          params: {
-            path: { album_id: albumId ?? '' },
-            query: {
-              ...(at.cursor === undefined ? {} : { cursor: at.cursor }),
-              ...(at.before === undefined ? {} : { before: at.before }),
-            },
-          },
-        }),
-      ),
+    queryFn: async () => fetchPage(albumId ?? '', at),
   })
+}
+
+function pageKey(albumId: string | undefined, at: MediaPagePosition) {
+  return ['albums', albumId, 'media', at.cursor ?? null, at.before ?? null] as const
+}
+
+async function fetchPage(albumId: string, at: MediaPagePosition) {
+  return unwrap(
+    await api.GET('/api/v1/albums/{album_id}/media', {
+      params: {
+        path: { album_id: albumId },
+        query: {
+          ...(at.cursor === undefined ? {} : { cursor: at.cursor }),
+          ...(at.before === undefined ? {} : { before: at.before }),
+        },
+      },
+    }),
+  )
+}
+
+/**
+ * The pages after the one on screen, for the viewer alone.
+ *
+ * An album shows one page at a time and says which in the address, which is what makes a link
+ * lead to the same pictures. The viewer has no such need: somebody looking at picture 100 of a
+ * page of 100 wants picture 101, not the first one again. So while it is open, the pages behind
+ * the current one are fetched and appended - the grid keeps its page, the address does not
+ * move, and the tail is dropped when the page changes or the album does.
+ */
+export function useAlbumTail(albumId: string | undefined, from: string | null) {
+  const queryClient = useQueryClient()
+  // What was gathered, and which page it was gathered behind. Kept together rather than reset
+  // when the page changes: state that clears itself in an effect renders twice and, for a
+  // moment in between, hands the viewer pictures from the page somebody just left.
+  const belongsTo = `${albumId ?? ''}|${from ?? ''}`
+  const [gathered, setGathered] = useState({ belongsTo, items: [] as Medium[], next: from })
+  const here = gathered.belongsTo === belongsTo ? gathered : { belongsTo, items: [], next: from }
+  const loading = useRef('')
+
+  const more = useCallback(() => {
+    if (albumId === undefined || here.next === null || loading.current === here.next) return
+    const cursor = here.next
+    loading.current = cursor
+    void (async () => {
+      const page = await queryClient.query({
+        queryKey: pageKey(albumId, { cursor }),
+        queryFn: async () => fetchPage(albumId, { cursor }),
+      })
+      setGathered((before) => {
+        // The page moved under the fetch: what came back belongs to a list nobody is showing.
+        const grown = before.belongsTo === belongsTo ? before.items : []
+        return { belongsTo, items: [...grown, ...page.items], next: page.next_cursor ?? null }
+      })
+    })()
+  }, [albumId, belongsTo, here.next, queryClient])
+
+  return { tail: here.items, more, hasMore: here.next !== null }
 }
 
 /** The albums from a root down to this one, for the path above the grid. */

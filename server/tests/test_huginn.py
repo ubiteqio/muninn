@@ -192,3 +192,31 @@ async def test_a_starting_worker_frees_only_the_claims_of_its_own_queues(
     assert not await jobs.claim(fake_redis_client, jobs.ANALYSIS_STAGE, media_id)  # type: ignore[arg-type]
     # Reads are the reading worker's business.
     assert not await jobs.acquire(fake_redis_client, media_id)  # type: ignore[arg-type]
+
+
+async def test_only_one_reassessment_waits_at_a_time(
+    monkeypatch: pytest.MonkeyPatch, fake_redis_client: object
+) -> None:
+    """Answering a screen full of suggestions queued a pass for every click, and every pass
+    walks the whole library."""
+    from typing import cast
+
+    from redis.asyncio import Redis
+
+    from muninn.huginn import dispatch
+
+    monkeypatch.setattr(jobs, "connect", lambda: fake_redis_client)
+    queued: list[bool] = []
+    monkeypatch.setattr(tasks.reassess_faces, "apply_async", lambda **_: queued.append(True))
+
+    await dispatch.queue_face_reassessment()
+    await dispatch.queue_face_reassessment()
+    await dispatch.queue_face_reassessment()
+
+    assert queued == [True]
+
+    # Once the pass has begun the next name queues its own: this one may be past those faces.
+    await jobs.reassessment_starts(cast("Redis", fake_redis_client))
+    await dispatch.queue_face_reassessment()
+
+    assert queued == [True, True]

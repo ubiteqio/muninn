@@ -33,7 +33,13 @@ from sqlalchemy.orm import selectinload
 from muninn.ai.analysis import Analysis, frame_context
 from muninn.ai.base import Analyzer
 from muninn.analysis import transcripts
-from muninn.analysis.frames import DESCRIBE_EVERY_SECONDS, ChangeFilter, frames_of
+from muninn.analysis.frames import (
+    DESCRIBE_EVERY_SECONDS,
+    ChangeFilter,
+    FrameError,
+    frames_of,
+)
+from muninn.huginn import attempts, jobs
 from muninn.models.analysis import MediaAnalysis, MediaTranscript, VideoFrame
 from muninn.models.media import Media, MediaKind, MediaStatus
 from muninn.search import service as search_service
@@ -63,7 +69,9 @@ def _missing(
 
     A photo needs its preview, a video its 720p version: that is where the frames come from.
     With a speech model in use, a video also waits for its transcript, so its summary can say
-    what is said in it.
+    what is said in it - but not for ever: one that will never be transcribed, because the
+    pipeline has given up on it, is described from its pictures alone. Otherwise a handful of
+    videos would sit in "ohne Beschreibung" with nobody left to take them.
     """
     answered = (
         select(literal(1))
@@ -79,10 +87,20 @@ def _missing(
         and_(
             Media.kind == MediaKind.VIDEO,
             Media.video_path.is_not(None),
-            transcripts.heard_by(transcriber_model) if transcriber_model else true(),
+            or_(
+                transcripts.heard_by(transcriber_model),
+                ~attempts.still_open(jobs.TRANSCRIPTION_STAGE, Media.id),
+            )
+            if transcriber_model
+            else true(),
         ),
     )
-    return select(Media.id).where(Media.status == MediaStatus.ACTIVE, viewable, ~answered)
+    return select(Media.id).where(
+        Media.status == MediaStatus.ACTIVE,
+        viewable,
+        ~answered,
+        attempts.still_open(jobs.ANALYSIS_STAGE, Media.id),
+    )
 
 
 async def media_without(
@@ -183,23 +201,47 @@ async def _describe_video(
         return False
     video = derived_root / media.video_path
     if not video.is_file():
+        # The 720p version is written down but not on the disk. The clock only reads what the
+        # database says is done, so it would never make the file again by itself: this asks for
+        # it. And the attempt is counted, or this video would come round every minute for ever.
+        failures = await attempts.of_media(session, media.id)
+        failed_deriving = failures.get("derive")
+        if failed_deriving is None or failed_deriving.attempts < attempts.GIVE_UP_AFTER:
+            media.derive_version = 0
+            await session.commit()
+        await attempts.note_failure(
+            session, media.id, jobs.ANALYSIS_STAGE, f"{media.video_path} is not on the disk"
+        )
         return False
 
     context = _context(media)
     changes = ChangeFilter()
     seen: list[tuple[int, Analysis]] = []
-    async for frame in frames_of(video, every=DESCRIBE_EVERY_SECONDS):
-        if not await asyncio.to_thread(changes.wants, frame):
-            continue
-        answer = await analyzer.analyze(
-            [frame.data_url()],
-            context=frame_context(context, frame.second, media.duration_seconds),
-        )
-        seen.append((frame.second, answer))
-        if heartbeat is not None:
-            await heartbeat()
+    try:
+        async for frame in frames_of(video, every=DESCRIBE_EVERY_SECONDS):
+            if not await asyncio.to_thread(changes.wants, frame):
+                continue
+            answer = await analyzer.analyze(
+                [frame.data_url()],
+                context=frame_context(context, frame.second, media.duration_seconds),
+            )
+            seen.append((frame.second, answer))
+            if heartbeat is not None:
+                await heartbeat()
+    except FrameError as error:
+        # No frame can be read from this one, and that will not change by asking again. Counted
+        # like faces counts it, so the clock leaves the video alone instead of chewing it for
+        # ever - and an admin reads the sentence in the engine room.
+        await attempts.note_failure(session, media.id, jobs.ANALYSIS_STAGE, str(error))
+        return False
 
     if not seen:
+        # Not one frame came out of it - too short for the sampling, or a video only its own
+        # phone understands. Counted for the same reason: three tries, then it is left alone
+        # and says so in the engine room.
+        await attempts.note_failure(
+            session, media.id, jobs.ANALYSIS_STAGE, "no frame could be read from this video"
+        )
         return False
 
     heard = await session.get(MediaTranscript, media.id)

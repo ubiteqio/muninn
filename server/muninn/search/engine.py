@@ -14,22 +14,30 @@ of that model; everything else is bound.
 """
 
 import asyncio
+import contextlib
 import logging
+import time
 import uuid
-from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from collections.abc import Iterator, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import Any
 
-from sqlalchemy import func, select, text
+import httpx
+from redis.asyncio import Redis
+from sqlalchemy import Integer, Text, and_, func, join, literal, select, text, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from muninn.ai import service as ai_service
 from muninn.ai.base import AiError
+from muninn.ai.health import STAGE_OF
 from muninn.faces import people
+from muninn.huginn import jobs
 from muninn.models.ai import AiKind, AiProfile
+from muninn.models.album import Album
 from muninn.models.media import Media, MediaKind, MediaStatus
+from muninn.models.place import Place
 from muninn.places import service as places_service
 from muninn.search.query import ParsedQuery, parse
 from muninn.search.service import VectorKind, _literal, _sql
@@ -115,7 +123,8 @@ def _filter_sql(filters: Filters) -> tuple[str, dict[str, Any]]:
         params["album"] = filters.album_path
         params["album_below"] = f"{filters.album_path}/"
     if filters.camera is not None:
-        conditions.append("m.camera_model = :camera")
+        # The same name the facets and the overview give it: make and model together.
+        conditions.append("trim(coalesce(m.camera_make, '') || ' ' || m.camera_model) = :camera")
         params["camera"] = filters.camera
     if filters.place_keys:
         conditions.append(
@@ -370,12 +379,141 @@ class Abilities:
     pictures: bool
     #: A word model: descriptions are found by what they mean, not only by their words.
     meanings: bool
+    #: Whether the machine behind them answers at this moment. False while it rests after not
+    #: answering, so the app can offer the plain search rather than promise more than it can do.
+    ready: bool
 
 
-async def abilities(session: AsyncSession) -> Abilities:
+async def _resting(redis: Redis, kind: AiKind) -> bool:
+    """Whether this model is being left alone because its machine did not answer.
+
+    The same pause the worker sets and the engine room shows, so a search, the pipeline and the
+    admin area all agree about a machine that is away.
+    """
+    found: Any = await redis.exists(jobs.pause_key(STAGE_OF[kind]))
+    return int(found) == 1
+
+
+async def abilities(session: AsyncSession, redis: Redis) -> Abilities:
     pictures = await ai_service.active_profile(session, AiKind.IMAGE_EMBEDDER)
     meanings = await ai_service.active_profile(session, AiKind.TEXT_EMBEDDER)
-    return Abilities(pictures=pictures is not None, meanings=meanings is not None)
+    ready = (pictures is not None and not await _resting(redis, AiKind.IMAGE_EMBEDDER)) or (
+        meanings is not None and not await _resting(redis, AiKind.TEXT_EMBEDDER)
+    )
+    return Abilities(pictures=pictures is not None, meanings=meanings is not None, ready=ready)
+
+
+@dataclass(frozen=True, slots=True)
+class Facet:
+    """One thing that can be narrowed to, and how many of the found media carry it."""
+
+    value: str
+    label: str
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
+class Facets:
+    """What the media that were found are made of: their years, towns, cameras and albums.
+
+    Of the found media, not of the library: offering a year the search has nothing in would be
+    offering an empty page.
+    """
+
+    years: list[Facet] = field(default_factory=list)
+    towns: list[Facet] = field(default_factory=list)
+    cameras: list[Facet] = field(default_factory=list)
+    albums: list[Facet] = field(default_factory=list)
+
+
+#: How many of each kind are offered. Beyond this the list is longer than anybody reads.
+FACET_LIMIT = 40
+
+
+async def _facets(session: AsyncSession, media_ids: list[uuid.UUID]) -> Facets:
+    """Count the years, towns, cameras and albums of these media - in one question.
+
+    Four counts, four times the same list of ids to send and four waits for an answer: asked
+    one after another they were the slowest part of a search that had already been found. One
+    session cannot ask them at the same time, so they are asked as one - four branches under a
+    UNION, each with its own limit, sorted out again here by the name of the branch.
+    """
+    if not media_ids:
+        return Facets()
+
+    of_these = Media.id.in_(media_ids)
+    year = func.cast(func.extract("year", Media.taken_at), Integer)
+    camera = func.trim(func.concat(func.coalesce(Media.camera_make, ""), " ", Media.camera_model))
+
+    def branch(
+        name: str, value: Any, label: Any, source: Any, *, where: Any, group: Sequence[Any]
+    ) -> Any:
+        counted = (
+            select(
+                literal(name).label("facet"),
+                func.cast(value, Text).label("value"),
+                func.cast(label, Text).label("label"),
+                func.count().label("count"),
+            )
+            .select_from(source)
+            .where(where)
+            .group_by(*group)
+            .order_by(func.count().desc())
+            .limit(FACET_LIMIT)
+        )
+        return select(counted.subquery())
+
+    rows = (
+        await session.execute(
+            union_all(
+                branch(
+                    "year",
+                    year,
+                    year,
+                    Media,
+                    where=and_(of_these, Media.taken_at.is_not(None)),
+                    group=[year],
+                ),
+                branch(
+                    "camera",
+                    camera,
+                    camera,
+                    Media,
+                    where=and_(of_these, Media.camera_model.is_not(None)),
+                    group=[camera],
+                ),
+                branch(
+                    "town",
+                    Place.name,
+                    func.concat_ws(", ", Place.name, func.nullif(Place.country, "")),
+                    join(Media, Place, Media.place_id == Place.id),
+                    where=of_these,
+                    group=[Place.name, Place.country],
+                ),
+                branch(
+                    "album",
+                    Album.id,
+                    Album.relative_path,
+                    join(Media, Album, Media.album_id == Album.id),
+                    where=of_these,
+                    group=[Album.id, Album.relative_path],
+                ),
+            )
+        )
+    ).all()
+
+    found: dict[str, list[Facet]] = {"year": [], "camera": [], "town": [], "album": []}
+    for facet, value, label, count in rows:
+        found[facet].append(Facet(value=value, label=label, count=count))
+
+    # The years read best newest first; the rest are led by what there is most of, which is the
+    # order they were counted in.
+    return Facets(
+        years=sorted(found["year"], key=lambda one: one.value, reverse=True),
+        towns=found["town"],
+        cameras=found["camera"],
+        albums=found["album"],
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -386,34 +524,66 @@ class Found:
     understood: ParsedQuery
     #: True when the AI server could not be asked, so only words and names were searched.
     degraded: bool
+    #: What the found media are made of, for the filters.
+    facets: Facets = field(default_factory=Facets)
 
 
-async def _probe(profile: AiProfile | None, words: str) -> tuple[Probe | None, bool]:
-    """The words as a vector of this profile's model; nothing when there is no profile, and a
-    failed request is reported instead of raised - the search goes on without it."""
+@contextlib.contextmanager
+def _timed(parts: dict[str, float], name: str) -> Iterator[None]:
+    """How long this part of a search took, in milliseconds, for the one line at the end."""
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        parts[name] = (time.perf_counter() - started) * 1000
+
+
+async def _probe(
+    redis: Redis,
+    kind: AiKind,
+    profile: AiProfile | None,
+    words: str,
+    client: httpx.AsyncClient | None = None,
+) -> tuple[Probe | None, bool]:
+    """The words as a vector of this profile's model; nothing when there is no profile.
+
+    A machine that did not answer a moment ago is not asked again: it is resting, and every
+    search would otherwise wait out the timeout to learn what the last one already knew. A
+    failed request is reported rather than raised - the search goes on without it - and puts the
+    machine to rest, so the workers stop asking too.
+    """
     if profile is None or not words:
         return None, False
+    if await _resting(redis, kind):
+        return None, True
     try:
-        embedder = ai_service.embedder_for(profile, timeout_seconds=PROBE_TIMEOUT_SECONDS)
+        embedder = ai_service.embedder_for(
+            profile, timeout_seconds=PROBE_TIMEOUT_SECONDS, client=client
+        )
         (vector,) = await embedder.embed([words])
     except AiError as error:
         logger.warning("Search without %s: %s", profile.model, error)
+        await redis.set(jobs.pause_key(STAGE_OF[kind]), "1", ex=jobs.AI_PAUSE_SECONDS)
         return None, True
     return Probe(vector=vector, model=profile.model), False
 
 
 async def find(
     session: AsyncSession,
+    redis: Redis,
     query: str,
     *,
     filters: Filters,
     by_date: bool = False,
     offset: int = 0,
     limit: int = 60,
+    client: httpx.AsyncClient | None = None,
 ) -> Found:
+    parts: dict[str, float] = {}
     understood = parse(query)
-    persons = await people.persons_in(session, understood.text)
-    places = await places_service.places_in(session, persons.text)
+    with _timed(parts, "names"):
+        persons = await people.persons_in(session, understood.text)
+        places = await places_service.places_in(session, persons.text)
     understood = replace(understood, text=places.text, places=places.phrases, persons=persons.names)
     merged = Filters(
         date_from=filters.date_from or understood.date_from,
@@ -421,29 +591,49 @@ async def find(
         kind=filters.kind or understood.kind,
         album_path=filters.album_path,
         camera=filters.camera,
-        place_keys=places.keys,
+        # What the words named, and what was chosen beside them: both narrow.
+        place_keys=tuple(dict.fromkeys((*filters.place_keys, *places.keys))),
         person_ids=persons.person_ids,
     )
 
-    pictures = await ai_service.active_profile(session, AiKind.IMAGE_EMBEDDER)
-    meanings = await ai_service.active_profile(session, AiKind.TEXT_EMBEDDER)
-    (image, image_failed), (caption, caption_failed) = await asyncio.gather(
-        _probe(pictures, understood.text), _probe(meanings, understood.text)
-    )
+    with _timed(parts, "profiles"):
+        pictures = await ai_service.active_profile(session, AiKind.IMAGE_EMBEDDER)
+        meanings = await ai_service.active_profile(session, AiKind.TEXT_EMBEDDER)
+    with _timed(parts, "embed"):
+        (image, image_failed), (caption, caption_failed) = await asyncio.gather(
+            _probe(redis, AiKind.IMAGE_EMBEDDER, pictures, understood.text, client),
+            _probe(redis, AiKind.TEXT_EMBEDDER, meanings, understood.text, client),
+        )
 
-    hits = await search(
-        session, words=understood.text, filters=merged, image=image, caption=caption
-    )
-    if by_date and understood.text:
-        hits = await _newest_first(session, hits)
+    with _timed(parts, "match"):
+        hits = await search(
+            session, words=understood.text, filters=merged, image=image, caption=caption
+        )
+        if by_date and understood.text:
+            hits = await _newest_first(session, hits)
 
     chunk, following = page_of(hits, offset=offset, limit=limit)
+    with _timed(parts, "media"):
+        media = await _media_of(session, [hit.media_id for hit in chunk])
+    with _timed(parts, "facets"):
+        # Over everything that was found, not only the page being looked at.
+        facets = await _facets(session, [hit.media_id for hit in hits])
+
+    # One line an admin can read off a log: where the seconds of a slow search actually went.
+    logger.info(
+        "Search %r: %d hits in %.0fms (%s)",
+        query,
+        len(hits),
+        sum(parts.values()),
+        ", ".join(f"{name} {spent:.0f}ms" for name, spent in parts.items()),
+    )
     return Found(
         hits=chunk,
-        media=await _media_of(session, [hit.media_id for hit in chunk]),
+        media=media,
         next_offset=following,
         understood=understood,
         degraded=image_failed or caption_failed,
+        facets=facets,
     )
 
 
