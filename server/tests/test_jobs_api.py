@@ -547,3 +547,33 @@ async def test_the_totals_say_how_many_are_pictures_and_how_many_films(
     assert body["media"] == 4
     assert body["photos"] == 3
     assert body["videos"] == 1
+
+
+async def test_a_video_being_converted_says_how_far_it_is_and_how_long_it_will_take(
+    api_client: AsyncClient,
+    api_app: FastAPI,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """ "seit 3 min" alone says nothing about whether it will be done in one more or in fifty."""
+    redis = api_app.state.redis
+    await jobs.mark_active(redis, "task-video", "derive")
+    await jobs.write_task_progress(
+        redis, "task-video", done_seconds=60.0, total_seconds=240.0, speed=2.0
+    )
+    await jobs.mark_active(redis, "task-picture", "derive")
+    headers = await admin_headers(api_client, session_factory)
+
+    body = (await api_client.get("/admin/jobs", headers=headers)).json()
+
+    by_task = {task["task_id"]: task for task in body["active"]}
+    assert by_task["task-video"]["progress"] == {
+        "done_seconds": 60.0,
+        "total_seconds": 240.0,
+        "share": 0.25,
+        "remaining_seconds": 90,
+    }
+    assert by_task["task-picture"]["progress"] is None
+
+    # Done: nothing of it is left behind.
+    await jobs.clear_active(redis, "task-video")
+    assert await jobs.read_task_progress(redis, "task-video") is None

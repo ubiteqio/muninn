@@ -25,6 +25,7 @@ from muninn.api.schemas.jobs import (
     RunningRead,
     ScheduleView,
     TaskMedia,
+    TaskProgress,
     WaitingFile,
     WaitingItem,
     WaitingView,
@@ -175,9 +176,26 @@ async def _active(session: AsyncSession, redis: Redis) -> list[ActiveTask]:
                 started_at=datetime.fromisoformat(str(entry["started_at"])),
                 label=label,
                 media=media,
+                progress=await _progress_of(redis, str(entry.get("task_id", ""))),
             )
         )
     return tasks
+
+
+async def _progress_of(redis: Redis, task_id: str) -> TaskProgress | None:
+    stored = await jobs.read_task_progress(redis, task_id)
+    if stored is None:
+        return None
+    done = float(stored.get("done_seconds") or 0)
+    total = stored.get("total_seconds")
+    speed = stored.get("speed")
+    guess = jobs.estimate(done, float(total) if total else None, float(speed) if speed else None)
+    return TaskProgress(
+        done_seconds=done,
+        total_seconds=float(total) if total else None,
+        share=guess.share,
+        remaining_seconds=guess.remaining_seconds,
+    )
 
 
 async def _finished(session: AsyncSession, redis: Redis) -> list[FinishedTask]:

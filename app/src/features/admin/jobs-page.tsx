@@ -17,6 +17,7 @@ import {
   type FinishedTask,
   type Jobs,
   type RunningRead,
+  type TaskProgress,
   useAiHealth,
   useChanges,
   useJobs,
@@ -270,9 +271,24 @@ function TaskRow({ task }: { task: ActiveTask }) {
           })}
         </span>
         <WhatAndWhere label={task.label} media={task.media} />
+        {task.progress?.share != null && (
+          <span
+            role="progressbar"
+            aria-label={t('admin.jobs.progress.label')}
+            aria-valuenow={Math.round(task.progress.share * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="mt-1.5 block h-1 w-full overflow-hidden rounded-full bg-secondary"
+          >
+            <span
+              className="block h-full bg-primary transition-[width]"
+              style={{ width: `${String(Math.round(task.progress.share * 100))}%` }}
+            />
+          </span>
+        )}
       </span>
-      <span className="shrink-0 text-xs-plus text-muted-foreground">
-        {seconds(task.started_at, t)}
+      <span className="shrink-0 text-right text-xs-plus text-muted-foreground">
+        {task.progress ? howFar(task.progress, t) : seconds(task.started_at, t)}
       </span>
       <Button
         variant="outline"
@@ -754,6 +770,35 @@ function ago(finishedAt: string, now: number, t: TFunction): string {
   return passed < 60
     ? t('admin.jobs.agoSeconds', { count: passed })
     : t('admin.jobs.agoMinutes', { count: Math.round(passed / 60) })
+}
+
+/**
+ * How far a long piece of work is, in words: the share and what is left where both are known,
+ * otherwise how much of the video is through.
+ */
+function howFar(progress: TaskProgress, t: TFunction): string {
+  if (progress.share == null) {
+    return t('admin.jobs.progress.through', { time: clock(progress.done_seconds) })
+  }
+  const percent = t('admin.jobs.progress.percent', { value: Math.round(progress.share * 100) })
+  const left = progress.remaining_seconds
+  if (left == null) return percent
+  const still =
+    left < 60
+      ? t('admin.jobs.progress.leftSeconds', { count: left })
+      : t('admin.jobs.progress.leftMinutes', { count: Math.round(left / 60) })
+  return `${percent} · ${still}`
+}
+
+/** Seconds of a video as the player shows them: 2:31, or 1:02:31. */
+function clock(total: number): string {
+  const whole = Math.floor(total)
+  const hours = Math.floor(whole / 3600)
+  const minutes = Math.floor((whole % 3600) / 60)
+  const secs = String(whole % 60).padStart(2, '0')
+  return hours > 0
+    ? `${String(hours)}:${String(minutes).padStart(2, '0')}:${secs}`
+    : `${String(minutes)}:${secs}`
 }
 
 /** How long a task has been running, in words. */

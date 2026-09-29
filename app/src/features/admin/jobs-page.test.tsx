@@ -327,6 +327,54 @@ describe('the engine room', () => {
     expect(screen.getByText(/seit 3 s/)).toBeInTheDocument()
   })
 
+  it('says how far a video conversion is and how long it will still take', async () => {
+    stubApi({
+      [JOBS]: {
+        body: {
+          ...idle,
+          active: [
+            {
+              task_id: 'task-1',
+              stage: 'derive',
+              label: 'bday.wmv',
+              started_at: new Date(Date.now() - 180_000).toISOString(),
+              progress: {
+                done_seconds: 60,
+                total_seconds: 240,
+                share: 0.25,
+                remaining_seconds: 270,
+              },
+            },
+            {
+              task_id: 'task-2',
+              stage: 'derive',
+              label: 'kaputt.avi',
+              started_at: new Date(Date.now() - 60_000).toISOString(),
+              // A video whose length nobody could read: how much is through, and no guess.
+              progress: {
+                done_seconds: 151,
+                total_seconds: null,
+                share: null,
+                remaining_seconds: null,
+              },
+            },
+          ],
+        },
+      },
+      [CHANGES]: { body: [] },
+    })
+
+    await renderScreen(<AdminJobsPage />)
+
+    expect(await screen.findByText('25 % · noch etwa 5 min')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Fortschritt' })).toHaveAttribute(
+      'aria-valuenow',
+      '25',
+    )
+    expect(screen.getByText('2:31 umgewandelt')).toBeInTheDocument()
+    expect(screen.queryByText(/seit 3 min/)).not.toBeInTheDocument()
+  })
+
   it('shows work that was over before anybody could look', async () => {
     stubApi({
       [JOBS]: {

@@ -4,11 +4,12 @@ import asyncio
 import shutil
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Coroutine, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import ColumnElement, func, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +17,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
 from muninn.huginn import attempts
-from muninn.huginn.derive import DERIVE_VERSION, Derivatives, DeriveError, derive
+from muninn.huginn.derive import DERIVE_VERSION, Derivatives, DeriveError, Progress, derive
 from muninn.models.media import Media, MediaKind, MediaStatus, shown
 from muninn.models.settings import AppSettings
 from muninn.models.withdrawn import WithdrawnMedium
@@ -246,6 +247,7 @@ async def apply_derivatives(
     library_base: Path,
     derived_root: Path,
     settings: AppSettings,
+    on_progress: Callable[[Progress], Coroutine[Any, Any, None]] | None = None,
 ) -> bool:
     """Stage 3 for one medium: thumbnail, preview, a playable video, and the pixel hash.
 
@@ -283,6 +285,14 @@ async def apply_derivatives(
             return True
 
     folder = folder_of(derived_root, media_id)
+    # The conversion runs in a thread; what it says about its progress is handed back to this
+    # loop, and not waited for - a slow Redis must not slow ffmpeg down.
+    loop = asyncio.get_running_loop()
+
+    def report(progress: Progress) -> None:
+        if on_progress is not None:
+            asyncio.run_coroutine_threadsafe(on_progress(progress), loop)
+
     try:
         made: Derivatives = await asyncio.to_thread(
             derive,
@@ -294,6 +304,8 @@ async def apply_derivatives(
             preview_size=settings.preview_size,
             quality=settings.image_quality,
             video_height=settings.video_height,
+            duration_seconds=media.duration_seconds,
+            on_progress=report if on_progress is not None else None,
         )
     except DeriveError as error:
         # A broken or unreadable original is not worth a failed task: the medium stays in the

@@ -10,6 +10,7 @@ import pyvips
 
 from muninn.core.signing import sign_media, verify_media
 from muninn.huginn import derive as stage
+from muninn.huginn import jobs
 from muninn.models.media import MediaKind
 
 MEDIA_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
@@ -211,3 +212,117 @@ class TestTurnedPictures:
         preview = pyvips.Image.new_from_file(str(tmp_path / "derived" / (made.preview or "")))
         assert (made.width, made.height) == (600, 800)
         assert preview.width < preview.height
+
+
+class TestHowFarAConversionIs:
+    """ffmpeg says where it is; the engine room turns that into a share and a time left."""
+
+    def test_its_progress_blocks_are_read(self) -> None:
+        lines = [
+            "frame=0\n",
+            "out_time_us=N/A\n",
+            "speed=N/A\n",
+            "progress=continue\n",
+            "frame=240\n",
+            "out_time_us=12500000\n",
+            "speed=1.84x\n",
+            "progress=continue\n",
+            "out_time_us=-23220\n",
+            "speed=   0x\n",
+            "progress=end\n",
+        ]
+
+        seen = list(stage.progress_of(lines, 40.0))
+
+        assert seen == [
+            stage.Progress(done_seconds=0.0, total_seconds=40.0, speed=None),
+            stage.Progress(done_seconds=12.5, total_seconds=40.0, speed=1.84),
+            stage.Progress(done_seconds=0.0, total_seconds=40.0, speed=None),
+        ]
+
+    def test_an_unknown_length_is_none_rather_than_nought(self) -> None:
+        (seen,) = stage.progress_of(["out_time_us=1000000\n", "progress=end\n"], 0.0)
+        assert seen.total_seconds is None
+
+    @pytest.mark.parametrize(
+        ("done", "total", "speed", "share", "remaining"),
+        [
+            (60.0, 240.0, 2.0, 0.25, 90),
+            (60.0, 240.0, None, 0.25, None),
+            (60.0, None, 2.0, None, None),
+            # The metadata can be a little short of what ffmpeg finds.
+            (250.0, 240.0, 2.0, 1.0, 0),
+        ],
+    )
+    def test_the_estimate(
+        self,
+        done: float,
+        total: float | None,
+        speed: float | None,
+        share: float | None,
+        remaining: int | None,
+    ) -> None:
+        guess = jobs.estimate(done, total, speed)
+        assert (guess.share, guess.remaining_seconds) == (share, remaining)
+
+    @has_ffmpeg
+    def test_a_real_conversion_reports_as_it_goes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(stage, "PROGRESS_EVERY_SECONDS", 0.0)
+        source = a_video(tmp_path / "in" / "clip.avi", seconds=3)
+        heard: list[stage.Progress] = []
+
+        made = stage.derive(
+            source,
+            tmp_path / "out",
+            kind=MediaKind.VIDEO,
+            stem="abc",
+            thumbnail_size=200,
+            preview_size=800,
+            quality=80,
+            video_height=240,
+            duration_seconds=3.0,
+            on_progress=heard.append,
+        )
+
+        assert made.video is not None
+        assert (tmp_path / "out" / made.video).is_file()
+        assert heard
+        assert all(one.total_seconds == 3.0 for one in heard)
+        assert heard[-1].done_seconds == pytest.approx(3.0, abs=0.5)
+
+    @has_ffmpeg
+    def test_a_conversion_that_fails_says_what_ffmpeg_said(self, tmp_path: Path) -> None:
+        broken = tmp_path / "in" / "kaputt.avi"
+        broken.parent.mkdir(parents=True)
+        broken.write_bytes(b"not a video at all")
+
+        with pytest.raises(stage.DeriveError):
+            stage._transcode(
+                ["ffmpeg", "-y", "-progress", "pipe:1", "-i", str(broken), str(tmp_path / "x.mp4")],
+                timeout=60,
+                total_seconds=None,
+                on_progress=None,
+            )
+
+    @has_ffmpeg
+    def test_a_conversion_that_takes_too_long_is_stopped(self, tmp_path: Path) -> None:
+        with pytest.raises(stage.DeriveError, match="took longer"):
+            stage._transcode(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-progress",
+                    "pipe:1",
+                    "-re",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "testsrc=duration=30:size=64x64:rate=5",
+                    str(tmp_path / "slow.mp4"),
+                ],
+                timeout=1,
+                total_seconds=30.0,
+                on_progress=None,
+            )

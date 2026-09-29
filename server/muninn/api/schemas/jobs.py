@@ -28,6 +28,19 @@ class TaskMedia(BaseModel):
     album_path: str
 
 
+class TaskProgress(BaseModel):
+    """How far a long piece of work has got - for now, a video being converted."""
+
+    #: How much of the video is through, in seconds of the video.
+    done_seconds: float
+    #: How long the video is; none when its metadata did not say.
+    total_seconds: float | None = None
+    #: Between 0 and 1; none without a known length.
+    share: float | None = None
+    #: How long it will still take, at the speed it is going; none until that can be said.
+    remaining_seconds: int | None = None
+
+
 class ActiveTask(BaseModel):
     """One piece of work a worker has in its hands right now."""
 
@@ -40,6 +53,8 @@ class ActiveTask(BaseModel):
     started_at: datetime
     #: The medium, so the admin area can lead to it and its album.
     media: TaskMedia | None = None
+    #: How far it is, where a stage can say so.
+    progress: TaskProgress | None = None
 
 
 class FinishedTask(BaseModel):

@@ -8,7 +8,7 @@ nothing is lost and nothing piles up.
 import json
 import uuid
 from collections.abc import Awaitable, Sequence
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -389,7 +389,59 @@ async def keep_alive(redis: Redis, task_id: str, stage: str, media_id: uuid.UUID
 
 
 async def clear_active(redis: Redis, task_id: str) -> None:
-    await redis.delete(f"{_ACTIVE_PREFIX}:{task_id}")
+    await redis.delete(f"{_ACTIVE_PREFIX}:{task_id}", f"{_PROGRESS_PREFIX}:{task_id}")
+
+
+#: Kept apart from the task's own entry: writing into that one could bring it back to life a
+#: moment after the task was cleared, and the engine room would show work nobody is doing.
+_PROGRESS_PREFIX = "muninn:active-progress"
+
+
+async def write_task_progress(
+    redis: Redis,
+    task_id: str,
+    *,
+    done_seconds: float,
+    total_seconds: float | None,
+    speed: float | None,
+) -> None:
+    """How far a long piece of work has got - for now, how much of a video is converted."""
+    entry = {"done_seconds": done_seconds, "total_seconds": total_seconds, "speed": speed}
+    await redis.set(f"{_PROGRESS_PREFIX}:{task_id}", json.dumps(entry), ex=ACTIVE_TTL_SECONDS)
+
+
+async def read_task_progress(redis: Redis, task_id: str) -> dict[str, Any] | None:
+    raw = await redis.get(f"{_PROGRESS_PREFIX}:{task_id}")
+    if raw is None:
+        return None
+    entry: dict[str, Any] = json.loads(raw)
+    return entry
+
+
+@dataclass(frozen=True, slots=True)
+class Estimate:
+    """How far, and how long still: what the engine room shows beside a long piece of work."""
+
+    #: Between 0 and 1; None without a known length.
+    share: float | None
+    #: None until it can be said with any sense: without a length or a speed.
+    remaining_seconds: int | None
+
+
+def estimate(done_seconds: float, total_seconds: float | None, speed: float | None) -> Estimate:
+    """What is left of the video, at the speed ffmpeg is going.
+
+    Its speed hardly changes within one file, so what it did so far is a fair guide to the
+    rest. A length from the metadata can be a little short of what ffmpeg finds, so the share
+    stops at the whole rather than running past it.
+    """
+    if total_seconds is None or total_seconds <= 0:
+        return Estimate(share=None, remaining_seconds=None)
+    share = min(1.0, max(0.0, done_seconds / total_seconds))
+    if speed is None or speed <= 0:
+        return Estimate(share=share, remaining_seconds=None)
+    left = max(0.0, total_seconds - done_seconds)
+    return Estimate(share=share, remaining_seconds=round(left / speed))
 
 
 async def active_tasks(redis: Redis) -> list[dict[str, Any]]:

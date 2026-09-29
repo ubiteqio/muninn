@@ -617,6 +617,15 @@
       "forSeconds_other": "seit {{count}} s",
       "forMinutes_one": "seit 1 min",
       "forMinutes_other": "seit {{count}} min",
+      "progress": {
+        "label": "Fortschritt",
+        "percent": "{{value}} %",
+        "leftSeconds_one": "noch etwa 1 s",
+        "leftSeconds_other": "noch etwa {{count}} s",
+        "leftMinutes_one": "noch etwa 1 min",
+        "leftMinutes_other": "noch etwa {{count}} min",
+        "through": "{{time}} umgewandelt"
+      },
       "stop": "Stoppen",
       "stopRead": "Lesen abbrechen",
       "purge": "Leeren",

@@ -20,6 +20,7 @@ from muninn.faces import people
 from muninn.faces import service as faces_service
 from muninn.huginn import attempts, jobs
 from muninn.huginn.app import celery_app
+from muninn.huginn.derive import Progress
 from muninn.huginn.runtime import run, session_scope
 from muninn.library import service
 from muninn.media import service as media_service
@@ -603,15 +604,32 @@ async def _read_metadata(media_id: uuid.UUID, task_id: str) -> bool:
 
 async def _derive_media(media_id: uuid.UUID, task_id: str) -> bool:
     environment = get_settings()
-    async with _announced("derive", media_id, task_id), session_scope() as session:
-        settings = await settings_service.get_settings(session)
-        made = await media_service.apply_derivatives(
-            session,
-            media_id,
-            library_base=environment.library_path,
-            derived_root=environment.derived_path,
-            settings=settings,
+    redis = jobs.connect()
+
+    async def say_how_far(progress: Progress) -> None:
+        # The engine room asks for it with its next look; a video's conversion goes on for
+        # minutes, and "seit 3 min" alone says nothing about when it will be done.
+        await jobs.write_task_progress(
+            redis,
+            task_id,
+            done_seconds=progress.done_seconds,
+            total_seconds=progress.total_seconds,
+            speed=progress.speed,
         )
+
+    try:
+        async with _announced("derive", media_id, task_id), session_scope() as session:
+            settings = await settings_service.get_settings(session)
+            made = await media_service.apply_derivatives(
+                session,
+                media_id,
+                library_base=environment.library_path,
+                derived_root=environment.derived_path,
+                settings=settings,
+                on_progress=say_how_far,
+            )
+    finally:
+        await redis.aclose()
     if made:
         # The grid shows a placeholder until now; whoever looks at it may reload.
         await _announce_library_change()

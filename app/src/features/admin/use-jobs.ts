@@ -9,6 +9,7 @@ export type Jobs = components['schemas']['JobsView']
 export type Change = components['schemas']['ChangeView']
 export type RunningRead = components['schemas']['RunningRead']
 export type ActiveTask = components['schemas']['ActiveTask']
+export type TaskProgress = components['schemas']['TaskProgress']
 export type FinishedTask = components['schemas']['FinishedTask']
 
 export const JOBS_KEY = ['admin', 'jobs'] as const

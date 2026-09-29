@@ -10,6 +10,10 @@ import json
 import logging
 import shutil
 import subprocess
+import tempfile
+import threading
+import time
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +36,25 @@ TOOL_TIMEOUT_SECONDS = 120
 #: The pixel hash is taken from a small, normalised rendering: the same picture gives the same
 #: hash whatever its metadata say, and a crop or a re-compression gives a different one.
 PIXEL_HASH_SIZE = 256
+
+
+#: How often a conversion says how far it has got. More often only costs Redis writes.
+PROGRESS_EVERY_SECONDS = 2.0
+
+
+@dataclass(frozen=True, slots=True)
+class Progress:
+    """How far a video conversion has got, as ffmpeg reports it."""
+
+    #: How much of the video is converted, in seconds of the video.
+    done_seconds: float
+    #: How long the video is, from its metadata; None when nobody could read it.
+    total_seconds: float | None
+    #: How many seconds of video ffmpeg converts per second - "1.8x" is 1.8.
+    speed: float | None
+
+
+ProgressCallback = Callable[[Progress], None]
 
 
 class DeriveError(Exception):
@@ -61,8 +84,13 @@ def derive(
     preview_size: int,
     quality: int,
     video_height: int,
+    duration_seconds: float | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> Derivatives:
     """Make every derivative of one medium. Runs in a worker, never in the API.
+
+    A video's conversion can take many minutes; `on_progress` hears how far it is every few
+    seconds, measured against `duration_seconds`.
 
     libvips decodes lazily: a picture it cannot read fails while it is being written, not while
     it is opened. Everything therefore happens inside one guard, and a file nothing here can read
@@ -80,6 +108,8 @@ def derive(
                 preview_size=preview_size,
                 quality=quality,
                 video_height=video_height,
+                duration_seconds=duration_seconds,
+                on_progress=on_progress,
             )
 
         return _derive_image(
@@ -131,6 +161,8 @@ def _derive_video(
     preview_size: int,
     quality: int,
     video_height: int,
+    duration_seconds: float | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> Derivatives:
     """A 720p H.264 version, because browsers play neither AVI nor MTS nor WMV."""
     poster_source = target / f".poster-{stem}.png"
@@ -166,10 +198,15 @@ def _derive_video(
     poster_source.unlink(missing_ok=True)
 
     video_name = f"video-{stem}.mp4"
-    _run(
+    _transcode(
         [
             "ffmpeg",
             "-y",
+            # Where it is, as key=value lines on stdout, instead of the one line it rewrites on
+            # a terminal nobody is looking at.
+            "-progress",
+            "pipe:1",
+            "-nostats",
             "-i",
             str(source),
             "-vf",
@@ -190,6 +227,8 @@ def _derive_video(
             str(target / video_name),
         ],
         timeout=TRANSCODE_TIMEOUT_SECONDS,
+        total_seconds=duration_seconds,
+        on_progress=on_progress,
     )
     # An exit code of nought is not a file. A tool that says it is happy and writes nothing
     # would otherwise be written down as done, and the medium would point at a path that is not
@@ -307,6 +346,105 @@ def probe_duration(source: Path) -> float | None:
         return float(json.loads(output).get("format", {}).get("duration"))
     except (json.JSONDecodeError, TypeError, ValueError):
         return None
+
+
+def _transcode(
+    command: list[str],
+    *,
+    timeout: int,
+    total_seconds: float | None,
+    on_progress: ProgressCallback | None,
+) -> None:
+    """Run ffmpeg and pass on how far it is while it runs.
+
+    It reports on stdout; what it has to complain about goes to a file, because a pipe nobody
+    reads fills up and stops ffmpeg dead. The timeout is a watchdog that kills it, since a
+    process that is read line by line cannot be given one the way `subprocess.run` does.
+    """
+    executable = shutil.which(command[0])
+    if executable is None:
+        raise DeriveError(f"{command[0]} is not installed")
+
+    killed = threading.Event()
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as complaints:
+        try:
+            process = subprocess.Popen(  # noqa: S603 - fixed command, the only variable is a path
+                [executable, *command[1:]],
+                stdout=subprocess.PIPE,
+                stderr=complaints,
+                text=True,
+                errors="replace",
+            )
+        except OSError as error:
+            raise DeriveError(str(error)) from error
+
+        def kill() -> None:
+            killed.set()
+            process.kill()
+
+        watchdog = threading.Timer(timeout, kill)
+        watchdog.start()
+        try:
+            said = float("-inf")
+            for progress in progress_of(process.stdout or (), total_seconds):
+                now = time.monotonic()
+                if on_progress is not None and now - said >= PROGRESS_EVERY_SECONDS:
+                    said = now
+                    _tell(on_progress, progress)
+            returncode = process.wait()
+        finally:
+            watchdog.cancel()
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+
+        if killed.is_set():
+            raise DeriveError(f"{command[0]} took longer than {timeout} seconds")
+        if returncode != 0:
+            complaints.seek(0)
+            # The end of what it said: that is where ffmpeg names what went wrong.
+            raise DeriveError(complaints.read().strip()[-500:])
+
+
+def progress_of(lines: Iterable[str], total_seconds: float | None) -> Iterator[Progress]:
+    """Read ffmpeg's `-progress` output: blocks of key=value lines, each ending in `progress=`."""
+    block: dict[str, str] = {}
+    for line in lines:
+        key, _, value = line.strip().partition("=")
+        if not key:
+            continue
+        block[key] = value
+        if key == "progress":
+            yield Progress(
+                done_seconds=_microseconds(block.get("out_time_us")),
+                total_seconds=total_seconds if total_seconds and total_seconds > 0 else None,
+                speed=_speed(block.get("speed")),
+            )
+            block = {}
+
+
+def _microseconds(value: str | None) -> float:
+    """Before the first frame ffmpeg says N/A, and early on it can even go below nought."""
+    try:
+        return max(0.0, int(value or "") / 1_000_000)
+    except ValueError:
+        return 0.0
+
+
+def _speed(value: str | None) -> float | None:
+    try:
+        speed = float((value or "").strip().removesuffix("x"))
+    except ValueError:
+        return None
+    return speed if speed > 0 else None
+
+
+def _tell(on_progress: ProgressCallback, progress: Progress) -> None:
+    """Saying how far it is must never be what stops a conversion."""
+    try:
+        on_progress(progress)
+    except Exception:
+        logging.getLogger(__name__).debug("Could not pass the progress on", exc_info=True)
 
 
 def _run(command: list[str], *, timeout: int, allow_failure: bool = False) -> str | None:

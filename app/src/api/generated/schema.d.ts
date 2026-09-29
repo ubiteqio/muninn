@@ -2048,6 +2048,7 @@ export interface components {
              */
             started_at: string;
             media?: components["schemas"]["TaskMedia"] | null;
+            progress?: components["schemas"]["TaskProgress"] | null;
         };
         /**
          * ActivityView
@@ -4258,6 +4259,20 @@ export interface components {
             album_id: string;
             /** Album Path */
             album_path: string;
+        };
+        /**
+         * TaskProgress
+         * @description How far a long piece of work has got - for now, a video being converted.
+         */
+        TaskProgress: {
+            /** Done Seconds */
+            done_seconds: number;
+            /** Total Seconds */
+            total_seconds?: number | null;
+            /** Share */
+            share?: number | null;
+            /** Remaining Seconds */
+            remaining_seconds?: number | null;
         };
         /**
          * TimelineShapeView
