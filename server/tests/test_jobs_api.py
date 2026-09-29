@@ -569,6 +569,8 @@ async def test_a_video_being_converted_says_how_far_it_is_and_how_long_it_will_t
     assert by_task["task-video"]["progress"] == {
         "done_seconds": 60.0,
         "total_seconds": 240.0,
+        "frames_done": None,
+        "frames_total": None,
         "share": 0.25,
         "remaining_seconds": 90,
     }
@@ -577,3 +579,32 @@ async def test_a_video_being_converted_says_how_far_it_is_and_how_long_it_will_t
     # Done: nothing of it is left behind.
     await jobs.clear_active(redis, "task-video")
     assert await jobs.read_task_progress(redis, "task-video") is None
+
+
+async def test_a_video_being_described_counts_its_frames(
+    api_client: AsyncClient,
+    api_app: FastAPI,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Frame 12 of 40 is in hand, so eleven are through - the bar never shows a whole while the
+    last one is still being described."""
+    redis = api_app.state.redis
+    await jobs.mark_active(redis, "task-describe", jobs.ANALYSIS_STAGE)
+    await jobs.write_task_progress(
+        redis,
+        "task-describe",
+        done_seconds=55.0,
+        total_seconds=200.0,
+        frames_done=12,
+        frames_total=40,
+        speed=0.1,
+    )
+    headers = await admin_headers(api_client, session_factory)
+
+    body = (await api_client.get("/admin/jobs", headers=headers)).json()
+
+    (task,) = body["active"]
+    assert task["progress"]["frames_done"] == 12
+    assert task["progress"]["frames_total"] == 40
+    assert task["progress"]["share"] == pytest.approx(11 / 40)
+    assert task["progress"]["remaining_seconds"] == 290

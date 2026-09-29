@@ -35,6 +35,9 @@ class TaskProgress(BaseModel):
     done_seconds: float
     #: How long the video is; none when its metadata did not say.
     total_seconds: float | None = None
+    #: Which frame of a video is being described, and how many there are to look at.
+    frames_done: int | None = None
+    frames_total: int | None = None
     #: Between 0 and 1; none without a known length.
     share: float | None = None
     #: How long it will still take, at the speed it is going; none until that can be said.

@@ -187,12 +187,22 @@ async def _progress_of(redis: Redis, task_id: str) -> TaskProgress | None:
     if stored is None:
         return None
     done = float(stored.get("done_seconds") or 0)
-    total = stored.get("total_seconds")
-    speed = stored.get("speed")
-    guess = jobs.estimate(done, float(total) if total else None, float(speed) if speed else None)
+    total = float(stored["total_seconds"]) if stored.get("total_seconds") else None
+    speed = float(stored["speed"]) if stored.get("speed") else None
+    frames_done = int(stored["frames_done"]) if stored.get("frames_done") else None
+    frames_total = int(stored["frames_total"]) if stored.get("frames_total") else None
+    # Counted in frames where it goes frame by frame - the one in hand is not through yet -
+    # and in seconds of video otherwise.
+    guess = (
+        jobs.estimate(frames_done - 1, frames_total, speed)
+        if frames_done is not None
+        else jobs.estimate(done, total, speed)
+    )
     return TaskProgress(
         done_seconds=done,
-        total_seconds=float(total) if total else None,
+        total_seconds=total,
+        frames_done=frames_done,
+        frames_total=frames_total,
         share=guess.share,
         remaining_seconds=guess.remaining_seconds,
     )

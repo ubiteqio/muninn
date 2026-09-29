@@ -620,11 +620,16 @@
       "progress": {
         "label": "Fortschritt",
         "percent": "{{value}} %",
+        "frame": "Bild {{done}} von {{total}}",
         "leftSeconds_one": "noch etwa 1 s",
         "leftSeconds_other": "noch etwa {{count}} s",
         "leftMinutes_one": "noch etwa 1 min",
         "leftMinutes_other": "noch etwa {{count}} min",
-        "through": "{{time}} umgewandelt"
+        "through": {
+          "derive": "{{time}} umgewandelt",
+          "analysis": "bis {{time}} beschrieben",
+          "other": "bei {{time}}"
+        }
       },
       "stop": "Stoppen",
       "stopRead": "Lesen abbrechen",

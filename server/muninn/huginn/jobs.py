@@ -404,9 +404,19 @@ async def write_task_progress(
     done_seconds: float,
     total_seconds: float | None,
     speed: float | None,
+    frames_done: int | None = None,
+    frames_total: int | None = None,
 ) -> None:
-    """How far a long piece of work has got - for now, how much of a video is converted."""
-    entry = {"done_seconds": done_seconds, "total_seconds": total_seconds, "speed": speed}
+    """How far a long piece of work has got: how much of a video is converted, or which of its
+    frames is being described. `speed` is in whatever it counts in - seconds of video, or
+    frames - per second of work."""
+    entry = {
+        "done_seconds": done_seconds,
+        "total_seconds": total_seconds,
+        "speed": speed,
+        "frames_done": frames_done,
+        "frames_total": frames_total,
+    }
     await redis.set(f"{_PROGRESS_PREFIX}:{task_id}", json.dumps(entry), ex=ACTIVE_TTL_SECONDS)
 
 

@@ -346,6 +346,20 @@ describe('the engine room', () => {
               },
             },
             {
+              task_id: 'task-3',
+              stage: 'analysis',
+              label: 'bday.wmv',
+              started_at: new Date(Date.now() - 780_000).toISOString(),
+              progress: {
+                done_seconds: 55,
+                total_seconds: 200,
+                frames_done: 12,
+                frames_total: 40,
+                share: 0.275,
+                remaining_seconds: 290,
+              },
+            },
+            {
               task_id: 'task-2',
               stage: 'derive',
               label: 'kaputt.avi',
@@ -367,11 +381,12 @@ describe('the engine room', () => {
     await renderScreen(<AdminJobsPage />)
 
     expect(await screen.findByText('25 % · noch etwa 5 min')).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: 'Fortschritt' })).toHaveAttribute(
+    expect(screen.getAllByRole('progressbar', { name: 'Fortschritt' })[0]).toHaveAttribute(
       'aria-valuenow',
       '25',
     )
     expect(screen.getByText('2:31 umgewandelt')).toBeInTheDocument()
+    expect(screen.getByText('Bild 12 von 40 · 28 % · noch etwa 5 min')).toBeInTheDocument()
     expect(screen.queryByText(/seit 3 min/)).not.toBeInTheDocument()
   })
 

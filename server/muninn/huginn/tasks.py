@@ -1,6 +1,8 @@
 """The pipeline as Celery tasks. Each one is idempotent and can be run again at any time."""
 
 import logging
+import math
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,13 +17,14 @@ from muninn.ai import service as ai_service
 from muninn.ai.base import AiError, AiMachineError
 from muninn.analysis import service as analysis_service
 from muninn.analysis import transcripts
+from muninn.analysis.frames import DESCRIBE_EVERY_SECONDS
 from muninn.core.config import get_settings
 from muninn.duplicates import service as duplicates_service
 from muninn.faces import people
 from muninn.faces import service as faces_service
 from muninn.huginn import attempts, jobs
 from muninn.huginn.app import celery_app
-from muninn.huginn.derive import Progress
+from muninn.huginn.derive import PROGRESS_EVERY_SECONDS, Progress
 from muninn.huginn.runtime import run, session_scope
 from muninn.library import service
 from muninn.media import service as media_service
@@ -745,6 +748,32 @@ async def _analyze_media(media_id: uuid.UUID, task_id: str) -> bool:
     async def still_going() -> None:
         await jobs.keep_alive(redis, task_id, jobs.ANALYSIS_STAGE, media_id)
 
+    started = time.monotonic()
+    said = float("-inf")
+
+    async def how_far(second: float, total: float | None) -> None:
+        # A long video keeps the describing model busy for many minutes. Counted in the frames
+        # it is asked about, one every few seconds of video; how fast they went so far - frames
+        # per second of work - is the guess for the rest.
+        nonlocal said
+        now = time.monotonic()
+        if now - said < PROGRESS_EVERY_SECONDS:
+            return
+        said = now
+        elapsed = now - started
+        frame = int(second // DESCRIBE_EVERY_SECONDS) + 1
+        frames = math.ceil(total / DESCRIBE_EVERY_SECONDS) if total else None
+        await jobs.write_task_progress(
+            redis,
+            task_id,
+            done_seconds=second,
+            total_seconds=total,
+            frames_done=frame,
+            frames_total=max(frames, frame) if frames else None,
+            # Frames through, not the one in hand: the first answer has not come yet.
+            speed=(frame - 1) / elapsed if frame > 1 and elapsed > 0 else None,
+        )
+
     try:
         async with (
             _announced(jobs.ANALYSIS_STAGE, media_id, task_id) as outcome,
@@ -761,6 +790,7 @@ async def _analyze_media(media_id: uuid.UUID, task_id: str) -> bool:
                     model=profile.model,
                     derived_root=derived_root,
                     heartbeat=still_going,
+                    how_far=how_far,
                 )
             except AiError as error:
                 await _failed_on(error, outcome, session, media_id)

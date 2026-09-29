@@ -60,6 +60,8 @@ SUMMARY_SECTION = 100
 
 #: Called after every frame of a video, so a long one can say that it is still being worked on.
 Heartbeat = Callable[[], Awaitable[None]]
+#: Where in a video the description is, and how long the video is, in seconds of the video.
+HowFar = Callable[[float, float | None], Awaitable[None]]
 
 
 def _missing(
@@ -143,6 +145,7 @@ async def apply_analysis(
     model: str,
     derived_root: Path,
     heartbeat: Heartbeat | None = None,
+    how_far: HowFar | None = None,
 ) -> bool:
     """Stage 5 for one medium. Returns whether an answer was stored.
 
@@ -166,6 +169,7 @@ async def apply_analysis(
             model=model,
             derived_root=derived_root,
             heartbeat=heartbeat,
+            how_far=how_far,
         )
 
     if media.preview_path is None:
@@ -190,6 +194,7 @@ async def _describe_video(
     model: str,
     derived_root: Path,
     heartbeat: Heartbeat | None = None,
+    how_far: HowFar | None = None,
 ) -> bool:
     """A video second by second: every frame that shows something new gets its own question.
 
@@ -219,6 +224,9 @@ async def _describe_video(
     seen: list[tuple[int, Analysis]] = []
     try:
         async for frame in frames_of(video, every=DESCRIBE_EVERY_SECONDS):
+            # Every frame, the ones that are passed over too: they are part of the way through.
+            if how_far is not None:
+                await how_far(float(frame.second), media.duration_seconds)
             if not await asyncio.to_thread(changes.wants, frame):
                 continue
             answer = await analyzer.analyze(

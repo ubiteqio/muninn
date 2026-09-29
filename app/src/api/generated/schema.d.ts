@@ -4269,6 +4269,10 @@ export interface components {
             done_seconds: number;
             /** Total Seconds */
             total_seconds?: number | null;
+            /** Frames Done */
+            frames_done?: number | null;
+            /** Frames Total */
+            frames_total?: number | null;
             /** Share */
             share?: number | null;
             /** Remaining Seconds */

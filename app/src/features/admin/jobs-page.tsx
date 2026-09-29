@@ -288,7 +288,7 @@ function TaskRow({ task }: { task: ActiveTask }) {
         )}
       </span>
       <span className="shrink-0 text-right text-xs-plus text-muted-foreground">
-        {task.progress ? howFar(task.progress, t) : seconds(task.started_at, t)}
+        {task.progress ? howFar(task.progress, task.stage, t) : seconds(task.started_at, t)}
       </span>
       <Button
         variant="outline"
@@ -776,18 +776,37 @@ function ago(finishedAt: string, now: number, t: TFunction): string {
  * How far a long piece of work is, in words: the share and what is left where both are known,
  * otherwise how much of the video is through.
  */
-function howFar(progress: TaskProgress, t: TFunction): string {
+function howFar(progress: TaskProgress, stage: string, t: TFunction): string {
+  // A video being described goes frame by frame, and says which one it is at.
+  const frame =
+    progress.frames_done != null && progress.frames_total != null
+      ? t('admin.jobs.progress.frame', {
+          done: progress.frames_done,
+          total: progress.frames_total,
+        })
+      : null
   if (progress.share == null) {
-    return t('admin.jobs.progress.through', { time: clock(progress.done_seconds) })
+    return (
+      frame ??
+      t(`admin.jobs.progress.through.${stage}`, {
+        time: clock(progress.done_seconds),
+        defaultValue: t('admin.jobs.progress.through.other', {
+          time: clock(progress.done_seconds),
+        }),
+      })
+    )
   }
-  const percent = t('admin.jobs.progress.percent', { value: Math.round(progress.share * 100) })
+  const parts = [t('admin.jobs.progress.percent', { value: Math.round(progress.share * 100) })]
+  if (frame) parts.unshift(frame)
   const left = progress.remaining_seconds
-  if (left == null) return percent
-  const still =
-    left < 60
-      ? t('admin.jobs.progress.leftSeconds', { count: left })
-      : t('admin.jobs.progress.leftMinutes', { count: Math.round(left / 60) })
-  return `${percent} · ${still}`
+  if (left != null) {
+    parts.push(
+      left < 60
+        ? t('admin.jobs.progress.leftSeconds', { count: left })
+        : t('admin.jobs.progress.leftMinutes', { count: Math.round(left / 60) }),
+    )
+  }
+  return parts.join(' · ')
 }
 
 /** Seconds of a video as the player shows them: 2:31, or 1:02:31. */
