@@ -1,6 +1,7 @@
 """Publishing folders of the library, and keeping their albums in step with the NAS."""
 
 import os
+import shutil
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -880,6 +881,57 @@ async def test_a_file_deleted_while_it_was_still_waiting_is_forgotten(
     assert set(await session.scalars(select(PendingFile.relative_path))) == set()
     names = set(await session.scalars(select(MediaFile.relative_path)))
     assert names == {"Autos/bleibt.jpg"}
+
+
+async def test_a_folder_deleted_while_its_files_were_waiting_forgets_them(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """The folder went, so it is never listed again and its files were never compared with
+    anything. They waited for ever, and the clock started a read every minute to look again."""
+    write(library, "Feiern/Geburtstag/bleibt.jpg")
+    write(library, "Feiern/Standesamt/IMG_3856.MOV")
+    publication = await publish(session, library, "Feiern")
+    await sync(session, publication, library, settings)
+
+    shutil.rmtree(library / "Feiern" / "Standesamt")
+    await sync(session, publication, library, settings, now=LATER)
+
+    assert set(await session.scalars(select(PendingFile.relative_path))) == set()
+    assert await service.waiting_for_a_second_look(session, stability_seconds=30, now=LATER) == []
+
+
+async def test_a_folder_emptied_while_its_files_were_waiting_forgets_them(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    write(library, "Feiern/Geburtstag/bleibt.jpg")
+    moved = write(library, "Feiern/Standesamt/IMG_3856.MOV")
+    publication = await publish(session, library, "Feiern")
+    await sync(session, publication, library, settings)
+
+    moved.unlink()
+    await sync(session, publication, library, settings, now=LATER)
+
+    assert set(await session.scalars(select(PendingFile.relative_path))) == set()
+
+
+async def test_a_subfolder_that_cannot_be_listed_keeps_what_waits_in_it(
+    session: AsyncSession, library: Path, settings: AppSettings
+) -> None:
+    """Not having come across a folder because it could not be opened is not its absence."""
+    write(library, "Feiern/Geburtstag/bleibt.jpg")
+    write(library, "Feiern/Standesamt/IMG_3856.MOV")
+    publication = await publish(session, library, "Feiern")
+    await sync(session, publication, library, settings)
+
+    (library / "Feiern" / "Standesamt").chmod(0o000)
+    try:
+        await sync(session, publication, library, settings, now=LATER)
+    finally:
+        (library / "Feiern" / "Standesamt").chmod(0o755)
+
+    assert "Feiern/Standesamt/IMG_3856.MOV" in set(
+        await session.scalars(select(PendingFile.relative_path))
+    )
 
 
 async def test_a_folder_that_cannot_be_listed_forgets_nothing(

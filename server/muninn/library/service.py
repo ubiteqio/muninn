@@ -685,6 +685,8 @@ async def sync_publication(
                 )
             )
 
+    if with_children:
+        await _forget_unlisted(session, pending, folders)
     await session.flush()
 
     vanished = [
@@ -975,6 +977,35 @@ async def _forget_vanished(
     there = {file.relative_path for file in listed}
     gone = [path for path in list(pending) if _folder_of(path) == folder and path not in there]
     for path in gone:
+        await _forget_observation(session, pending, path)
+
+
+async def _forget_unlisted(
+    session: AsyncSession, pending: dict[str, PendingFile], folders: Iterable[ScannedFolder]
+) -> None:
+    """Forget what was waiting in a folder this whole read did not come across.
+
+    A folder deleted or moved away is never listed again, so what waited in it was never
+    compared with anything: the note stayed for ever, and the clock, seeing a file overdue for
+    its second look, started a read every minute to give it one.
+
+    Only for a read that went through every folder below, and never below a folder that could
+    not be listed - that proves nothing. Even a mistake here costs little: a waiting file has no
+    medium and nothing hangs on it, and one forgotten too soon is simply seen for the first time
+    by the next listing.
+    """
+    listed: set[str] = set()
+    failed: list[str] = []
+    for scanned in folders:
+        if scanned.listing_failed:
+            failed.append(scanned.relative_path)
+        else:
+            listed.add(scanned.relative_path)
+
+    for path in list(pending):
+        folder = _folder_of(path)
+        if folder in listed or any(_covers(unread, folder) for unread in failed):
+            continue
         await _forget_observation(session, pending, path)
 
 
