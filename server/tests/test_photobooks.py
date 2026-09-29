@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from muninn.ai import service as ai_service
 from muninn.ai.base import AiError
 from muninn.analysis import service as analysis_service
+from muninn.api.v1 import photobooks as photobooks_api
 from muninn.models.ai import AiKind, AiProfile
 from muninn.models.album import Album
 from muninn.models.media import Media
@@ -340,7 +341,11 @@ class TestApi:
         api_client: AsyncClient,
         session: AsyncSession,
         session_factory: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        # The building is the worker's; this is about what the shelf holds. Without a broker the
+        # hand-over failed inside kombu with an error nobody expects from a missing Redis.
+        monkeypatch.setattr(photobooks_api, "_hand_over", lambda _ids: None)
         album = await an_album_of(session, "Estland")
         await create_user(
             session_factory, username="chef", display_name="Chef", role=UserRole.ADMIN
