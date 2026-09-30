@@ -13,6 +13,14 @@ const config: CapacitorConfig = {
   android: {
     backgroundColor: '#0B0D12',
   },
+  server: {
+    // Android serves the app from https://localhost unless told otherwise, and a page loaded
+    // over HTTPS may not ask a server in the house over plain HTTP: every sign-in was blocked
+    // as mixed content before it left the device. http://localhost is the origin the server
+    // lets in, and still counts as secure, so the Keystore and crypto keep working. iOS has
+    // its own scheme and is not touched by this.
+    androidScheme: 'http',
+  },
   plugins: {
     SplashScreen: {
       backgroundColor: '#0B0D12',
