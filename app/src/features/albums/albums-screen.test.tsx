@@ -427,7 +427,12 @@ describe('the album tree', () => {
       '1 wird gleich geprüft',
     ],
     [{ added: 0, changed: 0, missing: 0, restored: 0, moved: 0, waiting: 0 }, 'Keine Änderungen'],
-  ])('names a file that came back, and says so when nothing changed', async (result, said) => {
+    // Stopped at the safety net before reading anything: all zeros, and not "no changes".
+    [
+      { status: 'unavailable', added: 0, changed: 0, missing: 0, restored: 0, moved: 0 },
+      'Nicht abgeglichen: Ordner nicht erreichbar',
+    ],
+  ])('names a file that came back, and says when nothing changed or it could not look', async (result, said) => {
     stubApi({
       [TREE]: { body: { items: [root, italien] } },
       [MEDIA]: { body: { items: [], next_cursor: null } },

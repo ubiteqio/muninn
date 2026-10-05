@@ -544,7 +544,10 @@ function SyncAction({ album }: { album: Album }) {
       {sync.result && (
         <p
           role="status"
-          className="hidden max-w-[240px] truncate text-xs-plus text-muted-foreground sm:block"
+          className={cn(
+            'hidden max-w-[240px] truncate text-xs-plus sm:block',
+            syncStopped(sync.result) ? 'text-destructive' : 'text-muted-foreground',
+          )}
         >
           {syncSummary(sync.result, t)}
         </p>
@@ -571,10 +574,22 @@ function SyncAction({ album }: { album: Album }) {
 const SYNC_PARTS = ['added', 'waiting', 'restored', 'changed', 'moved', 'missing'] as const
 
 function syncSummary(result: Record<string, unknown>, t: TFunction): string {
+  // A sync that stopped before reading has nothing but zeros, and those are not "no changes".
+  const stopped = syncStopped(result)
+  if (stopped) return t(`albums.syncStopped.${stopped}`)
   const parts = SYNC_PARTS.map((part) => ({ part, count: Number(result[part] ?? 0) }))
     .filter(({ count }) => count > 0)
     .map(({ part, count }) => t(`albums.syncFound.${part}`, { count }))
   return parts.length > 0 ? parts.join(', ') : t('albums.syncNothing')
+}
+
+const STOPPED = ['unavailable', 'paused', 'failed', 'cancelled'] as const
+
+/** How a sync ended when it did not get through, or null when it did. */
+function syncStopped(result: Record<string, unknown>): (typeof STOPPED)[number] | null {
+  const status = result.status
+  if (status === undefined || status === 'ok') return null
+  return STOPPED.find((stopped) => stopped === status) ?? 'failed'
 }
 
 function count(total: number, album: Album): number {

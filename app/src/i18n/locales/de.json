@@ -123,6 +123,12 @@
       "missing": "{{count, number}} entfernt"
     },
     "syncNothing": "Keine Änderungen",
+    "syncStopped": {
+      "unavailable": "Nicht abgeglichen: Ordner nicht erreichbar",
+      "paused": "Angehalten: zu viele Dateien fehlen",
+      "failed": "Abgleich fehlgeschlagen",
+      "cancelled": "Abgleich abgebrochen"
+    },
     "way": "Nur der Weg zu veröffentlichten Ordnern",
     "waiting": "Die Bilder werden noch geprüft und erscheinen gleich.",
     "pager": {
