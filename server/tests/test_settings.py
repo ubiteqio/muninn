@@ -51,6 +51,7 @@ async def test_the_defaults_are_the_values_from_the_concept(
     assert body["ignored_names"] == DEFAULT_IGNORED_NAMES
     assert body["quick_sync_seconds"] == 300
     assert body["missing_grace_days"] == 30
+    assert body["duplicates_hour"] == 5
     # No pause before deletions unless an admin asks for one.
     assert (body["deletion_share_percent"], body["deletion_count"]) == (0, 0)
 
@@ -84,6 +85,16 @@ async def test_a_change_is_stored_and_read_back(
     assert again.json()["video_height"] == 1080
 
 
+async def test_the_hour_of_the_duplicates_is_stored(
+    api_client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    headers = await _admin_headers(api_client, session_factory)
+
+    await api_client.put("/admin/settings", json={**VALID, "duplicates_hour": 2}, headers=headers)
+
+    assert (await api_client.get("/admin/settings", headers=headers)).json()["duplicates_hour"] == 2
+
+
 @pytest.mark.parametrize(
     "change",
     [
@@ -96,6 +107,8 @@ async def test_a_change_is_stored_and_read_back(
         {"ignored_names": ["fotos/2009"]},
         {"quick_sync_seconds": 10},
         {"full_sync_hour": 24},
+        {"duplicates_hour": 24},
+        {"duplicates_hour": -1},
         {"stability_seconds": 1},
         {"missing_grace_days": -1},
         # The safety net can be adjusted, never switched off.

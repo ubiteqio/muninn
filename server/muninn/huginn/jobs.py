@@ -27,6 +27,7 @@ PROGRESS_TTL_SECONDS = 600
 #: What the clock has already done. The API reads these to say when the next read is due.
 LAST_QUICK_KEY = "muninn:last-quick-sync"
 LAST_FULL_KEY = "muninn:last-full-sync-day"
+LAST_DUPLICATES_KEY = "muninn:last-duplicates-day"
 #: The day whose memories were last chosen, so the clock does it once.
 LAST_MEMORIES_KEY = "muninn:memories:last"
 

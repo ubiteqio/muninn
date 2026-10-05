@@ -3989,6 +3989,11 @@ export interface components {
             quick_sync_seconds: number;
             /** Full Sync Hour */
             full_sync_hour: number;
+            /**
+             * Duplicates Hour
+             * @default 5
+             */
+            duplicates_hour: number;
             /** Stability Seconds */
             stability_seconds: number;
             /** Missing Grace Days */
@@ -4037,6 +4042,8 @@ export interface components {
             quick_sync_seconds: number;
             /** Full Sync Hour */
             full_sync_hour: number;
+            /** Duplicates Hour */
+            duplicates_hour: number;
             /** Stability Seconds */
             stability_seconds: number;
             /** Missing Grace Days */

@@ -2,9 +2,12 @@
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import pytest
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from muninn.huginn import jobs, tasks
@@ -17,6 +20,29 @@ def fake_redis_client() -> object:
     from fakeredis import FakeAsyncRedis
 
     return FakeAsyncRedis(decode_responses=True)
+
+
+async def test_a_nightly_job_runs_once_in_its_hour(fake_redis_client: object) -> None:
+    """The duplicates used to run every quarter of an hour; now the clock starts them once."""
+    redis = cast(Redis, fake_redis_client)
+    key = jobs.LAST_DUPLICATES_KEY
+
+    assert not await tasks._due_tonight(redis, key, datetime(2026, 10, 5, 4, 59), 5)
+    assert await tasks._due_tonight(redis, key, datetime(2026, 10, 5, 5, 0), 5)
+    assert not await tasks._due_tonight(redis, key, datetime(2026, 10, 5, 5, 1), 5)
+    assert not await tasks._due_tonight(redis, key, datetime(2026, 10, 5, 6, 0), 5)
+    assert await tasks._due_tonight(redis, key, datetime(2026, 10, 6, 5, 30), 5)
+
+
+async def test_a_nightly_job_missed_at_the_full_hour_still_runs_in_it(
+    fake_redis_client: object,
+) -> None:
+    """A scheduler that was down at five still starts the job at twenty to six."""
+    redis = cast(Redis, fake_redis_client)
+
+    assert await tasks._due_tonight(
+        redis, jobs.LAST_DUPLICATES_KEY, datetime(2026, 10, 5, 5, 40), 5
+    )
 
 
 async def test_a_failed_sync_frees_its_folder_again(
@@ -200,8 +226,6 @@ async def test_only_one_reassessment_waits_at_a_time(
     """Answering a screen full of suggestions queued a pass for every click, and every pass
     walks the whole library."""
     from typing import cast
-
-    from redis.asyncio import Redis
 
     from muninn.huginn import dispatch
 

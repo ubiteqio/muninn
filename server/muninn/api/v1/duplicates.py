@@ -98,7 +98,7 @@ async def keep(
             status=status.HTTP_404_NOT_FOUND,
             type=problem_type("not-in-group"),
             title="Not in this group",
-            detail="The groups are found again every quarter of an hour; reload the list.",
+            detail="The groups are found again every night; reload the list.",
         ) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

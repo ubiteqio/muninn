@@ -415,6 +415,15 @@
             "Leg die Stunde so, dass das NAS sonst nichts zu tun hat. 1 bis 4 Uhr ist richtig."
           ]
         },
+        "duplicates_hour": {
+          "label": "Doppelgänger suchen um",
+          "hint": "Stunde der Nacht, {{min}} bis {{max}}. Bildet die Gruppen von Kopien neu.",
+          "info": [
+            "Die Stunde der Nacht, in der Muninn die ganze Bibliothek nach Kopien durchsucht: dieselbe Datei an zwei Orten, ein verkleinertes oder neu komprimiertes Bild, und Serienbilder, die sich kaum unterscheiden.",
+            "Das liest jedes Medium und baut alle Gruppen neu auf. Es braucht einige Minuten die volle Leistung des NAS, deshalb läuft es nur einmal am Tag. Neu hinzugekommene Kopien erscheinen also am nächsten Morgen unter „Doppelgänger\".",
+            "Leg die Stunde nach dem Voll-Abgleich, damit dessen Funde in derselben Nacht dabei sind. 5 Uhr ist richtig, wenn der Voll-Abgleich um 3 läuft."
+          ]
+        },
         "stability_seconds": {
           "label": "Stabilitätsfenster",
           "hint": "Sekunden, {{min}} bis {{max}}. So lange muss eine Datei unverändert bleiben, bevor Muninn sie anfasst.",
@@ -892,7 +901,7 @@
       "best": "Empfohlen",
       "show": "{{name}} ansehen",
       "showAgain": "Wieder zeigen",
-      "failed": "Das hat nicht geklappt. Die Gruppen werden alle 15 Minuten neu gebildet – lade die Seite neu."
+      "failed": "Das hat nicht geklappt. Die Gruppen werden jede Nacht neu gebildet – lade die Seite neu."
     },
     "photobooks": {
       "title": "Fotobücher",

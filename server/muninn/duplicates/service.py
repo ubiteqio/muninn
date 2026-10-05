@@ -6,10 +6,10 @@ Three ties make a group, from the tightest to the loosest:
 - near: the same picture made smaller or compressed again - a WhatsApp copy - by fingerprint,
 - burst: shots taken within seconds whose pictures are nearly the same, by the picture model.
 
-A job finds the groups again every quarter of an hour. The best of a group is the one with the
-most pixels, then the most complete metadata, then the original format, then the largest file.
-An admin may hide the others. Muninn never deletes: the paths of what was hidden can be
-downloaded as a list, to delete on the NAS by hand.
+A job finds the groups again once a night, at the hour set in the settings. The best of a group
+is the one with the most pixels, then the most complete metadata, then the original format, then
+the largest file. An admin may hide the others. Muninn never deletes: the paths of what was
+hidden can be downloaded as a list, to delete on the NAS by hand.
 """
 
 import asyncio

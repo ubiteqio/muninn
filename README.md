@@ -428,7 +428,7 @@ flowchart TB
 | 8 | Caption vector | The meaning of the description | BGE-M3 | `ai` |
 | 9 | Faces | Face boxes and landmarks, 512-d vectors, automatic names and suggestions | InsightFace buffalo_l (SCRFD + ArcFace) | `ai` |
 | 10 | Places | Nearest GeoNames place within 50 km, or the place set on its album (marked as estimated) | PostGIS, GeoNames | `scan` |
-| 11 | Duplicates | Groups of exact copies, near copies and bursts, with the best copy chosen | BLAKE3, perceptual hash, SigLIP | `scan`, every 15 min |
+| 11 | Duplicates | Groups of exact copies, near copies and bursts, with the best copy chosen | BLAKE3, perceptual hash, SigLIP | `scan`, nightly (05:00) |
 | 12 | Memories | "Today, X years ago" | PostgreSQL | `scan`, daily at 06:00 |
 
 **How the work moves:**
@@ -570,7 +570,7 @@ Counted from the repository on 2026-09-22.
 | **File types** | 26 extensions: 9 image, 7 RAW, 10 video; RAW+JPEG and Live Photo pairs grouped into one medium |
 | **Capture date** | 5 sources: EXIF, GPS time, file name, folder name, file mtime |
 | **Search** | 4 lists of 200 candidates, RRF with k = 60, thresholds calibrated on 702 media |
-| **Clock** | tick 60 s, quick sync 300 s, full sync 03:00, duplicates every 15 min, memories 06:00 |
+| **Clock** | tick 60 s, quick sync 300 s, full sync 03:00, duplicates 05:00, memories 06:00 |
 | **AI hand-out** | at most 200 media per stage per minute, 300 s pause after the machine is unreachable, 1 h claims |
 | **Previews** | 400 px and 2048 px WebP at q82, 720p H.264 video at CRF 23 |
 | **Safety** | 30 s stability window, 30-day grace period, 90-day change log |

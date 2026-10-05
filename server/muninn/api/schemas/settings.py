@@ -5,7 +5,11 @@ from typing import Annotated, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
-from muninn.models.settings import DEFAULT_SMART_MAX_CHAPTERS, DEFAULT_SMART_MAX_MEDIA
+from muninn.models.settings import (
+    DEFAULT_DUPLICATES_HOUR,
+    DEFAULT_SMART_MAX_CHAPTERS,
+    DEFAULT_SMART_MAX_MEDIA,
+)
 
 #: Bounds, not opinions: below these the derivative is useless, above them it costs space without
 #: anybody seeing the difference on a screen.
@@ -17,6 +21,7 @@ VideoHeight = Annotated[int, Field(ge=360, le=2160)]
 #: How the library is kept in step with the NAS.
 QuickSyncSeconds = Annotated[int, Field(ge=60, le=3600)]
 FullSyncHour = Annotated[int, Field(ge=0, le=23)]
+DuplicatesHour = Annotated[int, Field(ge=0, le=23)]
 StabilitySeconds = Annotated[int, Field(ge=5, le=600)]
 #: 0 removes a missing medium at once; beyond a year it is not a grace period any more.
 MissingGraceDays = Annotated[int, Field(ge=0, le=365)]
@@ -59,6 +64,7 @@ class SettingsView(BaseModel):
 
     quick_sync_seconds: int
     full_sync_hour: int
+    duplicates_hour: int
     stability_seconds: int
     missing_grace_days: int
     deletion_share_percent: int
@@ -82,6 +88,8 @@ class SettingsUpdate(BaseModel):
 
     quick_sync_seconds: QuickSyncSeconds
     full_sync_hour: FullSyncHour
+    # A default, so an app from before this setting can still save the others.
+    duplicates_hour: DuplicatesHour = DEFAULT_DUPLICATES_HOUR
     stability_seconds: StabilitySeconds
     missing_grace_days: MissingGraceDays
     deletion_share_percent: DeletionSharePercent

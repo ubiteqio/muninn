@@ -26,6 +26,8 @@ DEFAULT_IGNORED_NAMES = ["@eaDir", "#recycle", ".DS_Store", "Thumbs.db"]
 #: How the library is kept in step with the NAS, as the concept's settings table lists it.
 DEFAULT_QUICK_SYNC_SECONDS = 300
 DEFAULT_FULL_SYNC_HOUR = 3
+#: After the full sync, so the copies it found are grouped the same night.
+DEFAULT_DUPLICATES_HOUR = 5
 DEFAULT_STABILITY_SECONDS = 30
 DEFAULT_MISSING_GRACE_DAYS = 30
 
@@ -68,6 +70,10 @@ class AppSettings(TimestampMixin, Base):
     quick_sync_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     #: Hour of the night at which every file is read again.
     full_sync_hour: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    #: Hour of the night at which the groups of copies are found anew.
+    duplicates_hour: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=DEFAULT_DUPLICATES_HOUR
+    )
     #: How far two listings have to lie apart before a file counts as fully copied.
     stability_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     #: How long a missing medium is kept before it is removed for good; 0 removes it at once.

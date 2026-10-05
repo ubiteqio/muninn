@@ -18,6 +18,7 @@ const settings = {
   ignored_names: ['@eaDir', '#recycle'],
   quick_sync_seconds: 300,
   full_sync_hour: 3,
+  duplicates_hour: 5,
   stability_seconds: 30,
   missing_grace_days: 30,
   deletion_share_percent: 5,
@@ -263,6 +264,6 @@ describe('die Erklärungen hinter dem ⓘ', () => {
     await renderScreen(<AdminSettingsPage />)
 
     await screen.findByRole('heading', { name: 'Smart-Alben' })
-    expect(screen.getAllByRole('button', { name: /^Erklärung: / })).toHaveLength(12)
+    expect(screen.getAllByRole('button', { name: /^Erklärung: / })).toHaveLength(13)
   })
 })

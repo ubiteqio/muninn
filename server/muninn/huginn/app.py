@@ -44,10 +44,6 @@ def configuration() -> dict[str, Any]:
         },
         "beat_schedule": {
             "tick": {"task": "muninn.tick", "schedule": float(TICK_SECONDS)},
-            "find-duplicates": {
-                "task": "muninn.find_duplicates",
-                "schedule": crontab(minute="*/15"),
-            },
             "build-smarts": {
                 "task": "muninn.build_smarts",
                 "schedule": crontab(hour=3, minute=30),

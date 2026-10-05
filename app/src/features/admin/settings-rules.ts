@@ -10,6 +10,7 @@ export const LIMITS = {
 
   quick_sync_seconds: { min: 60, max: 3600 },
   full_sync_hour: { min: 0, max: 23 },
+  duplicates_hour: { min: 0, max: 23 },
   stability_seconds: { min: 5, max: 600 },
   missing_grace_days: { min: 0, max: 365 },
   // The pause before many deletions at once. 0 is off, which is the default.
@@ -34,6 +35,7 @@ export const DERIVATIVE_SETTINGS = [
 export const SYNC_SETTINGS = [
   'quick_sync_seconds',
   'full_sync_hour',
+  'duplicates_hour',
   'stability_seconds',
   'missing_grace_days',
   'deletion_share_percent',

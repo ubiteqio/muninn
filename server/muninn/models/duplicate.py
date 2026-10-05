@@ -1,4 +1,4 @@
-"""Groups of media that are the same picture, found again by a job every quarter of an hour."""
+"""Groups of media that are the same picture, found again by a job once a night."""
 
 import uuid
 from datetime import datetime

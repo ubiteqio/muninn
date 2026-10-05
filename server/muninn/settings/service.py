@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from muninn.models.settings import (
     DEFAULT_DELETION_COUNT,
     DEFAULT_DELETION_SHARE_PERCENT,
+    DEFAULT_DUPLICATES_HOUR,
     DEFAULT_FULL_SYNC_HOUR,
     DEFAULT_IGNORED_NAMES,
     DEFAULT_IMAGE_QUALITY,
@@ -34,6 +35,7 @@ def _defaults() -> AppSettings:
         ignored_names=list(DEFAULT_IGNORED_NAMES),
         quick_sync_seconds=DEFAULT_QUICK_SYNC_SECONDS,
         full_sync_hour=DEFAULT_FULL_SYNC_HOUR,
+        duplicates_hour=DEFAULT_DUPLICATES_HOUR,
         stability_seconds=DEFAULT_STABILITY_SECONDS,
         missing_grace_days=DEFAULT_MISSING_GRACE_DAYS,
         deletion_share_percent=DEFAULT_DELETION_SHARE_PERCENT,

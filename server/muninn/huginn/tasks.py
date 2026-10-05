@@ -145,7 +145,7 @@ def fingerprint_media() -> int:
 
 @celery_app.task(name="muninn.find_duplicates", queue="scan")
 def find_duplicates() -> int:
-    """Find the groups of copies again; the clock asks for it every quarter of an hour."""
+    """Find the groups of copies again; the clock asks for it once a night, at the set hour."""
     return run(_find_duplicates())
 
 
@@ -280,12 +280,16 @@ async def _tick() -> list[str]:
 
         # The full sync runs once on the day it is due, whenever the hour comes around.
         today = now.date().isoformat()
-        if now.hour == settings.full_sync_hour and await redis.get(jobs.LAST_FULL_KEY) != today:
-            await redis.set(jobs.LAST_FULL_KEY, today)
+        if await _due_tonight(redis, jobs.LAST_FULL_KEY, now, settings.full_sync_hour):
             started.extend(await _queue_all(quick=False))
             # The sweep goes with the nightly read: by then the day's work is long finished,
             # and what is left over has had hours to prove that nobody wants it.
             clean_derived.delay()
+
+        # Finding the copies reads and rewrites the whole library's groups: once a night is
+        # plenty, and every quarter of an hour kept the NAS busy for minutes at a time.
+        if await _due_tonight(redis, jobs.LAST_DUPLICATES_KEY, now, settings.duplicates_hour):
+            find_duplicates.delay()
 
         # The memories of the day are chosen at six, before anybody looks.
         if now.hour >= MEMORIES_HOUR and await redis.get(jobs.LAST_MEMORIES_KEY) != today:
@@ -300,6 +304,19 @@ async def _tick() -> list[str]:
         await redis.aclose()
 
     return started
+
+
+async def _due_tonight(redis: Redis, key: str, now: datetime, hour: int) -> bool:
+    """Whether the hour of a nightly job has come and it has not run today; if so, it has now.
+
+    Whenever the hour comes around, not at its first minute: a scheduler that was down at 3:00
+    still starts the job at 3:40.
+    """
+    today = now.date().isoformat()
+    if now.hour != hour or await redis.get(key) == today:
+        return False
+    await redis.set(key, today)
+    return True
 
 
 async def recover(queues: set[str]) -> list[str]:
