@@ -12,8 +12,9 @@ A marker file does the same job for setups where the device legitimately changes
 import os
 from pathlib import Path
 
-#: May lie in a library root as an alternative proof: useful where the device id changes, for
-#: instance when the share is remounted by something that gives it a new device each time.
+#: May lie in a published folder or in the library root as an alternative proof: useful where the
+#: device id changes, for instance when the share is remounted by something that gives it a new
+#: device each time. A NAS was seen to go from 47 to 49 to 54 within days, with no reboot.
 MARKER_NAME = ".muninn-root"
 
 
@@ -37,7 +38,9 @@ def device_of(path: Path) -> int | None:
         return None
 
 
-def check_available(path: Path, *, expected_device: int | None = None) -> None:
+def check_available(
+    path: Path, *, expected_device: int | None = None, library_root: Path | None = None
+) -> None:
     """Refuse to sync anything that is not the folder Muninn was pointed at.
 
     Everything here can fail on a share that is gone or not readable, and a failure is never
@@ -46,7 +49,7 @@ def check_available(path: Path, *, expected_device: int | None = None) -> None:
     try:
         if not path.is_dir():
             raise RootUnavailableError(str(path))
-        has_marker = (path / MARKER_NAME).exists()
+        has_marker = _marked(path, library_root)
     except OSError as error:
         raise RootUnavailableError(str(path)) from error
 
@@ -55,6 +58,29 @@ def check_available(path: Path, *, expected_device: int | None = None) -> None:
 
     if expected_device is not None and device_of(path) != expected_device:
         raise NotMountedError(str(path))
+
+
+def _marked(path: Path, library_root: Path | None) -> bool:
+    """Whether a marker vouches for this folder: in it, or in a folder above it up to the root.
+
+    Only on the folder's own file system. A share mounted inside the library carries its own
+    marker or none: the root's marker says nothing about whether that share is there. That one
+    has gone missing does not show here - its empty mount point is on the root's file system -
+    which is why such a share needs a marker of its own rather than relying on the root's.
+    """
+    if (path / MARKER_NAME).exists():
+        return True
+    if library_root is None or library_root not in path.parents:
+        return False
+    device = device_of(path)
+    for folder in path.parents:
+        if device is None or device_of(folder) != device:
+            return False
+        if (folder / MARKER_NAME).exists():
+            return True
+        if folder == library_root:
+            return False
+    return False
 
 
 def is_gone(folder: Path, *, library_root: Path, expected_device: int | None) -> bool:

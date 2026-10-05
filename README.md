@@ -490,6 +490,7 @@ flowchart TB
 - **Transactional stage writes.** Each stage writes its result in one transaction. Storing a description writes the caption, its weighted `tsvector` and the removal of the outdated caption vector together, so a search never returns a photo for words its current caption no longer contains. New previews get file names that include part of the content hash. The database switches to them first, and only after that commit are the old files deleted. Derived files are spread over two levels of subfolders.
 - **Safety net for the library.**
   - Before every sync Muninn checks that the root is still on the filesystem device (`st_dev`) it was published on, or that a `.muninn-root` marker file is present. An unmounted share looks exactly like an empty folder, so this matters.
+  - Some NAS systems hand out a new device id now and then, and every sync then stops as "not mounted". An empty `.muninn-root` in the library folder covers every published folder on the same filesystem. A share mounted inside the library needs a marker of its own: the root's marker cannot tell whether that share is there.
   - A folder that cannot be fully listed proves nothing and deletes nothing.
   - Empty files are skipped, and files still being copied wait until two listings 30 s apart agree.
   - A vanished file in a folder that still exists is marked `MISSING` and hidden for 30 days, and it comes back intact if it returns. A folder that disappears currently takes its album and media with it at once. Every finding goes into a change log kept for 90 days.

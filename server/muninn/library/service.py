@@ -493,7 +493,10 @@ async def sync_publication(
 
     try:
         await asyncio.to_thread(
-            safety.check_available, folder, expected_device=publication.device_id
+            safety.check_available,
+            folder,
+            expected_device=publication.device_id,
+            library_root=library_base,
         )
     except safety.RootUnavailableError:
         if scope_path is None:

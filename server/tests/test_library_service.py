@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from muninn.library import service
+from muninn.library import safety, service
 from muninn.library.safety import MARKER_NAME, device_of
 from muninn.media import service as media_service
 from muninn.models.album import Album
@@ -560,6 +560,61 @@ class TestSafetyNet:
 
         assert report.status is ScanStatus.OK
         assert report.added == 1
+
+    async def test_a_marker_in_the_library_root_vouches_for_every_folder_below_it(
+        self, session: AsyncSession, library: Path, settings: AppSettings
+    ) -> None:
+        """A NAS that hands out a new device id now and then: one marker in the root, and
+        "Sync now" on an album deep down sees a file deleted there."""
+        write(library, "Fotos/Tag 1/IMG_1.jpg")
+        deleted = write(library, "Fotos/Tag 1/IMG_2.jpg", b"anderes")
+        publication = await publish(session, library, "Fotos")
+        await settle(session, publication, library, settings)
+        publication.device_id = (publication.device_id or 0) + 1
+        await session.commit()
+        (library / MARKER_NAME).touch()
+        deleted.unlink()
+
+        report = await sync(
+            session,
+            publication,
+            library,
+            settings,
+            now=EVEN_LATER,
+            trigger=SyncTrigger.MANUAL,
+            scope_path="Fotos/Tag 1",
+        )
+
+        assert report.status is ScanStatus.OK
+        assert report.missing == 1
+
+    async def test_the_roots_marker_does_not_vouch_for_a_share_mounted_inside_it(
+        self,
+        session: AsyncSession,
+        library: Path,
+        settings: AppSettings,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A second share mounted at Fotos carries its own marker or none: the root's says
+        nothing about whether that share is there."""
+        share = library / "Fotos"
+
+        def device(path: Path) -> int:
+            return 2 if path == share or share in path.parents else 1
+
+        monkeypatch.setattr(safety, "device_of", device)
+        write(library, "Fotos/IMG_1.jpg")
+        publication = await publish(session, library, "Fotos")
+        await settle(session, publication, library, settings)
+        publication.device_id = 3
+        await session.commit()
+        (library / MARKER_NAME).touch()
+
+        report = await sync(session, publication, library, settings, now=EVEN_LATER)
+
+        assert report.status is ScanStatus.UNAVAILABLE
+        assert "not mounted" in (report.message or "")
+        assert [media.status for media in await media_of(session)] == [MediaStatus.ACTIVE]
 
 
 class TestWhileItRuns:
