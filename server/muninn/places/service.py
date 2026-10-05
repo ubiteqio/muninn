@@ -260,19 +260,27 @@ _PLACE = text(
 #: For every album, the place it lends its media without coordinates: its own, or else that of
 #: the nearest album above it that has one. Only albums with a place are looked at, and those
 #: are few.
+#:
+#: Both are MATERIALIZED, so each is worked out once per run. Inlined, Postgres asked the
+#: question once per medium rather than once per album: ten seconds of a NAS's processor every
+#: minute for 47,000 media and 1,100 albums, none of which had a place.
 _ALBUM_PLACES = """
-    SELECT a.id AS album_id,
-           (SELECT b.place_id FROM albums b
-             WHERE b.place_id IS NOT NULL
-               AND (b.id = a.id OR starts_with(a.relative_path, b.relative_path || '/'))
-             ORDER BY length(b.relative_path) DESC
-             LIMIT 1) AS place_id
-      FROM albums a
+    placed AS MATERIALIZED (
+        SELECT id, relative_path, place_id FROM albums WHERE place_id IS NOT NULL
+    ),
+    lent AS MATERIALIZED (
+        SELECT a.id AS album_id,
+               (SELECT b.place_id FROM placed b
+                 WHERE b.id = a.id OR starts_with(a.relative_path, b.relative_path || '/')
+                 ORDER BY length(b.relative_path) DESC
+                 LIMIT 1) AS place_id
+          FROM albums a
+    )
 """
 
 _ESTIMATE = text(
     f"""
-    WITH lent AS ({_ALBUM_PLACES}),
+    WITH {_ALBUM_PLACES},
     due AS (
         SELECT m.id, l.place_id FROM media m JOIN lent l ON l.album_id = m.album_id
          WHERE m.location IS NULL

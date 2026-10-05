@@ -2,10 +2,11 @@
 
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from muninn.models.media import Media, MediaStatus
@@ -393,6 +394,28 @@ async def test_an_albums_place_goes_to_its_media_without_coordinates_and_below(
     cleared = await session.get(Media, scanned.id, populate_existing=True)
     assert cleared is not None
     assert (cleared.place_id, cleared.place_estimated) == (None, False)
+
+
+async def test_an_albums_place_is_worked_out_once_per_album_not_once_per_medium(
+    session: AsyncSession,
+) -> None:
+    """Inlined, the album lookup ran for every medium: ten seconds a minute on 47,000 media."""
+    albums = [await an_album(session, f"Jahr/Tag {day}") for day in range(3)]
+    for number in range(30):
+        await a_medium(session, albums[number % 3], taken_at=JULY, name=f"{number}.jpg")
+    await session.commit()
+
+    plan = await session.scalar(
+        text(f"EXPLAIN (ANALYZE, FORMAT JSON) {places_service._ESTIMATE.text}"),
+        {"version": gazetteer.GAZETTEER_VERSION, "batch": places_service.PLACE_BATCH},
+    )
+    await session.rollback()
+
+    def loops(node: dict[str, Any]) -> list[int]:
+        own = [node["Actual Loops"]] if node.get("Parent Relationship") == "SubPlan" else []
+        return own + [count for child in node.get("Plans", []) for count in loops(child)]
+
+    assert loops(plan[0]["Plan"]) == [len(albums)]
 
 
 async def test_an_unknown_place_is_refused(
