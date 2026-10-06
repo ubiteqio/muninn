@@ -15,13 +15,17 @@ LIMITS = {
     "keywords": 100,
     "whatsnew": 4000,
     "notes": 4000,
+    # Google Play
+    "title": 30,
+    "short": 80,
 }
 
 FIELD = re.compile(r"<!-- field: (\w+)\.(\w+) -->\n```\n(.*?)\n```", re.S)
 
 
 def main() -> int:
-    text = (Path(__file__).parent / "listing.md").read_text()
+    name = sys.argv[1] if len(sys.argv) > 1 else "listing.md"
+    text = (Path(__file__).parent / name).read_text()
     failed = False
     for language, field, value in FIELD.findall(text):
         limit = LIMITS[field]
