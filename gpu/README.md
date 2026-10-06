@@ -1,17 +1,21 @@
 # Muninns KI-Maschine auf Windows
 
-Alles, was eine Grafikkarte braucht, in einem Docker-Stapel: das Modell, das Bilder beschreibt,
-und die beiden, die Vektoren daraus machen. Muninn selbst läuft woanders und spricht beide über
-das Netz an.
+Alles, was eine Grafikkarte braucht, in diesem einen Ordner und einem Docker-Stapel: das Modell,
+das Bilder beschreibt, die Vektormodelle, die Spracherkennung und die Gesichter. Ein
+`docker compose up -d` startet alles. Muninn selbst läuft woanders und spricht beide Container
+über das Netz an.
 
 | Container | Modell | Port | Wofür |
 | --- | --- | --- | --- |
 | `vllm` | Qwen3-VL-8B-Instruct | 8000 | Beschreibung, Stichworte, Szene, Text im Bild |
 | `embed` | SigLIP 2 | 8100 | Bildvektoren — „Hund am Strand" findet Fotos ohne Beschreibung |
 | `embed` | BGE-M3 | 8100 | Textvektoren der Beschreibung |
+| `embed` | Whisper large-v3-turbo | 8100 | Was in Videos gesagt wird |
+| `embed` | InsightFace buffalo_l | 8100 | Gesichter |
 
-Zwei Container für drei Modelle: Ein vLLM-Prozess bedient immer genau ein Modell, der
-Einbettungsdienst trägt beide Vektormodelle in einem.
+Zwei Container für fünf Modelle: Ein vLLM-Prozess bedient immer genau ein Modell, der
+Einbettungsdienst trägt die übrigen vier in einem. Sein Quelltext liegt in [`embed/`](embed/)
+und wird beim Start gebaut.
 
 ## 1. Voraussetzungen
 
@@ -100,7 +104,7 @@ git clone <dein-muninn-repository> C:\muninn
 cd C:\muninn\gpu
 ```
 
-Gebraucht werden nur die Ordner `gpu/` und `embed/` — `embed` wird aus dem Quelltext gebaut.
+Gebraucht wird nur der Ordner `gpu/`; der Einbettungsdienst wird aus `gpu/embed/` gebaut.
 
 ## 3. Konfiguration anlegen
 
@@ -122,10 +126,11 @@ KI-Profile in Muninn.
 ## 4. Starten
 
 ```powershell
-docker compose up -d
+docker compose up -d --build
 ```
 
-Der erste Start lädt die Gewichte — je nach Leitung eine Viertelstunde und mehrere Gigabyte.
+`--build` braucht es beim ersten Mal und nach jedem `git pull`, damit der Einbettungsdienst neu
+gebaut wird. Der erste Start lädt die Gewichte — je nach Leitung eine Viertelstunde und mehrere Gigabyte.
 Zusehen:
 
 ```powershell
@@ -207,7 +212,7 @@ senken und `docker compose up -d` erneut.
 | --- | --- |
 | `could not select device driver "nvidia"` | Docker sieht die Karte nicht: Treiber auf Windows prüfen, Docker Desktop neu starten. |
 | vLLM bricht beim Laden ab, ohne Fehler | Gemeinsamer Speicher zu klein. Der Stapel setzt dafür `ipc: host`; wird die Datei verändert, muss das drin bleiben. |
-| vLLM startet immer wieder neu, im Log ein negativer KV-Cache | Zu wenig Speicher neben den Vektormodellen. Der Stapel lädt deshalb die FP8-Gewichte, begrenzt auf ein Bild ohne Video je Anfrage und acht gleichzeitige Anfragen und startet vLLM erst nach `embed`. Hilft das nicht, `VLLM_MAX_MODEL_LEN` oder `VLLM_GPU_FRACTION` in `.env` anpassen. |
+| vLLM startet immer wieder neu, im Log ein negativer KV-Cache | Zu wenig Speicher neben den Vektormodellen. Der Stapel lädt deshalb die FP8-Gewichte, begrenzt auf ein Bild ohne Video je Anfrage und acht gleichzeitige Anfragen und startet `embed` erst, wenn vLLM steht. Hilft das nicht, `VLLM_MAX_MODEL_LEN` oder `VLLM_GPU_FRACTION` in `.env` anpassen. |
 | `RuntimeError: UVA is not available` | Der neue Modell-Läufer (V2) braucht angehefteten Hostspeicher, den WSL 2 nicht anbietet. Der Stapel setzt deshalb `VLLM_USE_V2_MODEL_RUNNER=0`. Bei neuem WSL-Kern geht auch `VLLM_WSL2_ENABLE_PIN_MEMORY=1`. |
 | `Unauthorized` in Muninn | Der Schlüssel im Profil stimmt nicht mit `AI_API_KEY` überein. |
 | `gibt es dort nicht. Endet die Basis-URL auf /v1?` | Die Adresse im Profil endet nicht auf `/v1`. |

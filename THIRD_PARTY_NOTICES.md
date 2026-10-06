@@ -17,7 +17,7 @@ fetch them, and their terms apply to whoever runs Muninn.
 
 | What | Where it is used | License or terms |
 | --- | --- | --- |
-| Libraries installed by `uv` and `pnpm` | Server, embedding service and app | Each under its own license, see the lock files `server/uv.lock`, `embed/uv.lock` and `app/pnpm-lock.yaml` |
+| Libraries installed by `uv` and `pnpm` | Server, embedding service and app | Each under its own license, see the lock files `server/uv.lock`, `gpu/embed/uv.lock` and `app/pnpm-lock.yaml` |
 | [Inter](https://rsms.me/inter/) typeface, via `@fontsource-variable/inter` | Bundled into the built app | SIL Open Font License 1.1 |
 | [GeoNames](https://www.geonames.org/) place data | Built into the server image (`server/Dockerfile`) | Creative Commons Attribution 4.0; the app credits GeoNames where it shows places |
 | Map tiles from [OpenFreeMap](https://openfreemap.org/), with map data from [OpenStreetMap](https://www.openstreetmap.org/copyright) | The map, loaded by the browser or phone | OpenStreetMap data under the Open Database License; the map shows the attribution |

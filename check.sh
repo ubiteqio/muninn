@@ -31,7 +31,7 @@ run_server() {
 }
 
 run_embed() {
-    cd "$root/embed" || return 1
+    cd "$root/gpu/embed" || return 1
     uv run pytest -q || return 1
     uv run ruff check . || return 1
     uv run ruff format --check . || return 1

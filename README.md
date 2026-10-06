@@ -671,8 +671,7 @@ The API documentation is at `/api/v1/docs` (the setup script prints the address)
 | `server/muninn/` | Python backend. `api/` (routers, schemas), `core/` (config, auth, signing), `library/` (scanner, safety net), `huginn/` (Celery tasks), `search/` (all vector SQL), `ai/` (profiles and protocols), `analysis/`, `faces/`, `places/`, `duplicates/`, `memories/`, `social/`, `notify/` |
 | `server/migrations/` | Alembic: every schema change, tested up and down |
 | `app/` | React app for web, iOS and Android (`src/features/`, `src/api/` generated client, `src/platform/` web and native adapters) |
-| `embed/` | The embedding service: SigLIP 2, BGE-M3, Whisper, InsightFace |
-| `gpu/` | Compose stack and guide for the machine with the graphics card |
+| `gpu/` | Everything for the machine with the graphics card: one Compose stack (vLLM and the embedding service), its guide, and in `gpu/embed/` the embedding service (SigLIP 2, BGE-M3, Whisper, InsightFace) |
 | `deploy/` | Home-server Compose stack, PostgreSQL image, `.env.example`, `setup.sh` |
 | `check.sh` | The single gate for tests, linters and type checks, run before every commit |
 

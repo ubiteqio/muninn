@@ -1,6 +1,6 @@
 # Muninns KI-Maschine: alles, was eine Grafikkarte braucht, auf dem Rechner mit der Karte.
 #
-#   docker compose up -d
+#   docker compose up -d --build     (baut den Einbettungsdienst aus ./embed)
 #
 # Zwei Container, fünf Modelle:
 #   vllm   beschreibt Bilder          (Qwen3-VL-8B-Instruct)
@@ -88,7 +88,7 @@ services:
   # Die beiden Vektormodelle und Whisper. Drei Modelle in einem Prozess, zusammen rund 5 GB.
   embed:
     build:
-      context: ../embed
+      context: ./embed
     image: muninn/embed:local
     # vLLM zuerst. Es misst beim Start, wie viel Speicher es selbst braucht, und hält dann seinen
     # festen Anteil (VLLM_GPU_FRACTION). Läuft daneben schon der Einbettungsdienst und bekommt

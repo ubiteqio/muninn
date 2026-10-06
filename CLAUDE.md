@@ -44,8 +44,8 @@ muninn/
 │   │   └── users/          # accounts
 │   ├── migrations/         # Alembic
 │   └── tests/
-├── embed/                  # embedding service (SigLIP 2, BGE-M3, Whisper, InsightFace)
-├── gpu/                    # Docker stack for the AI machine: vLLM and embed together
+├── gpu/                    # the AI machine: one Docker stack, vLLM and embed together
+│   └── embed/              # embedding service (SigLIP 2, BGE-M3, Whisper, InsightFace)
 ├── app/                    # React + Vite + Capacitor
 │   ├── src/
 │   │   ├── routes/         # TanStack Router
@@ -140,10 +140,10 @@ cd server && uv run ruff check . && uv run ruff format --check . && uv run mypy 
 cd server && uv run uvicorn muninn.main:create_app --factory --reload
 cd server && uv run alembic upgrade head
 
-# Embedding service (from embed/), belongs on the machine with the graphics card
-cd embed && uv sync && uv run pytest
-cd embed && uv run uvicorn embed.main:create_app --factory --reload --port 8100
-cd gpu && docker compose up -d        # vLLM and the embedding service together
+# Embedding service (from gpu/embed/), belongs on the machine with the graphics card
+cd gpu/embed && uv sync && uv run pytest
+cd gpu/embed && uv run uvicorn embed.main:create_app --factory --reload --port 8100
+cd gpu && docker compose up -d --build   # vLLM and the embedding service together
 
 # App (from app/)
 cd app && pnpm install

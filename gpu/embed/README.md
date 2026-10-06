@@ -1,30 +1,29 @@
 # Muninn: der Einbettungsdienst
 
-Zwei Modelle hinter einer OpenAI-kompatiblen Adresse:
+Vier Modelle hinter einer OpenAI-kompatiblen Adresse:
 
 | Modell | Name in Muninn | Wofür |
 | --- | --- | --- |
 | SigLIP 2 (`google/siglip2-so400m-patch14-384`) | `siglip2` | Bilder **und** Suchsätze im selben Vektorraum, 1152 Dimensionen |
 | BGE-M3 (`BAAI/bge-m3`) | `bge-m3` | Beschreibungen als Vektor der Bedeutung, 1024 Dimensionen |
+| Whisper large-v3-turbo (`openai/whisper-large-v3-turbo`) | `whisper-large-v3-turbo` | Was in Videos gesagt wird |
+| InsightFace `buffalo_l` | `buffalo_l` | Gesichter finden und als Vektor ablegen |
 
-Der Dienst gehört auf die Maschine mit der Grafikkarte — dieselbe, auf der das beschreibende
-Modell läuft. Muninn spricht ihn übers Netz an wie jeden anderen KI-Server.
+Der Dienst ist Teil von Muninns KI-Maschine: Er läuft neben dem beschreibenden Modell (vLLM) auf
+dem Rechner mit der Grafikkarte. Muninn spricht ihn übers Netz an wie jeden anderen KI-Server.
 
 ## Starten
 
+Nicht von hier aus, sondern mit dem ganzen Stapel im Ordner darüber — er baut diesen Dienst aus
+dem Quelltext und startet ihn nach vLLM:
+
 ```bash
-cd embed
+cd gpu
 docker compose up -d --build
 ```
 
-Beim ersten Start lädt er die Gewichte (mehrere Gigabyte) in ein Volume. Danach steht er in
-Sekunden. Ohne Grafikkarte: den Block `deploy` entfernen und `EMBED_DEVICE=cpu` setzen — dann
-dauert ein Bild Sekunden statt Millisekunden.
-
-Auf der Karte hält er die Gewichte in halber Genauigkeit: zusammen rund 3 GB statt 6. Das ist
-Platz, den das beschreibende Modell daneben braucht — läuft vLLM mit
-`--gpu-memory-utilization 0.90`, bleibt für diesen Dienst nichts übrig. Etwa `0.80` lässt beiden
-Luft.
+Einrichtung, Speicheraufteilung der Karte und die Profile in Muninn stehen in
+[`gpu/README.md`](../README.md).
 
 ## Warum nicht alles in vLLM?
 
@@ -39,27 +38,16 @@ Pooling-Modelle, dafür gibt es bislang nur einen Wunsch im Projekt. Dazu kommt:
 bedient genau ein Modell. Drei Modelle wären drei Prozesse, jeder mit eigenem Speicheranteil auf
 derselben Karte.
 
-Deshalb dieser Dienst: zwei Modelle in einem Prozess, wenige Gigabyte, dieselbe Schnittstelle.
-Wer BGE-M3 lieber aus vLLM nimmt, trägt im Profil „Textvektoren" einfach dessen Adresse ein —
-Muninn fragt beide gleich.
-
-## In Muninn eintragen
-
-Unter **Admin → KI**, je ein Profil:
-
-| Schnittstelle | Basis-URL | Modell |
-| --- | --- | --- |
-| Bildvektoren | `http://<diese Maschine>:8100/v1` | `siglip2` |
-| Textvektoren | `http://<diese Maschine>:8100/v1` | `bge-m3` |
-
-Ist `EMBED_API_KEY` gesetzt, gehört derselbe Schlüssel in beide Profile.
+Deshalb dieser Dienst: die übrigen Modelle in einem Prozess, wenige Gigabyte, dieselbe
+Schnittstelle. Wer BGE-M3 lieber aus vLLM nimmt, trägt im Profil „Textvektoren" einfach dessen
+Adresse ein — Muninn fragt beide gleich.
 
 ## Ausprobieren
 
 ```bash
-curl http://localhost:8100/v1/models
+curl -H "Authorization: Bearer $AI_API_KEY" http://localhost:8100/v1/models
 curl -X POST http://localhost:8100/v1/embeddings \
-  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $AI_API_KEY" -H 'content-type: application/json' \
   -d '{"model":"bge-m3","input":["Oma am Strand"]}' | head -c 200
 ```
 
@@ -67,6 +55,8 @@ Ein Bild wird als Data-URL geschickt, genau wie es die OpenAI-API vorsieht:
 `{"model":"siglip2","input":["data:image/jpeg;base64,..."]}`
 
 ## Entwicklung
+
+Aus diesem Ordner (`gpu/embed`):
 
 ```bash
 uv sync
