@@ -23,6 +23,25 @@ const DEVICES = {
   ipad: { viewport: { width: 1032, height: 1376 }, scale: 2, mobile: true },
 }
 
+// The light theme ("Pergament"); the frame around each capture follows it.
+const THEME = 'light'
+const FRAME = {
+  light: {
+    background: 'radial-gradient(120% 70% at 50% 0%, #FFFDF8 0%, #F5F0E6 45%, #EDE6D6 100%)',
+    title: '#121A2B',
+    line: '#4A5163',
+    accent: '#A8711A',
+    shadow: 'rgba(18,26,43,.28)',
+  },
+  dark: {
+    background: 'radial-gradient(120% 70% at 50% 0%, #1a2440 0%, #121A2B 38%, #0B0D12 100%)',
+    title: '#EDE6D6',
+    line: '#C8CDD6',
+    accent: '#E3A73B',
+    shadow: 'rgba(0,0,0,.6)',
+  },
+}[THEME]
+
 const SANDBURG = '2009/2009-08 Sommerurlaub Ostsee/IMG_3360.JPG'
 
 const SCENES = {
@@ -117,8 +136,12 @@ async function takeRaw(browser, device, names, api) {
     hasTouch: true,
     locale: 'de-DE',
     timezoneId: 'Europe/Berlin',
-    colorScheme: 'dark',
+    colorScheme: THEME,
   })
+  // The app keeps its theme in this browser and is dark unless told otherwise.
+  await context.addInitScript((theme) => {
+    localStorage.setItem('muninn.theme', theme)
+  }, THEME)
   const page = await context.newPage()
   await page.goto(WEB)
   await page.fill('input[name=username]', USER)
@@ -151,18 +174,18 @@ function frameHtml(device, name, language) {
   @font-face { font-family: Inter; src: url(${FONT}); }
   html, body { margin: 0; width: 100%; height: 100%; }
   body {
-    background: radial-gradient(120% 70% at 50% 0%, #1a2440 0%, #121A2B 38%, #0B0D12 100%);
-    color: #EDE6D6; font-family: Inter, system-ui, sans-serif;
+    background: ${FRAME.background};
+    color: ${FRAME.title}; font-family: Inter, system-ui, sans-serif;
     display: flex; flex-direction: column; align-items: center; overflow: hidden;
   }
   .caption { text-align: center; padding: ${phone ? '150px 90px 0' : '130px 160px 0'}; }
-  .step { color: #E3A73B; font-weight: 600; letter-spacing: .28em; font-size: 34px; text-transform: uppercase; }
+  .step { color: ${FRAME.accent}; font-weight: 600; letter-spacing: .28em; font-size: 34px; text-transform: uppercase; }
   h1 { margin: ${phone ? 26 : 22}px 0 0; font-size: ${phone ? 96 : 92}px; line-height: 1.05; font-weight: 700; letter-spacing: -.02em; }
-  p { margin: ${phone ? 30 : 24}px 0 0; font-size: ${phone ? 46 : 44}px; line-height: 1.3; color: #C8CDD6; font-weight: 400; }
+  p { margin: ${phone ? 30 : 24}px 0 0; font-size: ${phone ? 46 : 44}px; line-height: 1.3; color: ${FRAME.line}; font-weight: 400; }
   .screen {
     margin-top: ${phone ? 110 : 90}px; width: ${phone ? 1060 : 1700}px;
     border-radius: ${phone ? 72 : 44}px; overflow: hidden; flex: none;
-    box-shadow: 0 0 0 ${phone ? 14 : 12}px #1d2433, 0 0 0 ${phone ? 16 : 14}px #2c3446, 0 60px 140px rgba(0,0,0,.6);
+    box-shadow: 0 0 0 ${phone ? 14 : 12}px #1d2433, 0 0 0 ${phone ? 16 : 14}px #2c3446, 0 60px 140px ${FRAME.shadow};
   }
   .screen img { display: block; width: 100%; }
   </style></head><body>
