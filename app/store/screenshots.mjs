@@ -60,7 +60,7 @@ const SCENES = {
       en: ['Find it the way you’d ask', 'One sentence is enough, even for uncaptioned photos.'],
     },
     take: async (page) => {
-      await page.goto(`${WEB}/search?q=${encodeURIComponent('Kinder bauen eine Sandburg')}`)
+      await page.goto(`${WEB}/search?q=${encodeURIComponent('Kinder am Strand')}`)
     },
   },
   viewer: {
@@ -87,7 +87,22 @@ const SCENES = {
       await page.goto(`${WEB}/albums/${medium.album_id}`)
     },
   },
+  details: {
+    caption: {
+      de: ['Jedes Foto beschrieben', 'Wer darauf ist, was passiert und wo, ganz von selbst.'],
+      en: ['Every photo described', 'Who is in it, what happens and where, all by itself.'],
+    },
+    take: async (page, api) => {
+      const medium = await api.medium(SANDBURG)
+      await page.goto(`${WEB}/albums/${medium.album_id}?medium=${medium.id}`)
+      await page.waitForTimeout(1500)
+      await page.touchscreen.tap(page.viewportSize().width / 2, page.viewportSize().height / 2)
+      await page.getByRole('button', { name: 'Details anzeigen' }).last().click()
+    },
+  },
   people: {
+    // On the iPad, six people leave the page mostly empty; the details above carry the faces there.
+    devices: ['iphone'],
     caption: {
       de: ['Einmal benannt, überall gefunden', 'Muninn erkennt Gesichter über die Jahre wieder.'],
       en: ['Name a face once', 'Muninn finds them again across the years.'],
@@ -106,6 +121,8 @@ const SCENES = {
     },
   },
 }
+
+const shows = (name, device) => !SCENES[name].devices || SCENES[name].devices.includes(device)
 
 async function demoApi() {
   const login = await fetch(`${API}/auth/login`, {
@@ -148,7 +165,7 @@ async function takeRaw(browser, device, names, api) {
   await page.fill('input[name=password]', PASSWORD)
   await page.keyboard.press('Enter')
   await page.waitForURL('**/home')
-  for (const name of names) {
+  for (const name of names.filter((n) => shows(n, device))) {
     await SCENES[name].take(page, api)
     await page.waitForLoadState('networkidle')
     // Previews fade in and the map settles; a quiet moment more keeps the capture calm.
@@ -201,8 +218,9 @@ async function frame(browser, device, names) {
   const page = await browser.newPage({ viewport: size, deviceScaleFactor: 1 })
   for (const language of ['de', 'en']) {
     mkdirSync(`${OUT}/${language}`, { recursive: true })
-    for (const name of names) {
-      const index = Object.keys(SCENES).indexOf(name) + 1
+    const order = Object.keys(SCENES).filter((n) => shows(n, device))
+    for (const name of names.filter((n) => shows(n, device))) {
+      const index = order.indexOf(name) + 1
       await page.setContent(frameHtml(device, name, language), { waitUntil: 'load' })
       await page.evaluate(() => document.fonts.ready)
       await page.screenshot({ path: `${OUT}/${language}/${device}-${index}-${name}.png` })

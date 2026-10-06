@@ -29,6 +29,14 @@ docker compose -p muninn-demo --env-file data/demo/demo.env -f deploy/docker-com
 docker compose -p muninn-demo --env-file data/demo/demo.env -f deploy/docker-compose.yml \
     exec api python -m muninn.cli create-admin --username anna --name Anna
 
+# 4. Once the AI has been through the library: reactions, comments and favourites, then names.
+#    The photos show different strangers, so no face groups form; name single faces by hand
+#    in the viewer's details (Jonas, Lena, Mats, Emma, Ben, Thomas). Animals stay unnamed.
+python3 app/store/demo/seed_social.py
+
+# 5. The screenshots, light theme, German and English, into data/demo/shots/:
+cd app && node store/screenshots.mjs
+
 # Away again, with its database:
 docker compose -p muninn-demo --env-file data/demo/demo.env -f deploy/docker-compose.yml down -v
 ```
