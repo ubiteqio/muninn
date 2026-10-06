@@ -34,5 +34,5 @@ docker compose -p muninn-demo --env-file data/demo/demo.env -f deploy/docker-com
 ```
 
 "Heute vor X Jahren" needs a folder whose date is today in an earlier year. The folder
-`2018-10 Herbst an der Müritz` is dated 6 October; for screenshots on another day, change its
+`2018-10 Herbst an der Müritz` is dated 7 October; for screenshots on another day, change its
 start date in `build_library.py` and build again.

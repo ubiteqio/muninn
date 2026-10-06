@@ -128,7 +128,7 @@ FOLDERS = (
     # On this day, years ago: "Heute vor X Jahren" on the day the screenshots are taken.
     Folder(
         "2018/2018-10 Herbst an der Müritz",
-        datetime(2018, 10, 6, 10),
+        datetime(2018, 10, 7, 10),
         1,
         53.42,
         12.70,
