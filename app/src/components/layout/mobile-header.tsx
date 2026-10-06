@@ -38,9 +38,11 @@ export function MobileHeader() {
           to="/search"
           aria-label={t('nav.search')}
           title={t('nav.search')}
-          className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground data-[status=active]:text-primary"
+          className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground data-[status=active]:bg-secondary data-[status=active]:text-primary"
         >
-          <Symbol name="search" size={24} />
+          {/* Marked like the open bell. The magnifier has no filled form - filled and outlined
+              are the same glyph - so a heavier stroke stands in for the fill. */}
+          {({ isActive }) => <Symbol name="search" size={24} weight={isActive ? 650 : 400} />}
         </Link>
         <NotificationBell />
 

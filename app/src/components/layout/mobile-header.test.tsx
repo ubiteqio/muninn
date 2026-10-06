@@ -41,6 +41,22 @@ describe('the phone layout', () => {
     expect(screen.queryByRole('link', { name: 'Admin öffnen' })).not.toBeInTheDocument()
   })
 
+  it('marks the magnifier while the search is open, and only then', async () => {
+    signedInAs('user')
+
+    const { unmount } = await renderScreen(<MobileHeader />, { path: '/search' })
+    const open = screen.getByRole('link', { name: 'Suche' })
+    expect(open).toHaveClass('data-[status=active]:bg-secondary')
+    expect(open).toHaveAttribute('data-status', 'active')
+    expect(open.querySelector('.symbol')).toHaveStyle({ '--symbol-weight': '650' })
+    unmount()
+
+    await renderScreen(<MobileHeader />, { path: '/home' })
+    const closed = screen.getByRole('link', { name: 'Suche' })
+    expect(closed).not.toHaveAttribute('data-status', 'active')
+    expect(closed.querySelector('.symbol')).toHaveStyle({ '--symbol-weight': '400' })
+  })
+
   it('keeps the bottom bar at five places, even for an admin', async () => {
     signedInAs('admin')
 
