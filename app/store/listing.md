@@ -93,8 +93,10 @@ Die erste Version von Muninn für iPhone und iPad.
 
 <!-- field: en.name -->
 ```
-Muninn
+Muninn - The Raven
 ```
+
+"Muninn" alone is taken by another app in the English store, so there it goes by its raven.
 
 ### Subtitle [30]
 
