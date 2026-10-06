@@ -21,7 +21,11 @@ export function MobileHeader() {
   return (
     // The status bar's room (notch, clock) comes on top of the bar's own height instead of out
     // of it; and at the sides at least 20 px, more where the device rounds its corners.
-    <header className="sticky top-0 z-20 box-content flex h-[60px] items-center justify-between border-b border-hairline/[0.08] bg-background/[0.86] pl-[max(env(safe-area-inset-left),20px)] pr-[max(env(safe-area-inset-right),16px)] pt-safe-top backdrop-blur-bar">
+    <header className="sticky top-0 z-20 box-content flex h-[60px] items-center justify-between border-b border-hairline/[0.08] pl-[max(env(safe-area-inset-left),20px)] pr-[max(env(safe-area-inset-right),16px)] pt-safe-top">
+      {/* The glass lies on a layer of its own behind the bar. On the bar itself, the blur would
+          make the bar the frame of everything fixed inside it: the bell's list, meant to fill the
+          screen, came out one pixel high. */}
+      <div aria-hidden className="absolute inset-0 -z-10 bg-background/[0.86] backdrop-blur-bar" />
       {/* The mark leads home, as a logo does everywhere. */}
       <Link to="/home" aria-label={t('header.home')} className="flex items-center gap-2.5">
         <LogoMark />

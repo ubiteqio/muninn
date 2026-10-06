@@ -26,7 +26,8 @@ const ICONS: Record<string, string> = {
 /**
  * The bell: how much is new, and a list of it one tap away. Opening it reads everything; what
  * was new keeps its mark until the list closes, so one can still see what it was. On the desktop
- * the list drops from the bell, on the phone it takes the screen below the header.
+ * the list drops from the bell, on the phone it takes the screen between the header (with the
+ * status bar above it) and the bottom bar, which stays in reach.
  */
 export function NotificationBell({ className }: { className?: string }) {
   const { t } = useTranslation()
@@ -84,7 +85,7 @@ export function NotificationBell({ className }: { className?: string }) {
         <div
           role="dialog"
           aria-label={t('notify.title')}
-          className="fixed inset-x-0 bottom-0 top-[60px] z-40 flex flex-col overflow-hidden border-t border-hairline/10 bg-background shadow-xl md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:max-h-[70vh] md:w-[380px] md:rounded-xl md:border"
+          className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] top-[calc(60px+env(safe-area-inset-top))] z-40 flex flex-col overflow-hidden border-t border-hairline/10 bg-background shadow-xl md:absolute md:inset-auto md:right-0 md:top-full md:mt-2 md:max-h-[70vh] md:w-[380px] md:rounded-xl md:border"
         >
           <div className="flex items-center justify-between border-b border-hairline/10 px-4 py-3">
             <h2 className="text-md font-semibold text-foreground">{t('notify.title')}</h2>
