@@ -10,6 +10,11 @@
 services:
   web:
     image: node:22-bookworm-slim
+    # The base file builds the web image from app/. Kept here, "up --build" built the app and
+    # tagged it node:22-bookworm-slim: the official image on the machine was replaced by a Caddy
+    # one, and the next build failed on "corepack: not found". The development server needs no
+    # build, only Node.
+    build: !reset null
     working_dir: /app
     environment:
       # Inside Docker the API is a neighbour, not a published port.
