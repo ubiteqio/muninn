@@ -87,6 +87,10 @@ describe('PeopleScreen', () => {
       expect(calls.some((call) => call.path === '/api/v1/faces/s1/confirm')).toBe(true)
     })
 
+    expect(
+      screen.getByRole('link', { name: 'Fotos der Gruppe mit 5 Gesichtern ansehen' }),
+    ).toHaveAttribute('href', '/people/groups/7')
+
     await user.click(screen.getByRole('button', { name: 'Gruppe mit 5 Gesichtern benennen' }))
     const dialog = await screen.findByRole('dialog')
     await user.type(within(dialog).getByLabelText('Name'), 'Oma')

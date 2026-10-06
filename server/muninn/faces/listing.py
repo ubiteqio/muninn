@@ -275,9 +275,36 @@ async def media_of(
     limit: int,
 ) -> tuple[list[Media], bool]:
     """The photos a person is in, newest first."""
+    return await _media_with(session, Face.person_id == person_id, cursor=cursor, limit=limit)
+
+
+async def media_of_group(
+    session: AsyncSession,
+    cluster: int,
+    *,
+    cursor: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> tuple[list[Media], bool]:
+    """The photos an unnamed group is in, newest first: to see who it is before naming it."""
+    return await _media_with(
+        session,
+        and_(Face.cluster == cluster, Face.person_id.is_(None)),
+        cursor=cursor,
+        limit=limit,
+    )
+
+
+async def _media_with(
+    session: AsyncSession,
+    condition: Any,
+    *,
+    cursor: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> tuple[list[Media], bool]:
+    """The media holding a face that meets the condition, newest first."""
     query = (
         select(Media)
-        .where(shown(), Media.id.in_(select(Face.media_id).where(Face.person_id == person_id)))
+        .where(shown(), Media.id.in_(select(Face.media_id).where(condition)))
         .options(selectinload(Media.files))
     )
     if cursor is not None:

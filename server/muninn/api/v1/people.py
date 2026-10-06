@@ -2,6 +2,7 @@
 and the faces of one medium (/media/{id}/faces, /faces/{id})."""
 
 import uuid
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
@@ -49,6 +50,7 @@ from muninn.faces.service import crop_name
 from muninn.huginn.dispatch import queue_face_reassessment, queue_face_sorting
 from muninn.media.service import relative_of
 from muninn.models.face import Face, Person
+from muninn.models.media import Media
 
 router = APIRouter(tags=["people"])
 admin_router = APIRouter(prefix="/admin/faces", tags=["admin: faces"])
@@ -70,6 +72,26 @@ def _offset(cursor: str | None) -> int:
         return decode_offset(cursor)
     except ValueError as error:
         raise _problem(400, "invalid-cursor", "Invalid cursor") from error
+
+
+def _position(cursor: str | None) -> tuple[datetime, uuid.UUID] | None:
+    """Where a page of media goes on: the date and id it ended with."""
+    try:
+        return decode_cursor(cursor) if cursor else None
+    except ValueError as error:
+        raise _problem(400, "invalid-cursor", "Invalid cursor") from error
+
+
+def _media_page(found: list[Media], more: bool, settings: Settings) -> Page[MediaView]:
+    return Page[MediaView](
+        items=[
+            MediaView.of(item, library_path=str(settings.library_path), secret=settings.jwt_secret)
+            for item in found
+        ],
+        next_cursor=encode_cursor(cursor_value(found[-1]), found[-1].id)
+        if more and found
+        else None,
+    )
 
 
 def _person_view(summary: listing.PersonSummary, secret: str) -> PersonCard:
@@ -138,6 +160,21 @@ async def read_group(
         FaceView.of(shown.face, secret=settings.jwt_secret)
         for shown in await listing.group_faces(session, cluster)
     ]
+
+
+@router.get("/people/groups/{cluster}/media", summary="The photos and videos a group is in")
+async def read_group_media(
+    cluster: int,
+    user: ActiveUser,
+    session: SessionDep,
+    settings: SettingsDep,
+    cursor: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 60,
+) -> Page[MediaView]:
+    """To see who a group is before naming it. Once named, its photos are the person's."""
+    position = _position(cursor)
+    found, more = await listing.media_of_group(session, cluster, cursor=position, limit=limit)
+    return _media_page(found, more, settings)
 
 
 @router.post("/people/groups/{cluster}/name", summary="Say who an unnamed group is")
@@ -266,20 +303,9 @@ async def read_person_media(
     limit: Annotated[int, Query(ge=1, le=200)] = 60,
 ) -> Page[MediaView]:
     await _person(session, person_id)
-    try:
-        position = decode_cursor(cursor) if cursor else None
-    except ValueError as error:
-        raise _problem(400, "invalid-cursor", "Invalid cursor") from error
+    position = _position(cursor)
     found, more = await listing.media_of(session, person_id, cursor=position, limit=limit)
-    return Page[MediaView](
-        items=[
-            MediaView.of(item, library_path=str(settings.library_path), secret=settings.jwt_secret)
-            for item in found
-        ],
-        next_cursor=encode_cursor(cursor_value(found[-1]), found[-1].id)
-        if more and found
-        else None,
-    )
+    return _media_page(found, more, settings)
 
 
 async def _face(session: AsyncSession, face_id: uuid.UUID) -> Face:

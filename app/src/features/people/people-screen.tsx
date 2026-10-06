@@ -441,7 +441,10 @@ function PersonTile({ person }: { person: PersonView }) {
   )
 }
 
-/** An unnamed group: four of its faces, and a tap to say who it is. */
+/**
+ * An unnamed group: four of its faces, a tap to say who it is, and a link to every photo it is
+ * in, for when four faces are not enough to tell.
+ */
 function GroupTile({ group, persons }: { group: GroupView; persons: PersonView[] }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -450,11 +453,11 @@ function GroupTile({ group, persons }: { group: GroupView; persons: PersonView[]
   const four = group.faces.slice(0, 4)
 
   return (
-    <li>
+    <li className="rounded-lg border border-hairline/10 bg-card p-2 transition hover:border-accent/40">
       <button
         type="button"
         aria-label={t('people.whoIs', { count: group.size })}
-        className="group w-full rounded-lg border border-hairline/10 bg-card p-2 text-left transition hover:border-accent/40"
+        className="block w-full rounded-md text-left"
         onClick={() => {
           setOpen(true)
         }}
@@ -473,10 +476,22 @@ function GroupTile({ group, persons }: { group: GroupView; persons: PersonView[]
             </span>
           ))}
         </span>
-        <span className="mt-2 block text-sm text-muted-foreground">
+      </button>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="truncate text-sm text-muted-foreground">
           {t('people.faces', { count: group.size })}
         </span>
-      </button>
+        <Link
+          to="/people/groups/$cluster"
+          params={{ cluster: String(group.cluster) }}
+          aria-label={t('people.groupPhotosOf', { count: group.size })}
+          title={t('people.groupPhotos')}
+          className="-m-1 flex shrink-0 items-center gap-1 rounded-md p-1 text-sm text-muted-foreground transition hover:text-foreground"
+        >
+          <Symbol name="photo_library" size={16} />
+          <span className="hidden sm:inline">{t('people.groupPhotos')}</span>
+        </Link>
+      </div>
       {open && (
         <NameDialog
           open={open}

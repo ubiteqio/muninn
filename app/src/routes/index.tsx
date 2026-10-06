@@ -11,6 +11,7 @@ import { AlbumsScreen } from '@/features/albums/albums-screen'
 import { HomeScreen } from '@/features/home/home-screen'
 import { IntroScreen } from '@/features/home/intro-screen'
 import { OverviewScreen } from '@/features/overview/overview-screen'
+import { GroupScreen } from '@/features/people/group-screen'
 import { PeopleScreen, type PeopleSearch } from '@/features/people/people-screen'
 import { PersonScreen } from '@/features/people/person-screen'
 import { PhotobooksScreen } from '@/features/photobooks/photobooks-screen'
@@ -286,6 +287,20 @@ export const personRoute = createRoute({
 function PersonRoute() {
   const { personId } = personRoute.useParams()
   return <PersonScreen key={personId} personId={personId} />
+}
+
+/** An unnamed group of faces, laid out like an album, to see who it is before naming it. */
+export const groupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/people/groups/$cluster',
+  component: GroupRoute,
+})
+
+function GroupRoute() {
+  const cluster = Number(groupRoute.useParams().cluster)
+  // A group is a number; anything else is a broken link, and the groups are on /people.
+  if (!Number.isInteger(cluster)) return <Navigate to="/people" replace />
+  return <GroupScreen key={cluster} cluster={cluster} />
 }
 
 /** Smarts: the library sorted by what is in the pictures, for browsing rather than searching. */

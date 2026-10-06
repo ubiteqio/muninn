@@ -78,6 +78,41 @@ async def test_a_group_is_named_and_its_suggestions_answered(
     assert len(photos["items"]) == 2
 
 
+async def test_the_photos_of_a_group_are_seen_before_it_is_named(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    headers = await _headers(api_client, session_factory)
+    first = await faces_in_a_photo(session, at(1.0))
+    second = await faces_in_a_photo(session, at(0.97))
+    # Somebody else, alone in a photo of their own: not in the group.
+    await faces_in_a_photo(session, at(0.0, towards=5))
+
+    overview = (await api_client.get("/people", headers=headers)).json()
+    (unnamed,) = overview["groups"]["items"]
+    cluster = unnamed["cluster"]
+    media_ids = {
+        str(found.media_id)
+        for found in [await session.get(Face, face_id) for face_id in (*first, *second)]
+        if found is not None
+    }
+    assert len(media_ids) == 2
+
+    page = (await api_client.get(f"/people/groups/{cluster}/media?limit=1", headers=headers)).json()
+    rest = (
+        await api_client.get(
+            f"/people/groups/{cluster}/media?cursor={page['next_cursor']}", headers=headers
+        )
+    ).json()
+    assert {item["id"] for item in page["items"] + rest["items"]} == media_ids
+    assert rest["next_cursor"] is None
+
+    await api_client.post(f"/people/groups/{cluster}/name", json={"name": "Lena"}, headers=headers)
+    named = (await api_client.get(f"/people/groups/{cluster}/media", headers=headers)).json()
+    assert named["items"] == []
+
+
 async def test_the_surest_suggestion_comes_first(
     api_client: AsyncClient,
     session: AsyncSession,

@@ -1500,6 +1500,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/people/groups/{cluster}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The photos and videos a group is in
+         * @description To see who a group is before naming it. Once named, its photos are the person's.
+         */
+        get: operations["read_group_media_api_v1_people_groups__cluster__media_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/people/groups/{cluster}/name": {
         parameters: {
             query?: never;
@@ -7298,6 +7318,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FaceView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_group_media_api_v1_people_groups__cluster__media_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                cluster: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MediaView_"];
                 };
             };
             /** @description Validation Error */

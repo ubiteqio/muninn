@@ -56,6 +56,26 @@ export function useGroupFaces(cluster: number | null) {
   })
 }
 
+/** The photos an unnamed group is in, to see who it is before naming it. */
+export function useGroupMedia(cluster: number) {
+  const query = useInfiniteQuery({
+    queryKey: ['media', 'group', cluster],
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) =>
+      unwrap(
+        await api.GET('/api/v1/people/groups/{cluster}/media', {
+          params: {
+            path: { cluster },
+            query: pageParam === null ? {} : { cursor: pageParam },
+          },
+        }),
+      ),
+    getNextPageParam: (page) => page.next_cursor ?? null,
+  })
+  const media: Medium[] = query.data?.pages.flatMap((page) => page.items) ?? []
+  return { ...query, media }
+}
+
 export function useSuggestions(enabled: boolean) {
   return useInfiniteQuery({
     queryKey: [...KEY, 'suggestions'],
