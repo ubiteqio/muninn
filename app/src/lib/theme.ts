@@ -1,6 +1,6 @@
 /**
- * Light or dark, per device. Rabenschwarz is the design's default; Pergament is the light one;
- * "system" follows the device. Kept in this browser only: a phone at night and a desk by day
+ * Light or dark, per device. Pergament, the light one, is the default; Rabenschwarz is the dark
+ * one; "system" follows the device. Kept in this browser only: a phone at night and a desk by day
  * may well want different ones.
  */
 export type Theme = 'system' | 'light' | 'dark'
@@ -15,9 +15,9 @@ let onSystemChange: (() => void) | null = null
 export function storedTheme(): Theme {
   try {
     const value = localStorage.getItem(KEY)
-    return value === 'light' || value === 'system' ? value : 'dark'
+    return value === 'dark' || value === 'system' ? value : 'light'
   } catch {
-    return 'dark'
+    return 'light'
   }
 }
 
