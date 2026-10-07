@@ -137,9 +137,8 @@ function AccountForm({ user, isSelf }: { user: User; isSelf: boolean }) {
         event.preventDefault()
         if (changed) void save()
       }}
-      // Two columns from the tablet up, and no wider than reads well: a long field across a
-      // wide screen is hard to take in.
-      className="max-w-3xl space-y-4"
+      // Two columns from the tablet up: across the card's width, single fields grew too long.
+      className="space-y-4"
       noValidate
     >
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
