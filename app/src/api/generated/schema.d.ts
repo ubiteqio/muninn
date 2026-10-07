@@ -1571,7 +1571,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Rename a person, or hide or show them */
+        /** Rename a person, hide or show them, or link their account */
         patch: operations["update_person_api_v1_people__person_id__patch"];
         trace?: never;
     };
@@ -2052,6 +2052,19 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AccountBrief
+         * @description The account a person signs in with.
+         */
+        AccountBrief: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Display Name */
+            display_name: string;
+        };
+        /**
          * ActiveTask
          * @description One piece of work a worker has in its hands right now.
          */
@@ -2094,6 +2107,11 @@ export interface components {
             excerpt: string | null;
             /** Reaction */
             reaction?: string | null;
+            /**
+             * Previews
+             * @default []
+             */
+            previews: components["schemas"]["MediaRef"][];
         };
         /**
          * AiCheckView
@@ -3118,6 +3136,8 @@ export interface components {
             album_id: string;
             /** Thumb */
             thumb: string | null;
+            /** Preview */
+            preview?: string | null;
         };
         /**
          * MediaStageView
@@ -3531,6 +3551,7 @@ export interface components {
              * @default 0
              */
             faces_twice: number;
+            account?: components["schemas"]["AccountBrief"] | null;
         };
         /** PersonShare */
         PersonShare: {
@@ -3552,6 +3573,8 @@ export interface components {
             name?: string | null;
             /** Hidden */
             hidden?: boolean | null;
+            /** User Id */
+            user_id?: string | null;
         };
         /**
          * PersonView
