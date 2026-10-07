@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import ColumnElement, delete, func, select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import aggregate_order_by, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -23,6 +23,9 @@ from muninn.models.user import User
 
 #: How many names a summary carries. "Anna, Boris und 5 weitere" - more says nothing more.
 NAMES_SHOWN = 3
+
+#: How many pictures a batch of new media brings into the news: a 2x2 grid of the first.
+ARRIVALS_SHOWN = 4
 
 
 class TargetKind(StrEnum):
@@ -220,6 +223,8 @@ class Happening:
     excerpt: str | None = None
     #: For a like on a medium: which reaction.
     reaction: str | None = None
+    #: For new media: the first few that arrived, in order, to show beside the count.
+    media_ids: tuple[uuid.UUID, ...] = ()
 
 
 async def happenings(
@@ -278,7 +283,10 @@ async def happenings(
             hour,
             func.count(),
             latest,
-            func.array_agg(ChangeLogEntry.media_id),
+            # A few more than are shown: the same file can arrive twice, and some may be gone.
+            func.array_agg(aggregate_order_by(ChangeLogEntry.media_id, ChangeLogEntry.occurred_at))[
+                1 : ARRIVALS_SHOWN * 2
+            ],
         )
         .where(*arrival_rules)
         .group_by(ChangeLogEntry.album_id, hour)
@@ -286,15 +294,17 @@ async def happenings(
         .limit(limit)
     )
     for album_id, started, count, at, media in arrivals.tuples():
+        first = tuple(dict.fromkeys(item for item in media if item is not None))
         found.append(
             Happening(
                 key=f"new:{album_id}:{started.isoformat()}",
                 kind="new_media",
                 actor_id=None,
-                media_id=next((item for item in media if item is not None), None),
+                media_id=first[0] if first else None,
                 album_id=album_id,
                 at=at,
                 count=count,
+                media_ids=first,
             )
         )
 

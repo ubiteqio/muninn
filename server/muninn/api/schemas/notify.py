@@ -18,15 +18,22 @@ class MediaRef(BaseModel):
     kind: MediaKind
     album_id: UUID
     thumb: str | None
+    #: The larger copy the viewer shows, for the news feed's full width pictures.
+    preview: str | None = None
 
     @classmethod
     def of(cls, media: Media, *, secret: str) -> "MediaRef":
-        thumb = (
-            f"/api/v1/media/{media.id}/thumb?token={sign_media(media.id, 'thumb', secret=secret)}"
-            if media.thumbnail_path
-            else None
+        def address(variant: str) -> str:
+            token = sign_media(media.id, variant, secret=secret)
+            return f"/api/v1/media/{media.id}/{variant}?token={token}"
+
+        return cls(
+            id=media.id,
+            kind=media.kind,
+            album_id=media.album_id,
+            thumb=address("thumb") if media.thumbnail_path else None,
+            preview=address("preview") if media.preview_path else None,
         )
-        return cls(id=media.id, kind=media.kind, album_id=media.album_id, thumb=thumb)
 
 
 class AlbumRef(BaseModel):
@@ -84,6 +91,8 @@ class ActivityView(BaseModel):
     excerpt: str | None
     #: For a like on a medium: which reaction.
     reaction: str | None = None
+    #: The pictures to show: the one it is about, or the first few of a batch of new media.
+    previews: list[MediaRef] = []
 
 
 class NotificationSettingsView(BaseModel):

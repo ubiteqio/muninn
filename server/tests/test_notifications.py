@@ -15,6 +15,7 @@ from muninn.models.user import User, UserRole
 from muninn.notify import service
 from tests.test_comments import person, say
 from tests.test_social import a_picture
+from tests.test_timeline import JULY, a_medium, an_album
 
 pytestmark = pytest.mark.usefixtures("api_client")
 
@@ -164,6 +165,44 @@ async def test_the_news_tells_what_everybody_did(
     ]
     assert news[0]["excerpt"] == "Herrlich"
     assert news[0]["media"]["id"] == str(medium.id)
+    assert [preview["id"] for preview in news[0]["previews"]] == [str(medium.id)]
+
+
+async def test_new_media_in_the_news_bring_their_first_pictures(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The feed shows a batch as a grid: the first four that arrived, each once, with the
+    larger copy the viewer already has beside the thumbnail."""
+    album = await an_album(session, "Sommer")
+    media = [await a_medium(session, album, taken_at=JULY, name=f"IMG_{n}.jpg") for n in range(6)]
+    for medium in media:
+        medium.thumbnail_path = f"thumbs/{medium.id}.jpg"
+        medium.preview_path = f"previews/{medium.id}.jpg"
+    started = datetime(2026, 7, 1, 10, 0, tzinfo=UTC)
+    # The first picture arrives twice; it is shown once.
+    arrivals = [media[0], media[0], *media[1:]]
+    for minute, medium in enumerate(arrivals):
+        session.add(
+            ChangeLogEntry(
+                kind=ChangeKind.MEDIA_ADDED,
+                trigger=SyncTrigger.QUICK,
+                album_id=album.id,
+                media_id=medium.id,
+                path=f"Sommer/{medium.id}.jpg",
+                occurred_at=started + timedelta(minutes=minute),
+            )
+        )
+    await session.commit()
+    anna = await person(api_client, session_factory, "anna", "Anna")
+
+    (news,) = (await api_client.get("/activity", headers=anna)).json()["items"]
+
+    assert (news["kind"], news["count"]) == ("new_media", 7)
+    assert [preview["id"] for preview in news["previews"]] == [str(m.id) for m in media[:4]]
+    assert news["media"]["id"] == str(media[0].id)
+    assert news["previews"][0]["preview"].startswith(f"/api/v1/media/{media[0].id}/preview?token=")
 
 
 async def test_nobody_else_sees_my_bell(

@@ -131,7 +131,11 @@ async def activity(
 ) -> Page[ActivityView]:
     found = await social.happenings(session, before=before, limit=limit)
     names = await _names(session, [item.actor_id for item in found if item.actor_id])
-    media = await _media(session, [item.media_id for item in found if item.media_id])
+    media = await _media(
+        session,
+        [item.media_id for item in found if item.media_id]
+        + [media_id for item in found for media_id in item.media_ids],
+    )
     albums = await _albums(
         session,
         [item.album_id for item in found if item.album_id]
@@ -140,9 +144,11 @@ async def activity(
 
     items = []
     for item in found:
-        medium = media.get(item.media_id) if item.media_id else None
-        if item.media_id and medium is None:
+        shown_ids = item.media_ids or ((item.media_id,) if item.media_id else ())
+        previews = [media[media_id] for media_id in shown_ids if media_id in media]
+        if shown_ids and not previews:
             continue  # gone from the NAS: nothing to show or lead to
+        medium = previews[0] if previews else None
         album_id = item.album_id or (medium.album_id if medium else None)
         album = albums.get(album_id) if album_id else None
         items.append(
@@ -156,6 +162,10 @@ async def activity(
                 album=AlbumRef.of(album) if album else None,
                 excerpt=item.excerpt,
                 reaction=item.reaction,
+                previews=[
+                    MediaRef.of(preview, secret=settings.jwt_secret)
+                    for preview in previews[: social.ARRIVALS_SHOWN]
+                ],
             )
         )
     return Page[ActivityView](
