@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from muninn.api.schemas.notify import (
     ActivityView,
     AlbumRef,
+    DeviceRegistration,
     MarkRead,
     MediaRef,
     NotificationSettingsView,
@@ -24,7 +25,7 @@ from muninn.models.album import Album
 from muninn.models.media import Media, shown
 from muninn.models.notification import PushEvent
 from muninn.models.user import User, UserRole
-from muninn.notify import service
+from muninn.notify import devices, service
 from muninn.social import service as social
 
 router = APIRouter(tags=["notifications"])
@@ -193,3 +194,26 @@ async def _albums(session: AsyncSession, ids: list[uuid.UUID]) -> dict[uuid.UUID
         return {}
     rows = await session.scalars(select(Album).where(Album.id.in_(set(ids))))
     return {item.id: item for item in rows}
+
+
+@router.post(
+    "/me/devices", status_code=status.HTTP_204_NO_CONTENT, summary="Push the bell to this phone"
+)
+async def register_device(
+    body: DeviceRegistration, user: ActiveUser, session: SessionDep
+) -> Response:
+    """Called by the app once notifications are allowed, and again whenever it starts: the token
+    may have changed, and the phone may have changed hands."""
+    await devices.register(session, user, body.platform, body.token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/me/devices/{token}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Stop pushing to this phone",
+)
+async def forget_device(token: str, user: ActiveUser, session: SessionDep) -> Response:
+    """Called by the app before it signs out."""
+    await devices.forget(session, user, token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -41,6 +41,7 @@ EXPECTED_TABLES = {
     "comment_mentions",
     "notifications",
     "notification_settings",
+    "devices",
     "places",
     "duplicate_groups",
     "duplicate_members",
@@ -101,7 +102,7 @@ def test_upgrade_creates_extensions_and_tables(
 
     assert extensions >= REQUIRED_EXTENSIONS
     assert tables >= EXPECTED_TABLES
-    assert version == "0051"
+    assert version == "0052"
 
 
 def test_username_is_case_insensitive_and_unique(

@@ -5,6 +5,7 @@ from muninn.models.analysis import MediaAnalysis, MediaTranscript, VideoFrame
 from muninn.models.attempt import GIVE_UP_AFTER, MediaAttempt
 from muninn.models.base import Base
 from muninn.models.change_log import ChangeKind, ChangeLogEntry, SyncTrigger
+from muninn.models.device import Device, DevicePlatform
 from muninn.models.duplicate import DuplicateGroup, DuplicateMember
 from muninn.models.face import Face, FaceRejection, Person
 from muninn.models.media import (
@@ -44,6 +45,8 @@ __all__ = [
     "Comment",
     "CommentMention",
     "DateSource",
+    "Device",
+    "DevicePlatform",
     "DuplicateGroup",
     "DuplicateMember",
     "Face",

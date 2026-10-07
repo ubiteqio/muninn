@@ -3,10 +3,11 @@
 from datetime import datetime, time
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from muninn.core.signing import sign_media
 from muninn.models.album import Album
+from muninn.models.device import DevicePlatform
 from muninn.models.media import Media, MediaKind
 from muninn.models.notification import PushEvent
 
@@ -106,3 +107,10 @@ class NotificationSettingsView(BaseModel):
     #: Local time, "22:00".
     quiet_start: time
     quiet_end: time
+
+
+class DeviceRegistration(BaseModel):
+    """A phone that allowed notifications: the token its push service gave the app."""
+
+    platform: DevicePlatform
+    token: str = Field(min_length=1, max_length=512)

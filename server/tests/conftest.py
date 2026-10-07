@@ -135,8 +135,8 @@ async def clean_tables(request: pytest.FixtureRequest) -> AsyncIterator[None]:
                 " media_files, pending_files, change_log, ai_profiles, image_embeddings,"
                 " caption_embeddings, media_analyses, video_frames, media_transcripts, likes,"
                 " favorites, comments, comment_mentions, notifications, notification_settings,"
-                " duplicate_groups, duplicate_members, memories, memory_media, persons, faces,"
-                " face_rejections,"
+                " devices, duplicate_groups, duplicate_members, memories, memory_media, persons,"
+                " faces, face_rejections,"
                 " places"
                 " CASCADE"
             )

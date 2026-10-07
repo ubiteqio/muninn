@@ -67,6 +67,9 @@ class Notification(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: When it last went out as a push. Older than updated_at, it has grown since: the push
+    #: goes out again and replaces the one before.
+    pushed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class PushEvent(StrEnum):
