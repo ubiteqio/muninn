@@ -1,15 +1,17 @@
 import type { TFunction } from 'i18next'
-import { useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { isApiError } from '@/api/problem'
 import { ConfirmDialog } from '@/components/muninn/confirm-dialog'
 import { Symbol } from '@/components/muninn/symbol'
 import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RoleChoice } from '@/features/admin/role-choice'
 import { StartingPassword } from '@/features/admin/starting-password'
 import {
   useDeleteUser,
+  useLinkPerson,
   type User,
   useResetPassword,
   useUpdateUser,
@@ -17,6 +19,8 @@ import {
 import { Field } from '@/features/auth/field'
 import { FormError } from '@/features/auth/form-error'
 import { initialsOf } from '@/features/auth/initials'
+import { Face } from '@/features/people/face'
+import { usePeople } from '@/features/people/use-people'
 import { cn } from '@/lib/utils'
 
 export function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
@@ -72,6 +76,7 @@ export function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
             {user.username}
             {disabled && ` · ${t('admin.users.status.disabled')}`}
             {user.must_change_password && ` · ${t('admin.users.status.startingPassword')}`}
+            {user.person && ` · ${t('admin.users.person.short', { name: user.person.name })}`}
           </span>
         </span>
 
@@ -89,6 +94,8 @@ export function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
             pending={updateUser.isPending}
             onSave={(changes) => change({ id: user.id, ...changes })}
           />
+
+          <PersonChoice user={user} onError={setError} />
 
           {/* What happens at once, apart from what waits for "Speichern". */}
           <div className="flex flex-wrap gap-2 border-t border-hairline/[0.06] pt-4">
@@ -235,6 +242,122 @@ function AccountFields({
         {t('admin.users.action.save')}
       </Button>
     </form>
+  )
+}
+
+/**
+ * Which person on the photos signs in with this account: they hear of comments and reactions on
+ * photos of them. Takes effect at once, like locking an account.
+ */
+function PersonChoice({ user, onError }: { user: User; onError: (message: string) => void }) {
+  const { t } = useTranslation()
+  const labelId = useId()
+  const hintId = useId()
+  const [open, setOpen] = useState(false)
+  const people = usePeople()
+  const link = useLinkPerson()
+  const current = user.person?.id ?? null
+  // A hidden person is not among the shown ones; the one this account has stays choosable.
+  const shown: Choosable[] = people.data?.persons ?? []
+  const persons: Choosable[] = [
+    ...shown,
+    ...(user.person && !shown.some((person) => person.id === current) ? [user.person] : []),
+  ].sort((a, b) => a.name.localeCompare(b.name))
+  const chosen = persons.find((person) => person.id === current)
+
+  async function choose(personId: string | null) {
+    setOpen(false)
+    if (personId === current) return
+    try {
+      if (personId) await link.mutateAsync({ personId, userId: user.id })
+      else if (current) await link.mutateAsync({ personId: current, userId: null })
+    } catch (failure) {
+      onError(messageFor(failure, t))
+    }
+  }
+
+  return (
+    <div className="space-y-1.5 border-t border-hairline/[0.06] pt-4">
+      <p id={labelId} className="text-sm font-medium text-muted-foreground">
+        {t('admin.users.person.label')}
+      </p>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-haspopup="listbox"
+            aria-labelledby={labelId}
+            aria-describedby={hintId}
+            disabled={link.isPending || people.isPending}
+            className="flex h-11 w-full items-center gap-2.5 rounded-lg border border-hairline/10 bg-card px-3 text-left text-md text-foreground transition hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60 sm:w-80"
+          >
+            {chosen ? (
+              <Face src={chosen.cover?.crop} size={26} />
+            ) : (
+              <Symbol name="person" size={20} className="text-muted-foreground" />
+            )}
+            <span className={cn('flex-1 truncate', !chosen && 'text-muted-foreground')}>
+              {chosen?.name ?? t('admin.users.person.none')}
+            </span>
+            <Symbol name="expand_more" size={20} className="text-muted-foreground" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="p-1.5">
+          <ul role="listbox" aria-labelledby={labelId} className="max-h-72 overflow-y-auto">
+            <PersonOption selected={current === null} onChoose={() => void choose(null)}>
+              <Symbol name="person" size={20} className="mx-[3px] text-muted-foreground" />
+              <span className="text-muted-foreground">{t('admin.users.person.none')}</span>
+            </PersonOption>
+            {persons.map((person) => (
+              <PersonOption
+                key={person.id}
+                selected={person.id === current}
+                onChoose={() => void choose(person.id)}
+              >
+                <Face src={person.cover?.crop} size={26} />
+                <span className="truncate">{person.name}</span>
+              </PersonOption>
+            ))}
+          </ul>
+        </PopoverContent>
+      </Popover>
+      <p id={hintId} className="text-xs-plus text-muted-foreground">
+        {people.isSuccess && persons.length === 0
+          ? t('admin.users.person.empty')
+          : t('admin.users.person.hint')}
+      </p>
+    </div>
+  )
+}
+
+/** A person to choose: from the people list with a face, or the hidden one an account has. */
+type Choosable = { id: string; name: string; cover?: { crop: string } | null }
+
+function PersonOption({
+  selected,
+  onChoose,
+  children,
+}: {
+  selected: boolean
+  onChoose: () => void
+  children: ReactNode
+}) {
+  return (
+    <li role="option" aria-selected={selected}>
+      <button
+        type="button"
+        onClick={onChoose}
+        className={cn(
+          'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-md text-foreground transition hover:bg-secondary/60 focus-visible:bg-secondary/60 focus-visible:outline-none',
+          selected && 'bg-secondary/40',
+        )}
+      >
+        {children}
+        {selected && (
+          <Symbol name="check_circle" size={18} filled className="ml-auto shrink-0 text-primary" />
+        )}
+      </button>
+    </li>
   )
 }
 

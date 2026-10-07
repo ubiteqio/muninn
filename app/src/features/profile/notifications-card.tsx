@@ -15,6 +15,7 @@ const EVENTS = [
   'mention',
   'comment_like',
   'comment',
+  'pictured',
   'activity',
   'new_media',
   'admin_alerts',

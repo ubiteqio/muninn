@@ -57,6 +57,28 @@ describe('NotificationBell', () => {
     ).toBeInTheDocument()
   })
 
+  it('tells whoever is in a photo of a comment and of reactions on it', async () => {
+    stubApi({
+      'GET /api/v1/notifications/unread': { body: { count: 2 } },
+      'GET /api/v1/notifications': {
+        body: {
+          next_cursor: null,
+          items: [
+            aNotice({ id: 'n1', kind: 'pictured_comment', actors: ['Anna'] }),
+            aNotice({ id: 'n2', kind: 'pictured_like', actors: ['Boris', 'Anna'], count: 2 }),
+          ],
+        },
+      },
+      'POST /api/v1/notifications/read': { status: 204 },
+    })
+    await renderScreen(<NotificationBell />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /Benachrichtigungen/ }))
+
+    expect(await screen.findByText('Anna hat ein Foto von dir kommentiert')).toBeInTheDocument()
+    expect(screen.getByText('Boris und Anna gefällt ein Foto von dir')).toBeInTheDocument()
+  })
+
   it('counts what is new, lists it, and reads it all when opened', async () => {
     const { calls } = stubApi({
       'GET /api/v1/notifications/unread': { body: { count: 2 } },

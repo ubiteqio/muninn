@@ -316,6 +316,7 @@
         "mention": "@Erwähnung",
         "comment_like": "Like auf meinen Kommentar",
         "comment": "Neuer Kommentar, wo ich beteiligt bin",
+        "pictured": "Kommentar oder Reaktion auf ein Foto von mir",
         "activity": "Jede Interaktion anderer",
         "new_media": "Neue Alben oder Medien",
         "admin_alerts": "NAS nicht erreichbar, Fehler beim Indexieren"
@@ -786,6 +787,13 @@
         "disabled": "gesperrt",
         "startingPassword": "Startpasswort offen"
       },
+      "person": {
+        "label": "Person auf den Fotos",
+        "none": "Keine",
+        "hint": "Wer zu diesem Konto gehört, erfährt von Kommentaren und Reaktionen auf Fotos, auf denen die Person zu sehen ist.",
+        "short": "auf Fotos: {{name}}",
+        "empty": "Noch keine benannten Personen. Personen entstehen, wenn Gesichter einen Namen bekommen."
+      },
       "action": {
         "disable": "Sperren",
         "enable": "Entsperren",
@@ -1099,6 +1107,10 @@
       "comment_like_other": "{{who}} gefällt dein Kommentar",
       "comment_one": "{{who}} hat kommentiert",
       "comment_other": "{{who}} haben kommentiert",
+      "pictured_comment_one": "{{who}} hat ein Foto von dir kommentiert",
+      "pictured_comment_other": "{{who}} haben ein Foto von dir kommentiert",
+      "pictured_like_one": "{{who}} gefällt ein Foto von dir",
+      "pictured_like_other": "{{who}} gefällt ein Foto von dir",
       "new_media_one": "1 neues Medium in {{album}}",
       "new_media_other": "{{count, number}} neue Medien in {{album}}",
       "stage_failed": "{{stage}} – nach drei Versuchen aufgegeben"

@@ -63,6 +63,29 @@ export function useUpdateUser() {
   })
 }
 
+/**
+ * The person on the photos who signs in with this account. Linking moves the account away from
+ * whoever had it; the linked person with `userId` null takes the link away.
+ */
+export function useLinkPerson() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ personId, userId }: { personId: string; userId: string | null }) =>
+      unwrap(
+        await api.PATCH('/api/v1/people/{person_id}', {
+          params: { path: { person_id: personId } },
+          body: { user_id: userId },
+        }),
+      ),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: USERS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ['people'] }),
+      ]),
+  })
+}
+
 export function useResetPassword() {
   const queryClient = useQueryClient()
 

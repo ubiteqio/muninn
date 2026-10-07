@@ -174,4 +174,72 @@ describe('user management', () => {
       expect(calls.some((call) => call.method === 'DELETE')).toBe(true)
     })
   })
+
+  it('links the person on the photos to an account, and takes the link away again', async () => {
+    const lena = {
+      id: 'person-lena',
+      name: 'Lena',
+      hidden: false,
+      faces: 4,
+      media: 3,
+      cover: null,
+    }
+    const jonas = { ...lena, id: 'person-jonas', name: 'Jonas' }
+    const { calls } = stubApi({
+      [LIST]: { body: { items: [anna], next_cursor: null } },
+      'GET /api/v1/people': {
+        body: { persons: [lena, jonas], groups: { items: [], next_cursor: null }, suggestions: 0 },
+      },
+      'PATCH /api/v1/people/person-lena': { body: lena },
+    })
+    await renderScreen(<AdminUsersPage />)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /Anna Bauer/ }))
+    const choice = await screen.findByRole('button', { name: 'Person auf den Fotos' })
+    expect(choice).toHaveTextContent('Keine')
+    await user.click(choice)
+    const options = await screen.findByRole('listbox')
+    // In the order of their names, after "Keine": the buttons found by name are all of them.
+    const names = ['Keine', 'Jonas', 'Lena']
+    expect(names.map((name) => within(options).getByRole('button', { name }))).toEqual(
+      within(options).getAllByRole('button'),
+    )
+    await user.click(within(options).getByRole('button', { name: 'Lena' }))
+
+    await waitFor(() => {
+      expect(calls.find((call) => call.method === 'PATCH')).toMatchObject({
+        path: '/api/v1/people/person-lena',
+        body: { user_id: 'user-anna' },
+      })
+    })
+  })
+
+  it('shows whom an account is on the photos, and lets the link go', async () => {
+    const linked = { ...anna, person: { id: 'person-lena', name: 'Lena' } }
+    const { calls } = stubApi({
+      [LIST]: { body: { items: [linked], next_cursor: null } },
+      'PATCH /api/v1/people/person-lena': { body: {} },
+    })
+    await renderScreen(<AdminUsersPage />)
+    const user = userEvent.setup()
+
+    // Lena is not among the shown persons - hidden, say - and is still the one chosen.
+    const row = await screen.findByRole('button', { name: /Anna Bauer/ })
+    expect(row).toHaveTextContent('auf Fotos: Lena')
+    await user.click(row)
+    const choice = await screen.findByRole('button', { name: 'Person auf den Fotos' })
+    expect(choice).toHaveTextContent('Lena')
+    await user.click(choice)
+    await user.click(
+      within(await screen.findByRole('listbox')).getByRole('button', { name: 'Keine' }),
+    )
+
+    await waitFor(() => {
+      expect(calls.find((call) => call.method === 'PATCH')).toMatchObject({
+        path: '/api/v1/people/person-lena',
+        body: { user_id: null },
+      })
+    })
+  })
 })

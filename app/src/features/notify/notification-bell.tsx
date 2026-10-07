@@ -19,6 +19,8 @@ const ICONS: Record<string, string> = {
   mention: 'chat_bubble',
   comment: 'chat_bubble',
   comment_like: 'favorite',
+  pictured_comment: 'chat_bubble',
+  pictured_like: 'favorite',
   new_media: 'add_photo_alternate',
   stage_failed: 'error',
 }
@@ -139,6 +141,9 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: () => void }) {
           })
         : t(`notify.kind.${notice.kind}`, { who, count: Math.max(notice.actors.length, 1) })
 
+  // A heart, whether it was given to a comment or to a photo of me.
+  const liked = notice.kind === 'comment_like' || notice.kind === 'pictured_like'
+
   const body = (
     <>
       <span
@@ -150,14 +155,12 @@ function NoticeRow({ notice, onOpen }: { notice: Notice; onOpen: () => void }) {
       <Symbol
         name={ICONS[notice.kind] ?? 'notifications'}
         size={18}
-        filled={notice.kind === 'comment_like'}
+        filled={liked}
         className={cn(
           'mt-0.5 shrink-0',
-          notice.kind === 'comment_like' && 'text-rose-500',
+          liked && 'text-rose-500',
           notice.kind === 'stage_failed' && 'text-destructive',
-          notice.kind !== 'comment_like' &&
-            notice.kind !== 'stage_failed' &&
-            'text-muted-foreground',
+          !liked && notice.kind !== 'stage_failed' && 'text-muted-foreground',
         )}
       />
       <span className="min-w-0 flex-1">
