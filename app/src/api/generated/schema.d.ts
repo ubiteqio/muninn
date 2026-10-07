@@ -3822,7 +3822,7 @@ export interface components {
          * @description What somebody may want on their phone, as the concept lists it.
          * @enum {string}
          */
-        PushEvent: "reply" | "mention" | "comment_like" | "comment" | "activity" | "new_media" | "admin_alerts";
+        PushEvent: "reply" | "mention" | "comment_like" | "comment" | "pictured" | "activity" | "new_media" | "admin_alerts";
         /**
          * QueueView
          * @description One of Huginn's queues.
