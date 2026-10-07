@@ -26,6 +26,10 @@ const config: CapacitorConfig = {
       backgroundColor: '#0B0D12',
       showSpinner: false,
     },
+    // While Muninn is open the bell updates live; a banner on top would say the same twice.
+    PushNotifications: {
+      presentationOptions: [],
+    },
   },
 }
 

@@ -1882,6 +1882,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Push the bell to this phone
+         * @description Called by the app once notifications are allowed, and again whenever it starts: the token
+         *     may have changed, and the phone may have changed hands.
+         */
+        post: operations["register_device_api_v1_me_devices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/devices/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop pushing to this phone
+         * @description Called by the app before it signs out.
+         */
+        delete: operations["forget_device_api_v1_me_devices__token__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/media": {
         parameters: {
             query?: never;
@@ -2667,6 +2708,21 @@ export interface components {
         DecidedMany: {
             /** Answered */
             answered: number;
+        };
+        /**
+         * DevicePlatform
+         * @description Whose push service delivers to it.
+         * @enum {string}
+         */
+        DevicePlatform: "ios";
+        /**
+         * DeviceRegistration
+         * @description A phone that allowed notifications: the token its push service gave the app.
+         */
+        DeviceRegistration: {
+            platform: components["schemas"]["DevicePlatform"];
+            /** Token */
+            token: string;
         };
         /** DuplicateGroupView */
         DuplicateGroupView: {
@@ -8042,6 +8098,66 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Page_ActivityView_"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_device_api_v1_me_devices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceRegistration"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forget_device_api_v1_me_devices__token__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

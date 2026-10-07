@@ -10,6 +10,7 @@ import {
   rememberTokens,
   SessionExpiredError,
 } from '@/api/session'
+import { stopPush } from '@/platform/push'
 import { needsServerAddress } from '@/platform/server'
 import { tokenStorage } from '@/platform/token-storage'
 
@@ -93,6 +94,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async signOut() {
     try {
+      // While still signed in: the phone stops hearing of this account's bell.
+      await stopPush()
       await api.POST('/api/v1/auth/logout', { body: { refresh_token: null } })
     } finally {
       // Whatever the server said, this device is signed out.
