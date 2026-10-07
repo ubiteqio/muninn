@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from muninn.api.schemas.pagination import Page, decode_cursor, encode_cursor
+from muninn.api.schemas.people import PersonBrief
 from muninn.api.schemas.users import (
     PasswordReset,
     ProfileUpdate,
@@ -17,6 +18,7 @@ from muninn.api.schemas.users import (
 )
 from muninn.core.deps import ActiveUser, AdminUser, CurrentUser, get_session
 from muninn.core.problem import ProblemError, problem_type
+from muninn.faces import people
 from muninn.models.user import User
 from muninn.users import service
 
@@ -64,7 +66,16 @@ async def list_users(
     users, has_more = await service.list_users(session, limit=limit, cursor=decoded)
     next_cursor = encode_cursor(users[-1].created_at, users[-1].id) if has_more and users else None
 
-    return Page(items=[UserProfile.model_validate(user) for user in users], next_cursor=next_cursor)
+    linked = await people.persons_of(session, [user.id for user in users])
+    return Page(
+        items=[
+            UserProfile.model_validate(user).model_copy(
+                update={"person": PersonBrief.of(linked[user.id]) if user.id in linked else None}
+            )
+            for user in users
+        ],
+        next_cursor=next_cursor,
+    )
 
 
 @admin_router.post("", status_code=status.HTTP_201_CREATED, summary="Create an account")

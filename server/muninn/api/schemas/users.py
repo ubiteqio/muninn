@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from muninn.api.schemas.email import Email
+from muninn.api.schemas.people import PersonBrief
 from muninn.core.security import MIN_PASSWORD_LENGTH, password_problem
 from muninn.models.user import UserRole, UserStatus
 
@@ -48,6 +49,8 @@ class UserProfile(BaseModel):
     must_change_password: bool
     created_at: datetime
     last_login_at: datetime | None
+    #: The person whose faces are this account's. Only in the admin's list of accounts.
+    person: PersonBrief | None = None
 
 
 class ProfileUpdate(BaseModel):

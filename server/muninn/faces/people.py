@@ -743,6 +743,14 @@ async def link(session: AsyncSession, person: Person, user_id: uuid.UUID | None)
     return person
 
 
+async def persons_of(
+    session: AsyncSession, user_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, Person]:
+    """The person linked to each of these accounts, where there is one."""
+    rows = await session.scalars(select(Person).where(Person.user_id.in_(user_ids)))
+    return {person.user_id: person for person in rows if person.user_id is not None}
+
+
 async def account_of(session: AsyncSession, person: Person) -> User | None:
     return await session.get(User, person.user_id) if person.user_id is not None else None
 

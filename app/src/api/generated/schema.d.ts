@@ -4481,6 +4481,7 @@ export interface components {
             created_at: string;
             /** Last Login At */
             last_login_at: string | null;
+            person?: components["schemas"]["PersonBrief"] | null;
         };
         /**
          * UserRole

@@ -212,6 +212,12 @@ async def test_an_admin_links_a_person_to_the_account_they_sign_in_with(
         f"/people/{lena['id']}", json={"user_id": str(lena_account.id)}, headers=admin
     )
     assert linked.json()["account"] == account
+    accounts = (await api_client.get("/admin/users", headers=admin)).json()["items"]
+    assert {item["username"]: item["person"] for item in accounts} == {
+        "omi": None,
+        "anna": None,
+        "lena": {"id": lena["id"], "name": "Lena"},
+    }
     assert (await api_client.get(f"/people/{lena['id']}", headers=member)).json()[
         "account"
     ] == account
