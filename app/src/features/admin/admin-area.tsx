@@ -23,9 +23,9 @@ const SECTIONS = [
   { id: 'folders', to: '/admin/folders' },
   { id: 'jobs', to: '/admin/jobs' },
   { id: 'ai', to: '/admin/ai' },
-  { id: 'users', to: '/admin/users' },
   { id: 'duplicates', to: '/admin/duplicates' },
   { id: 'photobooks', to: '/admin/photobooks' },
+  { id: 'users', to: '/admin/users' },
 ] as const
 
 /**
