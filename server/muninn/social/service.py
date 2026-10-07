@@ -18,8 +18,10 @@ from sqlalchemy.orm import selectinload
 from muninn.models.album import Album
 from muninn.models.change_log import ChangeKind, ChangeLogEntry
 from muninn.models.media import Media, MediaStatus, shown
+from muninn.models.notification import NotificationKind
 from muninn.models.social import Comment, Favorite, Like, Reaction
 from muninn.models.user import User
+from muninn.notify import service as notify
 
 #: How many names a summary carries. "Anna, Boris und 5 weitere" - more says nothing more.
 NAMES_SHOWN = 3
@@ -99,17 +101,31 @@ async def _unmark(
 
 async def like(
     session: AsyncSession, user: User, target: Target, reaction: Reaction = Reaction.HEART
-) -> None:
-    """One reaction per person: a new one replaces the old."""
+) -> list[uuid.UUID]:
+    """One reaction per person: a new one replaces the old. A first reaction on a photo tells
+    whoever is in it; trading a heart for a laugh tells nobody again. Returns who was told."""
     await ensure_exists(session, target)
-    await session.execute(delete(Like).where(Like.user_id == user.id, _on(Like, target)))
+    replaced = await session.scalars(
+        delete(Like).where(Like.user_id == user.id, _on(Like, target)).returning(Like.id)
+    )
+    first = replaced.first() is None
     column = "media_id" if target.kind is TargetKind.MEDIA else "album_id"
     await session.execute(
         insert(Like).values(
             id=uuid.uuid4(), user_id=user.id, reaction=reaction.value, **{column: target.id}
         )
     )
+    told: list[uuid.UUID] = []
+    if target.kind is TargetKind.MEDIA and first:
+        told = await notify.notify(
+            session,
+            await notify.pictured(session, target.id),
+            NotificationKind.PICTURED_LIKE,
+            notify.About(media_id=target.id),
+            actor_id=user.id,
+        )
     await session.commit()
+    return told
 
 
 async def unlike(session: AsyncSession, user: User, target: Target) -> None:

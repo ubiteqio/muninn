@@ -1,5 +1,6 @@
 """The bell and the news: who hears of what, bundled, and only they."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -10,10 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from muninn.huginn import attempts
 from muninn.models.attempt import GIVE_UP_AFTER
 from muninn.models.change_log import ChangeKind, ChangeLogEntry, SyncTrigger
-from muninn.models.notification import NotificationKind
-from muninn.models.user import User, UserRole
+from muninn.models.face import Face, Person
+from muninn.models.notification import Notification, NotificationKind
+from muninn.models.user import User, UserRole, UserStatus
 from muninn.notify import service
+from tests.helpers import create_user
 from tests.test_comments import person, say
+from tests.test_people import at, faces_in_a_photo
 from tests.test_social import a_picture
 from tests.test_timeline import JULY, a_medium, an_album
 
@@ -278,3 +282,101 @@ async def test_two_stages_on_one_medium_are_two_entries(
         ("faces", "no frame"),
         ("analysis", "model refused"),
     }
+
+
+async def _account(session: AsyncSession, username: str) -> User:
+    found = await session.scalar(select(User).where(User.username == username))
+    assert found is not None
+    return found
+
+
+async def in_one_photo(session: AsyncSession, cast: dict[str, tuple[str, str]]) -> uuid.UUID:
+    """A photo with one face per person: username -> (how the face is theirs, the person's
+    name). "user" and "auto" give the face to the person, "suggested" only asks about it.
+    Every person is linked to that user's account. Returns the medium."""
+    face_ids = await faces_in_a_photo(
+        session, *(at(0.0, towards=index + 1) for index in range(len(cast)))
+    )
+    medium_id: uuid.UUID | None = None
+    for face_id, (username, (how, name)) in zip(face_ids, cast.items(), strict=True):
+        account = await _account(session, username)
+        somebody = Person(name=name, user_id=account.id)
+        session.add(somebody)
+        await session.flush()
+        face = await session.get(Face, face_id)
+        assert face is not None
+        medium_id = face.media_id
+        if how == "suggested":
+            face.suggested_person_id = somebody.id
+            face.suggested_distance = 0.5
+        else:
+            face.person_id = somebody.id
+            face.assigned_by = how
+    await session.commit()
+    assert medium_id is not None
+    return medium_id
+
+
+async def test_a_comment_on_a_photo_tells_whoever_is_in_it(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    anna = await person(api_client, session_factory, "anna", "Anna")
+    lena = await person(api_client, session_factory, "lena", "Lena")
+    jonas = await person(api_client, session_factory, "jonas", "Jonas")
+    mats = await person(api_client, session_factory, "mats", "Mats")
+    omi = await person(api_client, session_factory, "omi", "Omi")
+    medium = await in_one_photo(
+        session,
+        {
+            "lena": ("user", "Lena"),
+            "jonas": ("auto", "Jonas"),
+            "mats": ("suggested", "Mats"),
+            "omi": ("user", "Omi"),
+            "anna": ("user", "Anna"),
+        },
+    )
+    # Omi also keeps the photo in Walhall: she hears once, for the more personal reason.
+    await api_client.post("/favorites", json={"media_id": str(medium)}, headers=omi)
+
+    await say(api_client, anna, f"/media/{medium}", "Was für ein Tag!")
+
+    pictured = [("pictured_comment", ["Anna"])]
+    for headers in (lena, jonas, omi):
+        assert [(item["kind"], item["actors"]) for item in await bell(api_client, headers)] == (
+            pictured
+        )
+    # A suggestion nobody answered is not a face that is theirs; and Anna wrote it herself.
+    assert await bell(api_client, mats) == []
+    assert await bell(api_client, anna) == []
+
+
+async def test_a_reaction_to_a_photo_tells_whoever_is_in_it_once(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    anna = await person(api_client, session_factory, "anna", "Anna")
+    boris = await person(api_client, session_factory, "boris", "Boris")
+    lena = await person(api_client, session_factory, "lena", "Lena")
+    await create_user(
+        session_factory, username="opa", display_name="Opa", status=UserStatus.DISABLED
+    )
+    medium = await in_one_photo(session, {"lena": ("user", "Lena"), "opa": ("user", "Opa")})
+    like = f"/media/{medium}/like"
+
+    await api_client.post(like, headers=anna)
+    # A heart traded for a laugh is the same reaction, not a new one.
+    await api_client.post(like, json={"reaction": "joy"}, headers=anna)
+    await api_client.post(like, headers=boris)
+    # Lena's own reaction to a photo of her is no news to her.
+    await api_client.post(like, headers=lena)
+
+    assert [
+        (item["kind"], item["actors"], item["count"]) for item in await bell(api_client, lena)
+    ] == [("pictured_like", ["Boris", "Anna"], 2)]
+    # A disabled account hears nothing.
+    opa = await _account(session, "opa")
+    told = await session.scalars(select(Notification).where(Notification.user_id == opa.id))
+    assert list(told) == []

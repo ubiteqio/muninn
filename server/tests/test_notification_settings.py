@@ -27,6 +27,7 @@ async def test_everybody_starts_with_the_concepts_defaults(
             "mention": True,
             "comment_like": True,
             "comment": True,
+            "pictured": True,
             "activity": False,
             "new_media": True,
         },

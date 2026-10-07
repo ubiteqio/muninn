@@ -20,6 +20,10 @@ class NotificationKind(StrEnum):
     COMMENT_LIKE = "comment_like"
     #: A new comment on something I keep in Walhall or commented on myself.
     COMMENT = "comment"
+    #: Somebody commented on a photo I am in - my face is on it, and my person is my account.
+    PICTURED_COMMENT = "pictured_comment"
+    #: Somebody reacted to a photo I am in.
+    PICTURED_LIKE = "pictured_like"
     #: New pictures and videos in an album.
     NEW_MEDIA = "new_media"
     #: A stage gave up on a medium. Admins only, and never for a machine that is merely away.
@@ -73,6 +77,8 @@ class PushEvent(StrEnum):
     COMMENT_LIKE = "comment_like"
     #: A new comment on something I keep or commented on.
     COMMENT = "comment"
+    #: A comment or a reaction on a photo I am in.
+    PICTURED = "pictured"
     #: Every like, comment and favourite of the others - a lot, so off unless asked for.
     ACTIVITY = "activity"
     NEW_MEDIA = "new_media"
@@ -86,6 +92,7 @@ PUSH_DEFAULTS: dict[PushEvent, bool] = {
     PushEvent.MENTION: True,
     PushEvent.COMMENT_LIKE: True,
     PushEvent.COMMENT: True,
+    PushEvent.PICTURED: True,
     PushEvent.ACTIVITY: False,
     PushEvent.NEW_MEDIA: True,
     PushEvent.ADMIN_ALERTS: True,

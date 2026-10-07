@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from muninn.models.album import Album
+from muninn.models.face import Face, Person
 from muninn.models.media import Media
 from muninn.models.notification import (
     DEFAULT_QUIET_END,
@@ -113,6 +114,20 @@ async def followers(
         talked = select(Comment.user_id).where(Comment.album_id == album_id)
     rows = await session.scalars(kept.union(talked))
     return list(rows)
+
+
+async def pictured(session: AsyncSession, media_id: uuid.UUID) -> list[uuid.UUID]:
+    """Whose face is on a medium: the active accounts linked to the persons in it. A face
+    counts once it belongs to a person, given by hand or by Muninn itself; a mere suggestion
+    does not."""
+    rows = await session.scalars(
+        select(Person.user_id)
+        .join(Face, Face.person_id == Person.id)
+        .join(User, User.id == Person.user_id)
+        .where(Face.media_id == media_id, User.status == UserStatus.ACTIVE)
+        .distinct()
+    )
+    return [user_id for user_id in rows if user_id is not None]
 
 
 async def admins(session: AsyncSession) -> list[uuid.UUID]:

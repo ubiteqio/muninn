@@ -70,13 +70,16 @@ async def _like(
     on: bool,
     reaction: Reaction = Reaction.HEART,
 ) -> SocialView:
+    told: list[uuid.UUID] = []
     try:
         if on:
-            await service.like(session, user, target, reaction)
+            told = await service.like(session, user, target, reaction)
         else:
             await service.unlike(session, user, target)
     except service.TargetNotFoundError as error:
         raise _not_found() from error
+    if told:
+        await events.announce_notifications(redis, told)
     return await _changed(session, redis, user, target, likes=True)
 
 

@@ -215,9 +215,9 @@ class Added:
 async def _tell_about(
     session: AsyncSession, comment: Comment, author: User, named: list[uuid.UUID]
 ) -> list[uuid.UUID]:
-    """An answer tells whom it answers, a mention whom it names, and a new comment everybody
-    who keeps the thing in Walhall or talked about it before - each only once, the most
-    personal reason first."""
+    """An answer tells whom it answers, a mention whom it names, a comment on a photo whoever
+    is in it, and a new comment everybody who keeps the thing in Walhall or talked about it
+    before - each only once, the most personal reason first."""
     about = notify.About(
         media_id=comment.media_id, album_id=comment.album_id, comment_id=comment.id
     )
@@ -235,6 +235,15 @@ async def _tell_about(
         about,
         actor_id=author.id,
     )
+    if comment.media_id is not None:
+        in_it = await notify.pictured(session, comment.media_id)
+        told += await notify.notify(
+            session,
+            [user_id for user_id in in_it if user_id not in told],
+            NotificationKind.PICTURED_COMMENT,
+            about,
+            actor_id=author.id,
+        )
     followers = await notify.followers(
         session, media_id=comment.media_id, album_id=comment.album_id
     )
