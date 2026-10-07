@@ -4508,6 +4508,10 @@ export interface components {
             email?: string | "" | null;
             role?: components["schemas"]["UserRole"] | null;
             status?: components["schemas"]["UserStatus"] | null;
+            /** Password */
+            password?: string | null;
+            /** Person Id */
+            person_id?: string | null;
         };
         /** ValidationError */
         ValidationError: {

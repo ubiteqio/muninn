@@ -103,9 +103,11 @@ async def update_user(
     clear_email: bool = False,
     role: UserRole | None = None,
     status: UserStatus | None = None,
+    password: str | None = None,
 ) -> User:
     """Change a user. Disabling or demoting the last admin is refused, and so is a username or
-    e-mail address another account already uses."""
+    e-mail address another account already uses. A new password is a starting password: it
+    ends every session, and the user picks their own at the next sign-in."""
     loses_admin = (role is not None and role is not UserRole.ADMIN) or (
         status is not None and status is not UserStatus.ACTIVE
     )
@@ -130,6 +132,10 @@ async def update_user(
         user.status = status
         if status is not UserStatus.ACTIVE:
             await revoke_all_for_user(session, user_id=user.id)
+    if password is not None:
+        user.password_hash = hash_password(password)
+        user.must_change_password = True
+        await revoke_all_for_user(session, user_id=user.id)
 
     try:
         await session.commit()

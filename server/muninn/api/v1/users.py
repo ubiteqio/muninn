@@ -19,6 +19,7 @@ from muninn.api.schemas.users import (
 from muninn.core.deps import ActiveUser, AdminUser, CurrentUser, get_session
 from muninn.core.problem import ProblemError, problem_type
 from muninn.faces import people
+from muninn.models.face import Person
 from muninn.models.user import User
 from muninn.users import service
 
@@ -125,6 +126,7 @@ async def update_user(
             clear_email=payload.email == "",
             role=payload.role,
             status=payload.status,
+            password=payload.password,
         )
     except service.NameAlreadyUsedError as error:
         raise ProblemError(
@@ -141,7 +143,26 @@ async def update_user(
             detail="This is the last active admin; make somebody else admin first.",
         ) from error
 
-    return UserProfile.model_validate(updated)
+    linked = (await people.persons_of(session, [updated.id])).get(updated.id)
+    wanted = payload.person_id
+    if "person_id" in payload.model_fields_set:
+        if wanted is None and linked is not None:
+            await people.link(session, linked, None)
+            linked = None
+        elif wanted is not None and (linked is None or linked.id != wanted):
+            person = await session.get(Person, wanted)
+            if person is None:
+                raise ProblemError(
+                    status=status.HTTP_404_NOT_FOUND,
+                    type=problem_type("person-not-found"),
+                    title="Person not found",
+                    detail="No person with this id.",
+                )
+            linked = await people.link(session, person, updated.id)
+
+    return UserProfile.model_validate(updated).model_copy(
+        update={"person": PersonBrief.of(linked) if linked else None}
+    )
 
 
 @admin_router.delete(

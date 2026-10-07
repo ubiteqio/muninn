@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from muninn.models.face import Person
 from muninn.models.refresh_token import RefreshToken
 from muninn.models.user import User, UserRole, UserStatus
 from tests.helpers import PASSWORD, auth_header, create_user, login
@@ -272,6 +273,55 @@ async def test_a_forgotten_password_is_reset_by_an_admin(
     assert with_old.status_code == 401
     assert reuse.status_code == 401
     assert with_new["user"]["must_change_password"] is True
+
+
+async def test_an_admin_sets_a_password_and_the_person_with_one_save(
+    api_client: AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    headers = await _admin_headers(api_client, session_factory)
+    anna = await create_user(session_factory, username="anna")
+    old_tokens = await login(api_client, username="anna")
+    async with session_factory() as session:
+        lena = Person(name="Anna auf Fotos")
+        session.add(lena)
+        await session.commit()
+
+    saved = await api_client.patch(
+        f"/admin/users/{anna.id}",
+        json={"display_name": "Anna B.", "password": "Garten2026", "person_id": str(lena.id)},
+        headers=headers,
+    )
+
+    assert saved.status_code == 200
+    assert saved.json()["display_name"] == "Anna B."
+    assert saved.json()["person"] == {"id": str(lena.id), "name": "Anna auf Fotos"}
+    # The chosen password is a starting password: the old one and the old session are gone.
+    reuse = await api_client.post(
+        "/auth/refresh", json={"refresh_token": old_tokens["refresh_token"]}
+    )
+    assert reuse.status_code == 401
+    with_new = await login(api_client, username="anna", password="Garten2026")
+    assert with_new["user"]["must_change_password"] is True
+
+    # A save without the person leaves the link; null takes it away.
+    kept = await api_client.patch(
+        f"/admin/users/{anna.id}", json={"display_name": "Anna"}, headers=headers
+    )
+    assert kept.json()["person"] == {"id": str(lena.id), "name": "Anna auf Fotos"}
+    unlinked = await api_client.patch(
+        f"/admin/users/{anna.id}", json={"person_id": None}, headers=headers
+    )
+    assert unlinked.json()["person"] is None
+
+    weak = await api_client.patch(
+        f"/admin/users/{anna.id}", json={"password": "kurz"}, headers=headers
+    )
+    assert weak.status_code == 422
+    unknown = await api_client.patch(
+        f"/admin/users/{anna.id}", json={"person_id": str(uuid.uuid4())}, headers=headers
+    )
+    assert unknown.status_code == 404
 
 
 async def test_an_unknown_account_is_a_404(

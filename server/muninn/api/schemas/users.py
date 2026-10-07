@@ -82,6 +82,12 @@ class UserUpdate(BaseModel):
     email: Email | Literal[""] | None = None
     role: UserRole | None = None
     status: UserStatus | None = None
+    #: A new password the admin chose. Like a starting password, it is changed at the next
+    #: sign-in, and it ends every session the account has.
+    password: Password | None = None
+    #: The person on the photos who signs in with this account, or null for nobody. Left out,
+    #: the link stays.
+    person_id: UUID | None = None
 
 
 class PasswordReset(BaseModel):
