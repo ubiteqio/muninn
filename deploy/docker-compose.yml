@@ -25,6 +25,12 @@ x-server: &server
     MUNINN_REFRESH_COOKIE_SECURE: ${MUNINN_REFRESH_COOKIE_SECURE:-true}
     # The phone app's origins; the default is what Capacitor uses on iOS and Android.
     MUNINN_CORS_ORIGINS: ${MUNINN_CORS_ORIGINS:-capacitor://localhost,ionic://localhost,http://localhost}
+    # Push to iPhones through Apple. The key file lies in the secrets folder below; without a key
+    # id nothing is pushed.
+    MUNINN_APNS_KEY_FILE: ${MUNINN_APNS_KEY_FILE:-}
+    MUNINN_APNS_KEY_ID: ${MUNINN_APNS_KEY_ID:-}
+    MUNINN_APNS_TEAM_ID: ${MUNINN_APNS_TEAM_ID:-}
+    MUNINN_APNS_SANDBOX: ${MUNINN_APNS_SANDBOX:-false}
   # Who the containers are. The image brings user 1000 ("muninn"), which is enough as long as
   # the library can be read by everyone. On a NAS it usually cannot: the share belongs to one
   # user and one group and gives nothing to others, so Muninn runs as that user instead.
@@ -39,6 +45,8 @@ x-server: &server
     # Generated thumbnails, previews and transcodes. Bind-mounted so they can be opened on the
     # host without entering the container.
     - ${MUNINN_DERIVED_HOST_PATH:-../data/derived}:/data/derived
+    # Keys that never go into the repository, such as Apple's push key. Read-only.
+    - ${MUNINN_SECRETS_HOST_PATH:-../data/secrets}:/run/secrets/muninn:ro
 
 services:
   postgres:
@@ -191,6 +199,27 @@ services:
       - "1"
       - --hostname
       - people@%h
+      - --loglevel
+      - ${MUNINN_LOG_LEVEL:-info}
+
+  # Pushes to the phones. A queue of its own, so news never waits behind a scan or a video being
+  # transcoded; one at a time is plenty for a family.
+  push-worker:
+    <<: *server
+    environment:
+      <<: *server-environment
+      MUNINN_RUN_MIGRATIONS: "0"
+    command:
+      - celery
+      - --app
+      - muninn.huginn.app
+      - worker
+      - --queues
+      - push
+      - --concurrency
+      - "1"
+      - --hostname
+      - push@%h
       - --loglevel
       - ${MUNINN_LOG_LEVEL:-info}
 

@@ -10,8 +10,14 @@ from typing import Any
 from kombu.exceptions import OperationalError
 from redis.exceptions import RedisError
 
+from muninn.core.config import get_settings
 from muninn.huginn import jobs
-from muninn.huginn.tasks import reassess_faces, sort_faces, sync_publication
+from muninn.huginn.tasks import (
+    push_notifications,
+    reassess_faces,
+    sort_faces,
+    sync_publication,
+)
 from muninn.models.change_log import SyncTrigger
 
 #: Lower means more urgent. Somebody waiting in front of an album comes before the nightly run.
@@ -92,6 +98,21 @@ def queue_face_sorting(face_id: uuid.UUID) -> None:
     """
     try:
         sort_faces.apply_async(args=[[str(face_id)]], retry=False)
+    except OperationalError:
+        return
+
+
+def queue_push(user_ids: list[uuid.UUID]) -> None:
+    """New on these people's bells: out to their phones, in the background. Only when Apple's
+    key is configured - otherwise the tasks would wait in Redis for a worker nobody runs.
+
+    Best effort: when Redis is away, the entries go out with the next push for the same people.
+    """
+    settings = get_settings()
+    if not user_ids or not (settings.apns_key_file and settings.apns_key_id):
+        return
+    try:
+        push_notifications.apply_async(args=[[str(user_id) for user_id in user_ids]], retry=False)
     except OperationalError:
         return
 

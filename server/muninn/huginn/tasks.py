@@ -34,8 +34,9 @@ from muninn.models.ai import AiKind
 from muninn.models.change_log import SyncTrigger
 from muninn.models.notification import NotificationKind
 from muninn.models.publication import ScanStatus
-from muninn.notify import events
+from muninn.notify import events, push
 from muninn.notify import service as notify_service
+from muninn.notify.apns import ApnsClient
 from muninn.photobooks import service as photobooks_service
 from muninn.places import service as places_service
 from muninn.search import service as search_service
@@ -1070,3 +1071,39 @@ def _as_dict(report: service.SyncReport) -> dict[str, Any]:
         "queued_derivatives": len(report.pending_derivatives),
         "message": report.message,
     }
+
+
+#: One connection to Apple per worker process, with its signed token: Apple frowns on a provider
+#: that opens a new one for every push.
+_apns: ApnsClient | None = None
+
+
+def apns_client() -> ApnsClient | None:
+    """Apple's push service, when a key is configured; None leaves push off."""
+    global _apns
+    settings = get_settings()
+    if not (settings.apns_key_file and settings.apns_key_id and settings.apns_team_id):
+        return None
+    if _apns is None:
+        _apns = ApnsClient.from_files(
+            key_file=settings.apns_key_file,
+            key_id=settings.apns_key_id,
+            team_id=settings.apns_team_id,
+            topic=settings.apns_topic,
+            sandbox=settings.apns_sandbox,
+        )
+    return _apns
+
+
+@celery_app.task(name="muninn.push", queue="push")
+def push_notifications(user_ids: list[str]) -> int:
+    """What is new on these people's bells goes out to their phones."""
+    return run(_push([uuid.UUID(user_id) for user_id in user_ids]))
+
+
+async def _push(user_ids: list[uuid.UUID]) -> int:
+    client = apns_client()
+    if client is None:
+        return 0
+    async with session_scope() as session:
+        return await push.deliver(session, client, user_ids, zone=memories_service.local_zone())

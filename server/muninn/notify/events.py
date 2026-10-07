@@ -71,7 +71,7 @@ NOTIFICATIONS_TOPIC = "notifications"
 
 
 async def announce_notifications(redis: Redis, recipients: list[uuid.UUID]) -> None:
-    """Tell these people's open apps that the bell has something new."""
+    """Tell these people's open apps that the bell has something new, and their phones."""
     if recipients:
         await publish(
             redis,
@@ -79,3 +79,8 @@ async def announce_notifications(redis: Redis, recipients: list[uuid.UUID]) -> N
             kind="new",
             recipients=[str(user_id) for user_id in recipients],
         )
+        # Here, at the end of every road to the bell, and late: the worker's tasks import this
+        # module themselves.
+        from muninn.huginn.dispatch import queue_push
+
+        queue_push(recipients)

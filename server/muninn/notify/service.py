@@ -233,8 +233,15 @@ async def entries(
         query = query.where(Notification.updated_at < before)
     rows = list(await session.scalars(query))
     page = rows[:limit]
+    result = await entries_of(session, page)
+    following = page[-1].updated_at if len(rows) > limit and page else None
+    return result, following
 
+
+async def entries_of(session: AsyncSession, page: Sequence[Notification]) -> list[Entry]:
+    """Bell entries for these notifications: who, which picture and album, which words."""
     people = await _names(session, [actor for row in page for actor in row.actor_ids])
+
     media = {
         item.id: item
         for item in await session.scalars(
@@ -273,8 +280,7 @@ async def entries(
                 excerpt=comment.body if comment and comment.deleted_at is None else None,
             )
         )
-    following = page[-1].updated_at if len(rows) > limit and page else None
-    return result, following
+    return result
 
 
 async def _names(session: AsyncSession, ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, str]:
