@@ -13,6 +13,7 @@ from muninn.albums.service import cursor_value
 from muninn.api.schemas.media import MediaView
 from muninn.api.schemas.pagination import Page, decode_cursor, encode_cursor
 from muninn.api.schemas.people import (
+    AccountBrief,
     AlikeFace,
     AlikeFaces,
     ConfirmManyRequest,
@@ -51,6 +52,7 @@ from muninn.huginn.dispatch import queue_face_reassessment, queue_face_sorting
 from muninn.media.service import relative_of
 from muninn.models.face import Face, Person
 from muninn.models.media import Media
+from muninn.models.user import UserRole
 
 router = APIRouter(tags=["people"])
 admin_router = APIRouter(prefix="/admin/faces", tags=["admin: faces"])
@@ -222,10 +224,14 @@ async def read_person(
         listing.PersonSummary(person=person, faces=0, media=0, cover=None),
     )
     view = _person_view(summary, settings.jwt_secret)
+    account = await people.account_of(session, person)
     # Only here, where the filters that hold them are: the row of people asks for nothing it
     # does not show, and these are two counts per person.
     return view.model_copy(
         update={
+            "account": AccountBrief(id=account.id, display_name=account.display_name)
+            if account is not None
+            else None,
             "faces_auto": await listing.count_faces(
                 session, person.id, only=listing.FaceFilter.AUTO
             ),
@@ -236,7 +242,9 @@ async def read_person(
     )
 
 
-@router.patch("/people/{person_id}", summary="Rename a person, or hide or show them")
+@router.patch(
+    "/people/{person_id}", summary="Rename a person, hide or show them, or link their account"
+)
 async def update_person(
     person_id: uuid.UUID,
     payload: PersonUpdate,
@@ -245,13 +253,22 @@ async def update_person(
     settings: SettingsDep,
 ) -> PersonCard:
     person = await _person(session, person_id)
+    # Whose face belongs to which account is the admin's to say: everybody else may name and
+    # hide, but not link.
+    linking = "user_id" in payload.model_fields_set
+    if linking and user.role is not UserRole.ADMIN:
+        raise _problem(403, "admin-only", "Only an admin links accounts")
     try:
         if payload.name is not None:
             await people.rename(session, person, payload.name)
         if payload.hidden is not None:
             await people.hide(session, person, payload.hidden)
+        if linking:
+            await people.link(session, person, payload.user_id)
     except people.PersonError as error:
         raise _problem(409, "name-taken", "Name taken", str(error)) from error
+    except people.AccountError as error:
+        raise _problem(404, "account-not-found", "Account not found", str(error)) from error
     return await read_person(person_id, user, session, settings)
 
 
@@ -266,7 +283,12 @@ async def merge_person(
     """Every face of this person goes to the other, and this one is gone."""
     source = await _person(session, person_id)
     target = await _person(session, payload.into)
-    await people.merge(session, source, target)
+    try:
+        await people.merge(session, source, target)
+    except people.AccountError as error:
+        raise _problem(
+            409, "accounts-differ", "Linked to different accounts", str(error)
+        ) from error
     await queue_face_reassessment()
     return await read_person(target.id, user, session, settings)
 

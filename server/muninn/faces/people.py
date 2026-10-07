@@ -526,6 +526,10 @@ class PersonError(Exception):
     """A name that cannot be given, or a person or face that is not there."""
 
 
+class AccountError(Exception):
+    """An account that cannot be linked to a person, or two persons whose accounts differ."""
+
+
 def _clean(name: str) -> str:
     cleaned = " ".join(name.split())
     if not cleaned or len(cleaned) > 80:
@@ -687,6 +691,14 @@ async def merge(session: AsyncSession, source: Person, target: Person) -> None:
     """Two persons are one: every face of the first goes to the second, and the first is gone."""
     if source.id == target.id:
         return
+    # The account goes along with the faces. Two different ones cannot both stay: one person
+    # signs in once.
+    if source.user_id is not None:
+        if target.user_id is not None and target.user_id != source.user_id:
+            raise AccountError("Both persons are linked to an account, and not the same one.")
+        account, source.user_id = source.user_id, None
+        await session.flush()
+        target.user_id = account
     await session.execute(
         update(Face).where(Face.person_id == source.id).values(person_id=target.id)
     )
@@ -717,6 +729,22 @@ async def hide(session: AsyncSession, person: Person, hidden: bool) -> Person:
     person.hidden = hidden
     await session.commit()
     return person
+
+
+async def link(session: AsyncSession, person: Person, user_id: uuid.UUID | None) -> Person:
+    """The account this person signs in with, or none. An account already linked to somebody
+    else moves here: one account is one person."""
+    if user_id is not None and await session.get(User, user_id) is None:
+        raise AccountError("There is no such account.")
+    if user_id is not None and user_id != person.user_id:
+        await session.execute(update(Person).where(Person.user_id == user_id).values(user_id=None))
+    person.user_id = user_id
+    await session.commit()
+    return person
+
+
+async def account_of(session: AsyncSession, person: Person) -> User | None:
+    return await session.get(User, person.user_id) if person.user_id is not None else None
 
 
 @dataclass(frozen=True, slots=True)

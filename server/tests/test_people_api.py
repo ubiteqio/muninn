@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from muninn.ai.base import DetectedFace
 from muninn.faces.service import CROP_PIXELS, crop
 from muninn.models.face import Face, Person
+from muninn.models.user import UserRole
 from tests.helpers import auth_header, create_user, login
 from tests.test_people import at, faces_in_a_photo
 
@@ -181,6 +182,97 @@ async def test_persons_are_renamed_hidden_and_merged(
     assert (await api_client.get("/people", headers=headers)).json()["persons"] == []
     shown = (await api_client.get("/people", params={"hidden": True}, headers=headers)).json()
     assert [person["name"] for person in shown["persons"]] == ["Lena"]
+
+
+async def test_an_admin_links_a_person_to_the_account_they_sign_in_with(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await create_user(session_factory, username="omi", display_name="Omi", role=UserRole.ADMIN)
+    admin = auth_header(await login(api_client, username="omi"))
+    member = await _headers(api_client, session_factory)
+    lena_account = await create_user(session_factory, username="lena", display_name="Lena B.")
+    (first,) = await faces_in_a_photo(session, at(1.0, towards=1))
+    (second,) = await faces_in_a_photo(session, at(0.0, towards=2))
+    lena = (
+        await api_client.post(f"/faces/{first}/name", json={"name": "Lena"}, headers=admin)
+    ).json()
+    other = (
+        await api_client.post(f"/faces/{second}/name", json={"name": "Lena Kind"}, headers=admin)
+    ).json()
+    account = {"id": str(lena_account.id), "display_name": "Lena B."}
+
+    # Naming is everybody's; linking is the admin's.
+    refused = await api_client.patch(
+        f"/people/{lena['id']}", json={"user_id": str(lena_account.id)}, headers=member
+    )
+    assert refused.status_code == 403
+    linked = await api_client.patch(
+        f"/people/{lena['id']}", json={"user_id": str(lena_account.id)}, headers=admin
+    )
+    assert linked.json()["account"] == account
+    assert (await api_client.get(f"/people/{lena['id']}", headers=member)).json()[
+        "account"
+    ] == account
+    unknown = await api_client.patch(
+        f"/people/{lena['id']}", json={"user_id": str(uuid.uuid4())}, headers=admin
+    )
+    assert unknown.status_code == 404
+
+    # One account is one person: linked elsewhere, it moves.
+    moved = await api_client.patch(
+        f"/people/{other['id']}", json={"user_id": str(lena_account.id)}, headers=admin
+    )
+    assert moved.json()["account"] == account
+    assert (await api_client.get(f"/people/{lena['id']}", headers=admin)).json()["account"] is None
+
+    # A merge takes the account along...
+    merged = await api_client.post(
+        f"/people/{other['id']}/merge", json={"into": lena["id"]}, headers=admin
+    )
+    assert merged.json()["account"] == account
+    # ... and a rename leaves it where it is.
+    renamed = await api_client.patch(
+        f"/people/{lena['id']}", json={"name": "Lena B."}, headers=admin
+    )
+    assert renamed.json()["account"] == account
+
+    unlinked = await api_client.patch(
+        f"/people/{lena['id']}", json={"user_id": None}, headers=admin
+    )
+    assert unlinked.json()["account"] is None
+
+
+async def test_two_persons_linked_to_different_accounts_are_not_merged(
+    api_client: AsyncClient,
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await create_user(session_factory, username="omi", display_name="Omi", role=UserRole.ADMIN)
+    admin = auth_header(await login(api_client, username="omi"))
+    accounts = [
+        await create_user(session_factory, username=name, display_name=name)
+        for name in ("jonas", "lena")
+    ]
+    persons = []
+    for index, account in enumerate(accounts):
+        (face,) = await faces_in_a_photo(session, at(1.0, towards=index + 1))
+        person = (
+            await api_client.post(
+                f"/faces/{face}/name", json={"name": account.display_name}, headers=admin
+            )
+        ).json()
+        await api_client.patch(
+            f"/people/{person['id']}", json={"user_id": str(account.id)}, headers=admin
+        )
+        persons.append(person)
+
+    refused = await api_client.post(
+        f"/people/{persons[0]['id']}/merge", json={"into": persons[1]["id"]}, headers=admin
+    )
+    assert refused.status_code == 409
+    assert (await api_client.get(f"/people/{persons[0]['id']}", headers=admin)).status_code == 200
 
 
 async def test_the_crop_needs_a_token_or_an_account(

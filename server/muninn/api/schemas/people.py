@@ -84,6 +84,13 @@ class PersonBrief(BaseModel):
         return cls(id=person.id, name=person.name)
 
 
+class AccountBrief(BaseModel):
+    """The account a person signs in with."""
+
+    id: UUID
+    display_name: str
+
+
 class PersonCard(BaseModel):
     id: UUID
     name: str
@@ -96,6 +103,8 @@ class PersonCard(BaseModel):
     #: Only on the person's own page, where the filters that hold them are.
     faces_auto: int = 0
     faces_twice: int = 0
+    #: The account linked to this person, if any. Also only on the person's own page.
+    account: AccountBrief | None = None
 
 
 class GroupView(BaseModel):
@@ -145,6 +154,8 @@ class NameRequest(BaseModel):
 class PersonUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     hidden: bool | None = None
+    #: The account to link, or null to unlink; left out, the link stays. Admins only.
+    user_id: UUID | None = None
 
 
 class MergeRequest(BaseModel):
