@@ -772,7 +772,7 @@
     },
     "users": {
       "title": "Benutzerverwaltung",
-      "description": "Konten anlegen, bearbeiten, Rollen vergeben, sperren, löschen und Passwörter zurücksetzen.",
+      "description": "Konten anlegen, bearbeiten, sperren und löschen, Rollen und Passwörter vergeben.",
       "loading": "Wird geladen …",
       "loadMore": "Weitere laden",
       "selfHint": "Das ist dein eigenes Konto.",
@@ -790,14 +790,21 @@
       "person": {
         "label": "Person auf den Fotos",
         "none": "Keine",
-        "hint": "Wer zu diesem Konto gehört, erfährt von Kommentaren und Reaktionen auf Fotos, auf denen die Person zu sehen ist.",
+        "hint": "Hört von Kommentaren und Reaktionen auf Fotos, auf denen die Person zu sehen ist.",
         "short": "auf Fotos: {{name}}",
         "empty": "Noch keine benannten Personen. Personen entstehen, wenn Gesichter einen Namen bekommen."
       },
+      "locked": {
+        "label": "Gesperrt",
+        "hint": "Ein gesperrtes Konto kann sich nicht anmelden; laufende Sitzungen enden beim Speichern.",
+        "self": "Das eigene Konto lässt sich nicht sperren."
+      },
+      "password": {
+        "label": "Neues Passwort",
+        "hint": "Leer lassen behält es. Mindestens {{count}} Zeichen mit Buchstabe und Ziffer; beim nächsten Anmelden wählt die Person ein eigenes."
+      },
+      "saved": "Gespeichert.",
       "action": {
-        "disable": "Sperren",
-        "enable": "Entsperren",
-        "resetPassword": "Passwort zurücksetzen",
         "save": "Änderungen speichern",
         "delete": "Konto löschen"
       },

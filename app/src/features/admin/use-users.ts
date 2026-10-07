@@ -37,66 +37,37 @@ export function useCreateUser() {
   })
 }
 
+/** What one save changes about an account; whatever is left out stays as it is. */
+export interface AccountChanges {
+  role?: UserRole
+  status?: UserStatus
+  display_name?: string
+  username?: string
+  /** An empty string takes the address away. */
+  email?: string
+  /** A new password; the user picks their own at the next sign-in. */
+  password?: string
+  /** The person on the photos who signs in with this account, or null for nobody. */
+  person_id?: string | null
+}
+
 export function useUpdateUser() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({
-      id,
-      ...changes
-    }: {
-      id: string
-      role?: UserRole
-      status?: UserStatus
-      display_name?: string
-      username?: string
-      /** An empty string takes the address away. */
-      email?: string
-    }) =>
+    mutationFn: async ({ id, ...changes }: AccountChanges & { id: string }) =>
       unwrap(
         await api.PATCH('/api/v1/admin/users/{user_id}', {
           params: { path: { user_id: id } },
           body: changes,
         }),
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: USERS_KEY }),
-  })
-}
-
-/**
- * The person on the photos who signs in with this account. Linking moves the account away from
- * whoever had it; the linked person with `userId` null takes the link away.
- */
-export function useLinkPerson() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ personId, userId }: { personId: string; userId: string | null }) =>
-      unwrap(
-        await api.PATCH('/api/v1/people/{person_id}', {
-          params: { path: { person_id: personId } },
-          body: { user_id: userId },
-        }),
-      ),
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: USERS_KEY }),
+        // The person page shows whom a person signs in as.
         queryClient.invalidateQueries({ queryKey: ['people'] }),
       ]),
-  })
-}
-
-export function useResetPassword() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (id: string) =>
-      unwrap(
-        await api.POST('/api/v1/admin/users/{user_id}/password', {
-          params: { path: { user_id: id } },
-        }),
-      ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: USERS_KEY }),
   })
 }
 

@@ -102,20 +102,33 @@ describe('user management', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('letzte aktive Admin')
   })
 
-  it('hands out a new starting password on reset', async () => {
-    stubApi({
+  it('locks an account and sets a new password with one save', async () => {
+    const { calls } = stubApi({
       [LIST]: { body: { items: [anna], next_cursor: null } },
-      'POST /api/v1/admin/users/user-anna/password': {
-        body: { starting_password: 'k7fp-2m9x-qt4w' },
-      },
+      'PATCH /api/v1/admin/users/user-anna': { body: anna },
     })
     await renderScreen(<AdminUsersPage />)
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: /Anna Bauer/ }))
-    await user.click(screen.getByRole('button', { name: 'Passwort zurücksetzen' }))
+    await user.click(screen.getByRole('switch', { name: 'Gesperrt' }))
+    const password = screen.getByLabelText('Neues Passwort')
+    // Too weak: said at once, and nothing is sent.
+    await user.type(password, 'kurz')
+    await user.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(calls.some((call) => call.method === 'PATCH')).toBe(false)
 
-    expect(await screen.findByText('k7fp-2m9x-qt4w')).toBeInTheDocument()
+    await user.clear(password)
+    await user.type(password, 'Garten2026')
+    await user.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
+
+    await waitFor(() => {
+      expect(calls.filter((call) => call.method === 'PATCH').map((call) => call.body)).toEqual([
+        { status: 'disabled', password: 'Garten2026' },
+      ])
+    })
+    expect(password).toHaveValue('')
   })
 
   it('loads the next page on request', async () => {
@@ -175,7 +188,7 @@ describe('user management', () => {
     })
   })
 
-  it('links the person on the photos to an account, and takes the link away again', async () => {
+  it('links the person on the photos to an account when saved', async () => {
     const lena = {
       id: 'person-lena',
       name: 'Lena',
@@ -190,7 +203,7 @@ describe('user management', () => {
       'GET /api/v1/people': {
         body: { persons: [lena, jonas], groups: { items: [], next_cursor: null }, suggestions: 0 },
       },
-      'PATCH /api/v1/people/person-lena': { body: lena },
+      'PATCH /api/v1/admin/users/user-anna': { body: anna },
     })
     await renderScreen(<AdminUsersPage />)
     const user = userEvent.setup()
@@ -206,20 +219,24 @@ describe('user management', () => {
       within(options).getAllByRole('button'),
     )
     await user.click(within(options).getByRole('button', { name: 'Lena' }))
+    expect(choice).toHaveTextContent('Lena')
+    // Chosen, not yet saved.
+    expect(calls.some((call) => call.method === 'PATCH')).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
 
     await waitFor(() => {
-      expect(calls.find((call) => call.method === 'PATCH')).toMatchObject({
-        path: '/api/v1/people/person-lena',
-        body: { user_id: 'user-anna' },
+      expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({
+        person_id: 'person-lena',
       })
     })
   })
 
-  it('shows whom an account is on the photos, and lets the link go', async () => {
+  it('shows whom an account is on the photos, and lets the link go when saved', async () => {
     const linked = { ...anna, person: { id: 'person-lena', name: 'Lena' } }
     const { calls } = stubApi({
       [LIST]: { body: { items: [linked], next_cursor: null } },
-      'PATCH /api/v1/people/person-lena': { body: {} },
+      'PATCH /api/v1/admin/users/user-anna': { body: anna },
     })
     await renderScreen(<AdminUsersPage />)
     const user = userEvent.setup()
@@ -234,12 +251,10 @@ describe('user management', () => {
     await user.click(
       within(await screen.findByRole('listbox')).getByRole('button', { name: 'Keine' }),
     )
+    await user.click(screen.getByRole('button', { name: 'Änderungen speichern' }))
 
     await waitFor(() => {
-      expect(calls.find((call) => call.method === 'PATCH')).toMatchObject({
-        path: '/api/v1/people/person-lena',
-        body: { user_id: null },
-      })
+      expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({ person_id: null })
     })
   })
 })

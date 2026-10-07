@@ -5,44 +5,28 @@ import { useTranslation } from 'react-i18next'
 import { isApiError } from '@/api/problem'
 import { ConfirmDialog } from '@/components/muninn/confirm-dialog'
 import { Symbol } from '@/components/muninn/symbol'
+import { Toggle } from '@/components/muninn/toggle'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RoleChoice } from '@/features/admin/role-choice'
-import { StartingPassword } from '@/features/admin/starting-password'
 import {
+  type AccountChanges,
   useDeleteUser,
-  useLinkPerson,
   type User,
-  useResetPassword,
   useUpdateUser,
 } from '@/features/admin/use-users'
 import { Field } from '@/features/auth/field'
 import { FormError } from '@/features/auth/form-error'
 import { initialsOf } from '@/features/auth/initials'
+import { MIN_PASSWORD_LENGTH, passwordProblem } from '@/features/auth/password-rules'
 import { Face } from '@/features/people/face'
 import { usePeople } from '@/features/people/use-people'
 import { cn } from '@/lib/utils'
 
 export function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
   const { t } = useTranslation()
-  const updateUser = useUpdateUser()
-  const resetPassword = useResetPassword()
-  const deleteUser = useDeleteUser()
-
   const [expanded, setExpanded] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [newPassword, setNewPassword] = useState<string | null>(null)
-
   const disabled = user.status === 'disabled'
-
-  async function change(changes: Parameters<typeof updateUser.mutateAsync>[0]) {
-    setError(null)
-    try {
-      await updateUser.mutateAsync(changes)
-    } catch (failure) {
-      setError(messageFor(failure, t))
-    }
-  }
 
   return (
     <li className="border-b border-hairline/[0.06] last:border-b-0">
@@ -88,79 +72,8 @@ export function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
       </button>
 
       {expanded && (
-        <div className="space-y-4 border-t border-hairline/[0.06] bg-background/40 p-4">
-          <AccountFields
-            user={user}
-            pending={updateUser.isPending}
-            onSave={(changes) => change({ id: user.id, ...changes })}
-          />
-
-          <PersonChoice user={user} onError={setError} />
-
-          {/* What happens at once, apart from what waits for "Speichern". */}
-          <div className="flex flex-wrap gap-2 border-t border-hairline/[0.06] pt-4">
-            <Button
-              variant="outline"
-              onClick={() => void change({ id: user.id, status: disabled ? 'active' : 'disabled' })}
-              disabled={updateUser.isPending}
-            >
-              <Symbol name={disabled ? 'check_circle' : 'block'} size={20} />
-              {t(disabled ? 'admin.users.action.enable' : 'admin.users.action.disable')}
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => {
-                setError(null)
-                resetPassword.mutate(user.id, {
-                  onSuccess: (result) => {
-                    setNewPassword(result.starting_password)
-                  },
-                  onError: (failure) => {
-                    setError(messageFor(failure, t))
-                  },
-                })
-              }}
-              disabled={resetPassword.isPending}
-            >
-              <Symbol name="lock_reset" size={20} />
-              {t('admin.users.action.resetPassword')}
-            </Button>
-
-            {!isSelf && (
-              <ConfirmDialog
-                trigger={
-                  <Button variant="outline" disabled={deleteUser.isPending}>
-                    <Symbol name="delete" size={20} />
-                    {t('admin.users.action.delete')}
-                  </Button>
-                }
-                title={t('admin.users.delete.title', { name: user.display_name })}
-                description={t('admin.users.delete.description')}
-                confirmLabel={t('admin.users.delete.confirm')}
-                cancelLabel={t('admin.folders.action.cancel')}
-                closeLabel={t('common.close')}
-                destructive
-                pending={deleteUser.isPending}
-                onConfirm={async () => {
-                  setError(null)
-                  try {
-                    await deleteUser.mutateAsync(user.id)
-                  } catch (failure) {
-                    setError(messageFor(failure, t))
-                  }
-                }}
-              />
-            )}
-          </div>
-
-          {isSelf && (
-            <p className="text-xs-plus text-muted-foreground">{t('admin.users.selfHint')}</p>
-          )}
-
-          <FormError message={error} />
-
-          {newPassword && <StartingPassword password={newPassword} name={user.display_name} />}
+        <div className="border-t border-hairline/[0.06] bg-background/40 p-4">
+          <AccountForm user={user} isSelf={isSelf} />
         </div>
       )}
     </li>
@@ -168,47 +81,68 @@ export function UserRow({ user, isSelf }: { user: User; isSelf: boolean }) {
 }
 
 /**
- * Name, username, e-mail address and role of an account, saved together with the button at the
- * bottom. Only what changed is sent; an emptied address is taken away.
+ * Everything about an account in one form - name, username, address, role, the person on the
+ * photos, locked or not, a new password - saved together. Only what changed is sent; an emptied
+ * address is taken away, an empty password field keeps the password.
  */
-function AccountFields({
-  user,
-  pending,
-  onSave,
-}: {
-  user: User
-  pending: boolean
-  onSave: (changes: {
-    display_name?: string
-    username?: string
-    email?: string
-    role?: User['role']
-  }) => Promise<void>
-}) {
+function AccountForm({ user, isSelf }: { user: User; isSelf: boolean }) {
   const { t } = useTranslation()
+  const updateUser = useUpdateUser()
+  const deleteUser = useDeleteUser()
+
   const [displayName, setDisplayName] = useState(user.display_name)
   const [username, setUsername] = useState(user.username)
   const [email, setEmail] = useState(user.email ?? '')
   const [role, setRole] = useState(user.role)
+  const [personId, setPersonId] = useState<string | null>(user.person?.id ?? null)
+  const [locked, setLocked] = useState(user.status === 'disabled')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
-  const changes = {
+  const changes: AccountChanges = {
     ...(displayName.trim() !== user.display_name ? { display_name: displayName.trim() } : {}),
     ...(username.trim() !== user.username ? { username: username.trim() } : {}),
     ...(email.trim() !== (user.email ?? '') ? { email: email.trim() } : {}),
     ...(role !== user.role ? { role } : {}),
+    ...(locked !== (user.status === 'disabled')
+      ? { status: locked ? ('disabled' as const) : ('active' as const) }
+      : {}),
+    ...(password ? { password } : {}),
+    ...(personId !== (user.person?.id ?? null) ? { person_id: personId } : {}),
   }
   const changed = Object.keys(changes).length > 0
+  const busy = updateUser.isPending || deleteUser.isPending
+
+  async function save() {
+    setError(null)
+    setSaved(false)
+    const weak = password ? passwordProblem(password) : null
+    if (weak) {
+      setError(t(`auth.error.${weak}`, { count: MIN_PASSWORD_LENGTH }))
+      return
+    }
+    try {
+      await updateUser.mutateAsync({ id: user.id, ...changes })
+      setPassword('')
+      setSaved(true)
+    } catch (failure) {
+      setError(messageFor(failure, t))
+    }
+  }
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        if (changed) void onSave(changes)
+        if (changed) void save()
       }}
-      className="space-y-3"
+      // Two columns from the tablet up, and no wider than reads well: a long field across a
+      // wide screen is hard to take in.
+      className="max-w-3xl space-y-4"
       noValidate
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
         <Field
           label={t('admin.users.create.displayName')}
           value={displayName}
@@ -226,58 +160,125 @@ function AccountFields({
           autoCorrect="off"
           spellCheck={false}
         />
+        <Field
+          label={t('admin.users.email')}
+          hint={t('admin.users.emailHint')}
+          type="email"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value)
+          }}
+        />
+        <Field
+          label={t('admin.users.password.label')}
+          hint={t('admin.users.password.hint', { count: MIN_PASSWORD_LENGTH })}
+          type="password"
+          autoComplete="new-password"
+          value={password}
+          onChange={(event) => {
+            setPassword(event.target.value)
+            setSaved(false)
+          }}
+        />
+        <RoleChoice value={role} onChange={setRole} disabled={busy} />
+        <PersonChoice user={user} value={personId} onChange={setPersonId} disabled={busy} />
       </div>
-      <Field
-        label={t('admin.users.email')}
-        hint={t('admin.users.emailHint')}
-        type="email"
-        value={email}
-        onChange={(event) => {
-          setEmail(event.target.value)
-        }}
-      />
-      <RoleChoice value={role} onChange={setRole} disabled={pending} />
-      <Button type="submit" disabled={!changed || pending} className="w-full sm:w-auto">
-        <Symbol name="check_circle" size={20} />
-        {t('admin.users.action.save')}
-      </Button>
+
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-hairline/10 bg-card px-3 py-2.5">
+        <div>
+          <p className="text-md font-medium text-foreground">{t('admin.users.locked.label')}</p>
+          <p className="text-xs-plus text-muted-foreground">
+            {t(isSelf ? 'admin.users.locked.self' : 'admin.users.locked.hint')}
+          </p>
+        </div>
+        <Toggle
+          label={t('admin.users.locked.label')}
+          checked={locked}
+          onChange={setLocked}
+          disabled={isSelf || busy}
+        />
+      </div>
+
+      <FormError message={error} />
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-hairline/[0.06] pt-4">
+        <Button type="submit" disabled={!changed || busy}>
+          <Symbol name="check_circle" size={20} />
+          {t('admin.users.action.save')}
+        </Button>
+        {!isSelf && (
+          <ConfirmDialog
+            trigger={
+              <Button type="button" variant="outline" disabled={busy}>
+                <Symbol name="delete" size={20} />
+                {t('admin.users.action.delete')}
+              </Button>
+            }
+            title={t('admin.users.delete.title', { name: user.display_name })}
+            description={t('admin.users.delete.description')}
+            confirmLabel={t('admin.users.delete.confirm')}
+            cancelLabel={t('admin.folders.action.cancel')}
+            closeLabel={t('common.close')}
+            destructive
+            pending={deleteUser.isPending}
+            onConfirm={async () => {
+              setError(null)
+              try {
+                await deleteUser.mutateAsync(user.id)
+              } catch (failure) {
+                setError(messageFor(failure, t))
+              }
+            }}
+          />
+        )}
+        {saved && !changed && (
+          <span role="status" className="text-xs-plus text-muted-foreground">
+            {t('admin.users.saved')}
+          </span>
+        )}
+      </div>
+
+      {isSelf && <p className="text-xs-plus text-muted-foreground">{t('admin.users.selfHint')}</p>}
     </form>
   )
 }
 
 /**
  * Which person on the photos signs in with this account: they hear of comments and reactions on
- * photos of them. Takes effect at once, like locking an account.
+ * photos of them. Saved with the rest of the form.
  */
-function PersonChoice({ user, onError }: { user: User; onError: (message: string) => void }) {
+function PersonChoice({
+  user,
+  value,
+  onChange,
+  disabled,
+}: {
+  user: User
+  value: string | null
+  onChange: (personId: string | null) => void
+  disabled: boolean
+}) {
   const { t } = useTranslation()
   const labelId = useId()
   const hintId = useId()
   const [open, setOpen] = useState(false)
   const people = usePeople()
-  const link = useLinkPerson()
-  const current = user.person?.id ?? null
+  const current = value
   // A hidden person is not among the shown ones; the one this account has stays choosable.
   const shown: Choosable[] = people.data?.persons ?? []
   const persons: Choosable[] = [
     ...shown,
-    ...(user.person && !shown.some((person) => person.id === current) ? [user.person] : []),
+    ...(user.person && !shown.some((person) => person.id === user.person?.id) ? [user.person] : []),
   ].sort((a, b) => a.name.localeCompare(b.name))
   const chosen = persons.find((person) => person.id === current)
 
-  async function choose(personId: string | null) {
+  function choose(personId: string | null) {
     setOpen(false)
-    if (personId === current) return
-    try {
-      if (personId) await link.mutateAsync({ personId, userId: user.id })
-      else if (current) await link.mutateAsync({ personId: current, userId: null })
-    } catch (failure) {
-      onError(messageFor(failure, t))
-    }
+    onChange(personId)
   }
 
   return (
-    <div className="space-y-1.5 border-t border-hairline/[0.06] pt-4">
+    <div className="space-y-1.5">
       <p id={labelId} className="text-sm font-medium text-muted-foreground">
         {t('admin.users.person.label')}
       </p>
@@ -288,8 +289,8 @@ function PersonChoice({ user, onError }: { user: User; onError: (message: string
             aria-haspopup="listbox"
             aria-labelledby={labelId}
             aria-describedby={hintId}
-            disabled={link.isPending || people.isPending}
-            className="flex h-11 w-full items-center gap-2.5 rounded-lg border border-hairline/10 bg-card px-3 text-left text-md text-foreground transition hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60 sm:w-80"
+            disabled={disabled || people.isPending}
+            className="flex h-11 w-full items-center gap-2.5 rounded-lg border border-hairline/10 bg-card px-3 text-left text-md text-foreground transition hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-60"
           >
             {chosen ? (
               <Face src={chosen.cover?.crop} size={26} />
@@ -302,9 +303,14 @@ function PersonChoice({ user, onError }: { user: User; onError: (message: string
             <Symbol name="expand_more" size={20} className="text-muted-foreground" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="p-1.5">
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1.5">
           <ul role="listbox" aria-labelledby={labelId} className="max-h-72 overflow-y-auto">
-            <PersonOption selected={current === null} onChoose={() => void choose(null)}>
+            <PersonOption
+              selected={current === null}
+              onChoose={() => {
+                choose(null)
+              }}
+            >
               <Symbol name="person" size={20} className="mx-[3px] text-muted-foreground" />
               <span className="text-muted-foreground">{t('admin.users.person.none')}</span>
             </PersonOption>
@@ -312,7 +318,9 @@ function PersonChoice({ user, onError }: { user: User; onError: (message: string
               <PersonOption
                 key={person.id}
                 selected={person.id === current}
-                onChoose={() => void choose(person.id)}
+                onChoose={() => {
+                  choose(person.id)
+                }}
               >
                 <Face src={person.cover?.crop} size={26} />
                 <span className="truncate">{person.name}</span>
