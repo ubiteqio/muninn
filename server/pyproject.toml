@@ -13,13 +13,13 @@ dependencies = [
     "asyncpg>=0.30",
     "alembic>=1.14",
     "argon2-cffi>=23.1",
-    "pyjwt>=2.10",
+    "pyjwt[crypto]>=2.10",
     "redis>=5.2",
     "celery[redis]>=5.4",
     "blake3>=1.0",
     "pyvips>=3.0",
-    # Talking to the AI server, which is the only thing Muninn calls out to.
-    "httpx>=0.28",
+    # Talking to the AI server, and to Apple's push service, which speaks only HTTP/2.
+    "httpx[http2]>=0.28",
 ]
 
 [dependency-groups]

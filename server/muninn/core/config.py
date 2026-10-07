@@ -62,6 +62,17 @@ class Settings(BaseSettings):
     login_attempts_per_window: int = 10
     login_attempt_window_seconds: int = 300
 
+    #: Push notifications to iPhones, through Apple's push service. The key is the .p8 file from
+    #: the Apple Developer account, mounted into the container; without it, nothing is pushed.
+    apns_key_file: Path | None = None
+    apns_key_id: str | None = None
+    apns_team_id: str | None = None
+    #: The app's bundle identifier: Apple delivers only to the app it names.
+    apns_topic: str = "io.ubiteq.apps.muninn"
+    #: Apple's sandbox, for an app installed straight from Xcode. TestFlight and the App Store
+    #: use the real service.
+    apns_sandbox: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:
