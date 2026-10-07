@@ -2,6 +2,7 @@ import { createRouter, parseSearchWith, stringifySearchWith } from '@tanstack/re
 
 import { Route as rootRoute } from '@/routes/__root'
 import {
+  activityRoute,
   adminAiRoute,
   adminDuplicatesRoute,
   adminFoldersRoute,
@@ -44,6 +45,7 @@ const routeTree = rootRoute.addChildren([
   photobooksRoute,
   photobookRoute,
   favoritesRoute,
+  activityRoute,
   searchRoute,
   mapRoute,
   peopleRoute,

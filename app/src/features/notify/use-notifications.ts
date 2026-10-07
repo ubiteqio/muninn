@@ -56,6 +56,21 @@ export function useActivity(limit = 8) {
   })
 }
 
+/** The whole news feed, a page at a time as it is scrolled down. */
+export function useActivityFeed() {
+  return useInfiniteQuery({
+    queryKey: ['activity', 'feed'],
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last: { next_cursor?: string | null }) => last.next_cursor ?? undefined,
+    queryFn: async ({ pageParam }) =>
+      unwrap(
+        await api.GET('/api/v1/activity', {
+          params: { query: pageParam ? { before: pageParam } : {} },
+        }),
+      ),
+  })
+}
+
 /**
  * The bell and the news follow the live channel: a ping for me moves the bell, anything
  * anybody does refreshes the news.

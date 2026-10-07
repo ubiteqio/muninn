@@ -88,7 +88,14 @@
   },
   "activity": {
     "title": "Neuigkeiten",
+    "description": "Was die Familie zuletzt getan hat: Kommentare, Likes und neue Bilder, das Neueste oben.",
     "empty": "Noch ist es still. Kommentare, Likes und neue Bilder erscheinen hier.",
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "openPicture": "Bild im Album öffnen",
+    "openVideo": "Video im Album öffnen",
+    "more_one": "1 weiteres im Album",
+    "more_other": "{{count, number}} weitere im Album",
     "kind": {
       "comment": "hat kommentiert",
       "like": "gefällt ein Bild",

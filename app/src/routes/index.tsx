@@ -1,5 +1,6 @@
 import { createRoute, lazyRouteComponent, Navigate } from '@tanstack/react-router'
 
+import { ActivityScreen } from '@/features/activity/activity-screen'
 import { AdminAiPage } from '@/features/admin/ai-page'
 import { AdminDuplicatesPage } from '@/features/admin/duplicates-page'
 import { AdminFoldersPage } from '@/features/admin/folders-page'
@@ -370,6 +371,13 @@ function ChapterRoute() {
   const { medium, play } = chapterRoute.useSearch()
   return <ChapterScreen key={chapterId} chapterId={chapterId} medium={medium} play={play} />
 }
+
+/** Neuigkeiten as a feed: what everybody has been doing, the whole of it. */
+export const activityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/activity',
+  component: ActivityScreen,
+})
 
 /** Walhall: everybody's own favourites. */
 export const favoritesRoute = createRoute({

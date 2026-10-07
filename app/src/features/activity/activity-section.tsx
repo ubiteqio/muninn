@@ -2,68 +2,27 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyNote } from '@/components/muninn/empty-note'
-import { PersonInitial } from '@/components/muninn/person-initial'
 import { LoadingBody, Placeholder } from '@/components/muninn/placeholder'
 import { SectionHeading } from '@/components/muninn/section-heading'
-import { Symbol } from '@/components/muninn/symbol'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { HappeningAvatar, HappeningLink } from '@/features/activity/happening'
+import { useHappeningText } from '@/features/activity/happening-text'
 import { type Happening, useActivity } from '@/features/notify/use-notifications'
-import { emojiOf } from '@/features/social/reactions'
 import { when } from '@/features/social/when'
-import { cn } from '@/lib/utils'
 
-/** The start page shows only the latest few; the bell keeps the rest. */
+/** The start page shows only the latest few; "Alle ansehen" leads to the whole feed. */
 const SHOWN = 5
 
-const KIND_ICON: Record<string, string> = {
-  comment: 'chat_bubble',
-  like: 'favorite',
-  new_media: 'add_photo_alternate',
-}
-
-/** Who did it, or the album's own mark when nobody did - new pictures simply arrive. */
-function Initial({ name }: { name: string | null | undefined }) {
-  if (!name) {
-    return (
-      <span className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-secondary text-muted-foreground">
-        <Symbol name="photo_library" size={18} />
-      </span>
-    )
-  }
-  return <PersonInitial name={name} size={38} />
-}
-
 function ActivityRow({ item, thumbSize }: { item: Happening; thumbSize: number }) {
-  const { t } = useTranslation()
-  const reacted = item.kind === 'like' && item.reaction && item.reaction !== 'heart'
-  const text =
-    item.kind === 'new_media'
-      ? t('activity.kind.new_media', { count: item.count })
-      : reacted
-        ? t('activity.kind.reaction', { emoji: emojiOf(item.reaction) })
-        : t(`activity.kind.${item.kind}`)
+  const text = useHappeningText(item)
 
-  const body = (
-    <>
-      <div className="relative shrink-0">
-        <Initial name={item.actor} />
-        {/* What happened, overlapping the initial at the bottom right. */}
-        <span className="absolute -bottom-0.5 -right-0.5 flex h-[19px] w-[19px] items-center justify-center rounded-full border-2 border-card bg-secondary">
-          {reacted ? (
-            <span aria-hidden="true" className="text-[10px] leading-none">
-              {emojiOf(item.reaction)}
-            </span>
-          ) : (
-            <Symbol
-              name={KIND_ICON[item.kind] ?? 'history'}
-              size={11}
-              filled={item.kind === 'like'}
-              className={item.kind === 'like' ? 'text-rose-500' : 'text-muted-foreground'}
-            />
-          )}
-        </span>
-      </div>
+  return (
+    <HappeningLink
+      item={item}
+      className="flex w-full items-center gap-3 p-3 text-left transition hover:bg-secondary/40"
+    >
+      <HappeningAvatar item={item} />
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-base-plus text-foreground">
@@ -89,31 +48,8 @@ function ActivityRow({ item, thumbSize }: { item: Happening; thumbSize: number }
           style={{ width: thumbSize, height: thumbSize }}
         />
       )}
-    </>
+    </HappeningLink>
   )
-  const row = 'flex w-full items-center gap-3 p-3 text-left transition hover:bg-secondary/40'
-
-  if (item.media && item.kind !== 'new_media') {
-    return (
-      <Link
-        to="/albums/$albumId"
-        params={{ albumId: item.media.album_id }}
-        search={{ medium: item.media.id }}
-        className={row}
-      >
-        {body}
-      </Link>
-    )
-  }
-  const albumId = item.album?.id ?? item.media?.album_id
-  if (albumId) {
-    return (
-      <Link to="/albums/$albumId" params={{ albumId }} className={row}>
-        {body}
-      </Link>
-    )
-  }
-  return <div className={cn(row, 'cursor-default')}>{body}</div>
 }
 
 /**
@@ -132,7 +68,15 @@ export function ActivitySection({
 
   return (
     <section aria-labelledby="activity-heading" aria-busy={activity.isPending}>
-      <SectionHeading id="activity-heading" title={t('activity.title')} />
+      <SectionHeading
+        id="activity-heading"
+        title={t('activity.title')}
+        action={
+          <Link to="/activity" className="text-sm font-medium text-primary hover:text-accent">
+            {t('common.showAll')}
+          </Link>
+        }
+      />
       {activity.isPending ? (
         <ActivityLoading thumbSize={thumbSize} />
       ) : activity.isSuccess && items.length === 0 ? (
